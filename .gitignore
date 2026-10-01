@@ -10,3 +10,8 @@
 *.CompileLog
 *.htm
 *.SchDoc.Zip
+
+# Videos: demasiado pesados para GitHub (>2 GB c/u), se transfieren por pendrive.
+# Se versiona solo el indice Videos/README.md para que la carpeta exista en el repo.
+Videos/*
+!Videos/README.md

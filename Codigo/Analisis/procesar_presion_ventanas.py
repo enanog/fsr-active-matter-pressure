@@ -4,9 +4,10 @@ Post-processing pipeline for FSR pressure logs (Kilobots confined system).
 Recursively scans the whole `Mediciones` folder (every dated/named
 subfolder, at any depth -- except `Procesado`, which holds this script's own
 output and is always skipped) and processes every log file whose name
-matches the measurement code `AAAAMMDD_hhmm_XX_ll` (year, month, day, hour,
-minute, robot count, recording minutes -- see CLAUDE.md), optionally
-prefixed with `R_` (raw file) -- so a stray/unrelated file sitting in
+matches the measurement code `AAAAMMDD_HHMM_XXYY_TT` (year, month, day,
+hour, minute, robot count XX + movement mode YY, recording minutes TT --
+see CLAUDE.md), optionally prefixed with `R_` (raw file) -- so a
+stray/unrelated file sitting in
 `Mediciones/` is simply skipped instead of raising a false error. Matching
 files may still be `.csv` or `.json` (several older logs are ".json" files
 that actually hold plain CSV text). For each match it:
@@ -67,20 +68,24 @@ INPUT_EXTS = {".csv", ".json"}
 
 # Subfolder names to skip anywhere in the tree (its own output, plus the
 # usual OS/VCS clutter).
-EXCLUDE_DIRNAMES = {"Procesado", ".git", "$RECYCLE.BIN"}
+EXCLUDE_DIRNAMES = {"Procesado", ".git", "$RECYCLE.BIN", "No Procesar"}
 
 # Output root. Each output file goes to
 # OUTPUT_DIR/<same relative subfolder as the input>/P_<codigo>.csv.
 OUTPUT_DIR = r"C:\Users\dylan\OneDrive\Desktop\Proyecto_PresionRecintoCircular\Mediciones\Procesado"
 
 # --- File naming convention ---
-# Raw measurement files are named AAAAMMDD_hhmm_XX_ll (date, time, robot
-# count, recording minutes), optionally prefixed "R_" -- both forms are
-# recognized so files saved before the R_ prefix was adopted still work.
-# Processed outputs are always written as "P_<codigo>.csv". Anything in
-# Mediciones/ that doesn't match this code (stray files, differently named
-# legacy logs) is silently skipped -- it is not "raw" until it's renamed.
-CODE_RE = re.compile(r"^(?:[Rr]_)?(\d{8}_\d{4}_\d{2}_\d{2})$")
+# Raw measurement files are named AAAAMMDD_HHMM_XXYY_TT (date, time, robot
+# count XX + movement mode YY -- e.g. "R" random, "QR" all turning right,
+# "QZ" all turning left --, recording minutes TT), optionally prefixed
+# "R_" -- both forms are recognized so files saved before the R_ prefix was
+# adopted still work. Processed outputs are always written as
+# "P_<codigo>.csv". Anything in Mediciones/ that doesn't match this code
+# (stray files, differently named legacy logs) is silently skipped -- it is
+# not "raw" until it's renamed. Matching is case-insensitive on the mode
+# letters and the R_ prefix, but the code is kept exactly as found (original
+# case) in the output filename.
+CODE_RE = re.compile(r"^(?:R_)?(\d{8}_\d{4}_\d{2}[A-Z]{1,2}_\d{2})$", re.IGNORECASE)
 RAW_PREFIX = "R_"
 PROC_PREFIX = "P_"
 
@@ -95,7 +100,16 @@ TIME_UNITS = "s"             # "s" or "ms" -- unit actually used by TIME_COL val
 # --- Front-end calibration (see Codigo/fsr_single_read/fsr_single_read.ino) ---
 V_REF = 3.3        # [V] ADC reference voltage
 V_EXC = 0.7534     # [V] excitation voltage
-R_FEEDBACK = 12000.0  # [ohm] feedback resistor
+R_FEEDBACK = 5000.0  # [ohm] feedback resistor -- cambiado 2026-09-24 de 5000 ohm
+                      # (dos 10k en paralelo) a 1000 ohm para bajar el piso de
+                      # saturacion (R_floor = V_EXC*R_FEEDBACK/V_REF ~228 ohm vs
+                      # ~1141.5 ohm antes) despues de que R_20262409_1600_23QR_60.csv
+                      # mostrara saturacion sostenida por >6 min. Validado
+                      # empiricamente por el usuario: con 1k, presionando el
+                      # sensor a mano al maximo, NO satura; con 2k2 si -- ver
+                      # CLAUDE.md. Si vuelve a cambiar el hardware, reverificar
+                      # contra el piso de saturacion real de los datos (R minimo
+                      # constante en filas con CLIPSAT==N), no confiar de memoria.
 ADC_FS = 1023.0    # full-scale ADC code (10-bit)
 K_G_US = (V_REF * 1.0e6) / (ADC_FS * V_EXC * R_FEEDBACK)  # conductance factor [uS/count]
 
@@ -240,7 +254,7 @@ def pad_to_length(arr: np.ndarray, length: int) -> np.ndarray:
 
 
 def extract_code(basename_no_ext: str) -> str | None:
-    """Return the AAAAMMDD_hhmm_XX_ll code if `basename_no_ext` matches the
+    """Return the AAAAMMDD_HHMM_XXYY_TT code if `basename_no_ext` matches the
     naming convention (with or without an 'R_' prefix), else None."""
     m = CODE_RE.match(basename_no_ext.strip())
     return m.group(1) if m else None
@@ -250,7 +264,7 @@ def discover_files(root: str, exts: set[str], exclude_dirnames: set[str]) -> lis
     """Recursively walk `root`, skipping any subfolder whose name is in
     `exclude_dirnames` (checked case-insensitively), and return
     (path, codigo) pairs for every file whose extension (case-insensitive)
-    is in `exts` AND whose base name matches the AAAAMMDD_hhmm_XX_ll code
+    is in `exts` AND whose base name matches the AAAAMMDD_HHMM_XXYY_TT code
     (see CODE_RE) -- anything else in the folder is ignored. Sorted for a
     deterministic, reproducible run order."""
     exclude_lower = {d.lower() for d in exclude_dirnames}
@@ -312,7 +326,7 @@ def main() -> None:
 
     if not files:
         raise FileNotFoundError(
-            f"No se encontraron archivos con el codigo AAAAMMDD_hhmm_XX_ll "
+            f"No se encontraron archivos con el codigo AAAAMMDD_HHMM_XXYY_TT "
             f"(con o sin prefijo '{RAW_PREFIX}') bajo '{MEDICIONES_ROOT}' "
             f"(excluyendo {sorted(EXCLUDE_DIRNAMES)})."
         )
