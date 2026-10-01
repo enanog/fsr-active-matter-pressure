@@ -1,0 +1,282 @@
+% ============================================================================
+% Poster A0 - "Pressure Measurement in Confined Systems of Self-Propelled
+% Particles via FSR Sensors".
+%
+% Layout (columns=6 grid):
+%   Row 1: Abstract & Introduction (span=3) | Experimental Setup (span=3)
+%   Row 2: Histograms (span=4) | Asymmetry (span=2)
+%   Row 3: Pressure Dynamics N=27 (span=4) | Survival (span=2)
+%   Row 4: Conclusions (span=3) | References (span=2) | Color Legend (span=1)
+%
+% IMPORTANT (baposter mechanics, learned the hard way):
+%  1) bottomaligned=X needs box X to already be typeset earlier IN THE
+%     SOURCE (pgf resolves that anchor in source order, not by column/
+%     visual position). So in every row below, the "reference" box (the
+%     one with height=auto) is written FIRST, and the box(es) using
+%     bottomaligned=<reference> are written right after it.
+%  2) below=auto does NOT mean "flush under the header" -- it means
+%     "below whatever box was written immediately before me in the
+%     source" (baposter.cls tracks a single \@@previousbox, ignoring
+%     columns). A box left with NO "below"/"aligned" key defaults to
+%     row=0, which IS flush under the header -- that is what every
+%     first box of Row 1 uses; only cross-row references use an
+%     explicit below=<name>.
+%  3) bottomaligned only overrides the box's FRAME height -- it does
+%     NOT reflow or shrink the box's content. If the dependent box's
+%     own content is taller than the reference box, that content
+%     overflows past its own border. So the reference box in each row
+%     must be the one that naturally needs the most room (Row 1:
+%     "setup", the circuit figure + parameter list; Row 2: "histograms",
+%     the 2x2 grid; Row 3: "dynamics", the wide time series). If you
+%     grow the dependent box's content (abstractintro / asymmetry /
+%     survival) it is safe to make it SHORTER than the reference (blank
+%     space) but NOT taller (silent overflow) -- recompile and check.
+%  4) Row 4 uses a different, more robust trick: all three boxes
+%     (conclusions, references, colorlegend) use below=dynamics AND
+%     above=bottom together. "above=bottom" pins the box's bottom edge
+%     to the physical page bottom regardless of content, so all three
+%     automatically share the exact same top (dynamics' bottom) and
+%     bottom (page bottom) -- i.e. the same height -- with no
+%     bottomaligned/ordering dependency between them at all. The only
+%     requirement is that "conclusions" (deliberately the longest of
+%     the three) still fits in that fixed height; if you lengthen it,
+%     recompile and confirm nothing is clipped at the very bottom.
+%  5) baposter never reflows content to fit the physical page: if the
+%     sum of all row heights exceeds the A0 page, the excess is simply
+%     clipped, invisibly, with no error and no second page. Every large
+%     image below sits inside a minipage narrower than the box (not the
+%     raw box width), so width=\linewidth (rule: always use it) still
+%     holds while leaving headroom for Row 4.
+% ============================================================================
+\documentclass[portrait,a0paper,fontscale=0.292]{baposter}
+
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{grffile} % allows filenames with spaces, e.g. "Skewness vs deltaT.pdf"
+\usepackage{multicol} % defines \raggedcolumns, used below
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{circuitikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\ctikzset{bipoles/thickness=1.1}
+
+% --- "SAGE GREEN" PALETTE -- CHANGE COLORS HERE -------------------------
+\definecolor{sageDark}{HTML}{3F5344}   % borders, header
+\definecolor{sageMid}{HTML}{5C7A57}    % header (gradient)
+\definecolor{sagePale}{HTML}{EDF2E9}   % box fill
+\definecolor{canvasBg}{HTML}{E2E9DC}   % page background
+\definecolor{ink}{HTML}{222B20}        % body text
+\definecolor{scopeBorder}{HTML}{3F5344}
+\definecolor{scopeBg}{HTML}{E7EFE1}
+
+% Trace colors (must match the exported PDFs) -- DO NOT CHANGE.
+\definecolor{cVacio}{HTML}{475569}   % Empty/0 bots -- Slate Gray
+\definecolor{cN25}{HTML}{0284C7}     % 25 bots -- Cerulean Blue
+\definecolor{cN26}{HTML}{D97706}     % 26 bots -- Amber
+\definecolor{cN27}{HTML}{BE123C}     % 27 bots -- Crimson
+
+% Color Legend helpers: a TikZ-drawn swatch (not \rule) next to a bold label.
+% --- CHANGE SWATCH SIZE HERE (0.34 x 0.34 cm) ---
+\newcommand{\swatch}[1]{\tikz[baseline=-0.5ex]{\filldraw[fill=#1,draw=black!45,line width=0.3pt] (0,0) rectangle (0.34,0.34);}}
+\newcommand{\legendrow}[2]{\swatch{#1}\ \textbf{#2}}
+
+\begin{document}
+	\color{ink}
+	\raggedcolumns
+	
+	\begin{poster}{
+			background=shadetb, bgColorOne=white, bgColorTwo=canvasBg,
+			headerheight=0.06\textheight, % --- CHANGE HEADER HEIGHT HERE (title wraps to 2 lines: keep room or it gets clipped at the top) ---
+			columns=6,                     % 6-column grid (baposter's maximum)
+			colspacing=1em,              % --- CHANGE COLUMN/ROW SPACING HERE ---
+			headershade=plain, headershape=roundedright, textborder=roundedleft,
+			linewidth=1.6pt, headerborder=closed,
+			boxpadding=0.30em, boxheaderheight=1.4em, % inner margin: generous but budgeted (4 stacked rows must fit one A0 page)
+			eyecatcher=true, grid=false,
+			borderColor=sageDark, headerColorOne=sageDark, headerColorTwo=sageMid,
+			headerFontColor=white, boxColorOne=white, boxColorTwo=sagePale,
+		}
+		{\raisebox{-0.5\height}{\includegraphics[height=0.6cm]{figures/logoITBA}}}
+		{\textsc{\textbf{\Large Pressure Measurement in Confined Systems of Self-Propelled Particles via FSR Sensors}}}
+		{\vspace{0.15em}{\normalsize Dylan Frigerio$^{1}$ and Germ\'an Patterson$^{1,2}$ -- $^{1}$ITBA \ $^{2}$CONICET\\[0.08em]
+				\footnotesize\texttt{dyfrigerio@itba.edu.ar, gpatterson@itba.edu.ar}}}
+		{\raisebox{-0.5\height}{\includegraphics[height=0.6cm]{figures/logoCONICET}}}
+		
+		%% ===========================================================================
+		%% ROW 1 -- Abstract & Introduction | Experimental Setup (even 3/3 split now
+		%% that Color Legend moved to Row 4). "setup" is still the reference box
+		%% (height=auto, see note 3): it is the least flexible box in this row.
+		%% ===========================================================================
+		\begin{posterbox}[name=setup,column=3,height=auto,span=3]{{Experimental Setup}}
+			\small
+			The FSR strip is glued along the full inner perimeter of the circular arena, so it integrates the total force the swarm exerts on the wall into a single conductance $G=1/R_{FSR}$.
+			\vspace{0.05em}
+			\begin{center}
+				% --- CHANGE CIRCUIT WIDTH HERE (always scaled to \linewidth, never overflows) ---
+				\resizebox{0.9\linewidth}{!}{%
+					\begin{circuitikz}[american voltages, scale=1.2, every node/.append style={font=\LARGE}, color=sageDark]
+						\node[op amp] (opamp) at (3.4,0) {};
+						\draw (opamp.-) -- ++(-0.7,0) coordinate(sj)
+						to[vR, l=$R_{FSR}$, *-*] ++(-2.0,0) coordinate(fsrleft);
+						\draw (fsrleft) -- ++(0,-0.35) coordinate(battop);
+						\draw (battop) to[battery1, l_={$V_{exc}$}] ++(0,-1.15) node[ground]{};
+						\draw (opamp.+) -- ++(-0.5,0) -- ++(0,-0.7) node[ground]{};
+						\coordinate (fbtop) at ($(opamp.out)+(0,1.1)$);
+						\coordinate (fbleft) at (sj |- fbtop);
+						\draw (sj) -- (fbleft);
+						\draw (fbleft) to[R, l={$R_f$}] (fbtop);
+						\draw (fbtop) -- (opamp.out);
+						\node[draw=sageDark, thick, fill=sagePale, minimum width=2.6cm, minimum height=2.0cm, inner sep=5pt, align=center]
+						(mcu) at ($(opamp.out)+(2.1,0)$) {\Large\textbf{MCU}\\[3pt] \large 10-bit ADC\\ Averaging ($N{=}10$)};
+						\draw[-{Latex[length=2mm]}] (opamp.out) -- (mcu.west);
+						\draw[-{Latex[length=2.2mm]}, thick] (mcu.east) -- ++(1.0,0) node[right, align=left] {\textbf{UART}\\[-1pt] 115200 bd};
+						\fill (sj) circle(1.6pt);
+					\end{circuitikz}%
+				}
+			\end{center}
+			\vspace{0.1em}
+			An inverting transimpedance stage converts $R_{FSR}$ into a voltage $V_{\text{out}}=-V_{exc}\,R_f/R_{FSR}$, which the MCU digitizes and streams over UART; the excitation is fixed and inverted so the divider sits in its most sensitive range. With $R_f=10\,\mathrm{k}\Omega$, $G\,[\mu\text{S}]=1/R_{FSR}\propto \text{ADC}_{\text{raw}}$, and averaging $N=10$ raw samples on-board suppresses high-frequency electrical noise before each reading is logged.
+			\vspace{0.2em}
+			\begin{center}
+				\fcolorbox{scopeBorder}{scopeBg}{\parbox{0.7\linewidth}{%
+						\footnotesize\textbf{Parameters}\\[0.25em]
+						\begin{itemize}[itemsep=1.5pt,topsep=1pt,leftmargin=1.0em]
+							\item $N=\{0,25,26,27\}$
+							\item Frame rate: $20\,\mathrm{Hz}$
+							\item Duration: $30\,\mathrm{min/run}$
+							\item Excitation: $-0.7534\,\mathrm{V}$
+							\item Baud rate: $115200\,\mathrm{bps}$
+						\end{itemize}%
+				}}
+			\end{center}
+		\end{posterbox}
+		
+		\begin{posterbox}[name=abstractintro,column=0,bottomaligned=setup,span=3]{{Abstract \& Introduction}}
+\small
+% --- Abstract: keep this to ONE line (widen/shorten it if you edit) ---
+\textbf{Abstract.} A low-cost FSR-strip sensor for direct, continuous wall-pressure readout in confined Kilobot swarms.
+
+\vspace{0.5em}
+\textbf{Introduction.} Pressure in active matter is generally \textbf{not a state function}: it depends on the container's shape, not only on density and activity. Prior studies infer it only \textbf{indirectly}, from wall deflection or a single-point load cell; our FSR strip instead reads the wall force directly and continuously.
+\vspace{0.4em}
+
+\fcolorbox{scopeBorder}{scopeBg}{\parbox{0.6\linewidth}{\footnotesize\vspace{0.1em}\textbf{Scope:} results here are for the \textbf{integral} configuration only; the distributed multi-strip sensor is future work.\vspace{0.1em}}}
+\end{posterbox}
+		
+		%% ===========================================================================
+		%% ROW 2 -- Histograms | Asymmetry
+		%% "histograms" is the reference box; "asymmetry" bottomaligns to it. The
+		%% asymmetry image/text are sized to use most of that height (per Dylan's
+		%% feedback: it used to leave a lot of blank space) while staying under it.
+		%% ===========================================================================
+		\begin{posterbox}[name=histograms,column=0,below=setup,height=auto,span=4]{{Histograms}}
+			\vspace{0.1em}
+			\begin{center}
+				\begin{minipage}[t]{0.36\linewidth}
+					\centering
+					\includegraphics[width=\linewidth]{figures/Null_Histogram.pdf}\\[2pt]
+					{\footnotesize Empty}
+				\end{minipage}%
+				\hfill
+				\begin{minipage}[t]{0.36\linewidth}
+					\centering
+					\includegraphics[width=\linewidth]{figures/Histogram_25.pdf}\\[2pt]
+					{\footnotesize 25 bots}
+				\end{minipage}
+				
+				\vspace{4pt}
+				
+				\begin{minipage}[t]{0.36\linewidth}
+					\centering
+					\includegraphics[width=\linewidth]{figures/Histogram_26.pdf}\\[2pt]
+					{\footnotesize 26 bots}
+				\end{minipage}%
+				\hfill
+				\begin{minipage}[t]{0.36\linewidth}
+					\centering
+					\includegraphics[width=\linewidth]{figures/Histogram_27.pdf}\\[2pt]
+					{\footnotesize 27 bots}
+				\end{minipage}
+			\end{center}
+			\vspace{0.2em}
+			\footnotesize Each panel shows the distribution of $\delta G$ for a full run, at the colony size $N$ indicated, using the window of maximum skewness for $N=27$ (see Asymmetry) so all four are directly comparable. As $N$ grows, the distribution widens and gains a positive tail from large, sporadic wall-force events tied to arch formation.
+		\end{posterbox}
+		
+		\begin{posterbox}[name=asymmetry,column=4,below=setup,bottomaligned=histograms,span=2]{{Asymmetry}}
+			\vspace{0.15em}
+			\begin{center}
+				\begin{minipage}{0.85\linewidth}
+					\includegraphics[width=\linewidth]{figures/Skewness vs deltaT.pdf}
+				\end{minipage}
+			\end{center}
+			\vspace{0.2em}
+			\small Skewness of $\delta G$ over sliding windows of width $\delta t$, for each $N$. A higher, sharper peak at larger $N$ means stronger, more coordinated force bursts, as force chains form and collapse against the wall; its location sets the histogram window above.
+		\end{posterbox}
+		
+		%% ===========================================================================
+		%% ROW 3 -- Pressure Dynamics | Survival
+		%% "dynamics" is the reference box; "survival" bottomaligns to it, same
+		%% "use the available height" sizing as Asymmetry above.
+		%% ===========================================================================
+		\begin{posterbox}[name=dynamics,column=0,below=histograms,height=auto,span=4]{{Pressure Dynamics (N=27)}}
+			\vspace{0.2em}
+			\begin{center}
+				\begin{minipage}{0.8\linewidth}
+					\includegraphics[width=\linewidth]{figures/Jamming.pdf}
+				\end{minipage}
+			\end{center}
+			\vspace{0.15em}
+			\footnotesize $G(t)$ around a representative unjamming event, $N=27$. The slow rise tracks pressure build-up as an arch blocks the exit; the sharp drop marks its collapse and the resumption of flow -- the microscopic signature behind the heavy tail seen in Survival.
+		\end{posterbox}
+		
+		\begin{posterbox}[name=survival,column=4,below=histograms,bottomaligned=dynamics,span=2]{{Survival}}
+			\vspace{0.15em}
+			\begin{center}
+				\begin{minipage}{0.85\linewidth}
+					\includegraphics[width=\linewidth]{figures/Supervivencia.pdf}
+				\end{minipage}
+			\end{center}
+			\vspace{0.2em}
+			\small Survival $P(G\!\geq\!g)$, log scale. The tail thickens with $N$: large wall forces, tied to the jamming events at left, become more frequent as the colony gets denser -- a consequence of intermittent jamming, not isolated extreme events.
+		\end{posterbox}
+		
+		%% ===========================================================================
+		%% ROW 4 -- Conclusions | References | Color Legend, three separate boxes,
+		%% "conclusions" deliberately the widest/longest of the three (see note 4).
+		%% ===========================================================================
+		\begin{posterbox}[name=conclusions,column=0,below=dynamics,above=bottom,span=3]{{Conclusions}}
+			\small
+			We built a low-cost FSR-strip sensor that reads the pressure of a confined Kilobot swarm directly and continuously, without wall deflection or point load cells. Increasing colony density does not simply rescale the pressure signal: it widens the fluctuation distribution, increases its skewness, and thickens the survival tail, all tied to the onset and collapse of jamming arches -- consistent with active-matter pressure not being captured by density and activity alone. The distributed multi-strip array, already built, is the natural next step: localizing these forces in space and testing a geometry-aware equation of state.
+		\end{posterbox}
+		
+		\begin{posterbox}[name=references,column=3,below=dynamics,above=bottom,span=2]{{References}}
+			\scriptsize
+			\begin{enumerate}[itemsep=2pt,topsep=1pt,parsep=0pt,partopsep=0pt,leftmargin=1.35em]
+				\item[{[1]}] A.~P.~Solon \textit{et al.}, Nat. Phys. \textbf{11}, 673 (2015).
+				\item[{[2]}] G.~Junot \textit{et al.}, Phys. Rev. Lett. \textbf{119}, 028002 (2017).
+				\item[{[3]}] G.~A.~Patterson \textit{et al.}, Phys. Rev. Lett. \textbf{119}, 248301 (2017).
+				\item[{[4]}] M.~R.~Ferressini \textit{et al.}, Phys. Rev. E, 015406 (2025).
+				\item[{[5]}] R.~O.~Duda and P.~E.~Hart, Commun. ACM \textbf{15}, 11 (1972).
+			\end{enumerate}
+		\end{posterbox}
+		
+		\begin{posterbox}[name=colorlegend,column=5,below=dynamics,above=bottom,span=1]{{Color Legend}}
+			\centering
+			{\footnotesize Legend:}
+			\vspace{0.25em}
+			
+			\begin{center}
+				\legendrow{cVacio}{Empty}\\[0.3em]
+				\legendrow{cN25}{25 bots}\\[0.3em]
+				\legendrow{cN26}{26 bots}\\[0.3em]
+				\legendrow{cN27}{27 bots}
+			\end{center}
+			\vspace{0.25em}
+			{\footnotesize\itshape Applies to all panels.}
+		\end{posterbox}
+		
+	\end{poster}
+\end{document}

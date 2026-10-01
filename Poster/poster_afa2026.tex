@@ -1,0 +1,324 @@
+% ============================================================================
+% AFA 2026 (111a Reunion Nacional, Catamarca) -- Poster A0 vertical.
+% "Medicion de presion en sistemas de particulas autopropulsadas confinadas
+% mediante sensores FSR en configuracion integral y distribuida."
+%
+% This file MERGES the two base drafts found in this folder:
+%   - poster.tex     -> refined sage-green palette, \swatch/\legendrow/\badge
+%                       macros, and the detailed inverting-amplifier circuit.
+%   - poster_es.tex  -> the MODULAR box layout the user asked to keep
+%                       (9 independent posterboxes, each individually
+%                       movable/resizable), instead of poster.tex's 4 giant
+%                       span=6 boxes with internal 3-column tabulars.
+% Net result: poster_es's mobility + poster.tex's visual polish.
+%
+% Baposter mechanics worth remembering while editing further:
+%  1) A box with no below/bottomaligned key defaults to row=0 (flush under
+%     the header) -- only the very first box (resumen) does that here.
+%  2) bottomaligned=X only stretches the box FRAME to match X's bottom edge;
+%     it does not reflow content, so keep the aligned box's content short
+%     enough to fit inside that frame.
+%  3) height=auto lets each box size itself to its content -- used on every
+%     box here so the whole left/right column stacks are self-adjusting.
+%  4) boxheaderheight below ~0.65em clips the header text; 1.3em is the
+%     verified-safe floor for readable box titles at this fontscale.
+% ============================================================================
+\documentclass[a0paper,portrait,fontscale=0.292,margin=0.7cm]{baposter}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{grffile} % allows filenames with spaces, e.g. "Skewness vs deltaT.pdf"
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{circuitikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+\ctikzset{bipoles/thickness=1.1}
+
+% Spanish babel makes ">" an active shorthand character, which breaks TikZ's
+% "->" arrow syntax. Disabled for the whole body (re-enabled at the very end)
+% since every arrow used below relies on plain "->" or "-{Latex[...]}" tips.
+% --- KEEP THIS: removing it silently breaks every arrow in the diagrams ---
+
+% --- "SAGE GREEN" PALETTE (from poster.tex) -- CHANGE COLORS HERE ---------
+\definecolor{sageDark}{HTML}{3F5344}   % borders, header
+\definecolor{sageMid}{HTML}{5C7A57}    % header (gradient)
+\definecolor{sagePale}{HTML}{DCE9D5}   % small UI fills (badges, MCU/ADC boxes) -- kept light for readability
+\definecolor{verdeSavia}{HTML}{7FA378} % solid page background (everything outside the boxes)
+\definecolor{ink}{HTML}{222B20}        % body text
+
+% Trace colors (must match the exported PDFs) -- DO NOT CHANGE.
+\definecolor{cVacio}{HTML}{475569}   % Empty/0 bots -- Slate Gray
+\definecolor{cN25}{HTML}{0284C7}     % 25 bots -- Cerulean Blue
+\definecolor{cN26}{HTML}{D97706}     % 26 bots -- Amber
+\definecolor{cN27}{HTML}{BE123C}     % 27 bots -- Crimson
+
+\setlength{\fboxsep}{2.2pt}
+
+% Color-legend helper: a small TikZ swatch (not \rule) next to a bold label.
+\newcommand{\swatch}[1]{\tikz[baseline=-0.5ex]{\filldraw[fill=#1,draw=black!45,line width=0.3pt] (0,0) rectangle (0.34,0.34);}}
+\newcommand{\legendrow}[2]{\swatch{#1}\ \textbf{#2}}
+% Small rounded "badge" tag, e.g. \badge{20 Hz}
+\newcommand{\badge}[1]{\tikz[baseline=-0.5ex]{\node[draw=sageDark,thick,fill=sagePale,rounded corners=2pt,inner sep=3pt,font=\footnotesize]{#1};}}
+% Fallback-safe \includegraphics: shows a placeholder box instead of a hard
+% compile error if an asset is ever missing/renamed.
+\newcommand{\safefig}[2][]{\IfFileExists{#2}{\includegraphics[#1]{#2}}{\fbox{\begin{minipage}[c][2cm][c]{0.8\linewidth}\centering\scriptsize\ttfamily Falta:\\ #2\end{minipage}}}}
+% Plain figure wrapper (kept as \figcard for call-site compatibility). No
+% border/frame: box fill is flat white, matching the images' own baked-in
+% white background, so the figure sits flush/integrated with no visible mat.
+\newcommand{\figcard}[2][]{\safefig[#1]{#2}}
+
+\begin{document}
+	\shorthandoff{>}
+	\color{ink}
+	
+	\begin{poster}{
+			background=plain, bgColorOne=verdeSavia,
+			headerheight=0.092\textheight,
+			columns=5,
+			colspacing=0.4em,
+			headershade=plain, headershape=roundedright, textborder=roundedleft,
+			linewidth=2pt, headerborder=closed,
+			boxpadding=0.4em, boxheaderheight=2em,
+			boxshade=plain,
+			eyecatcher=true, grid=false,
+			borderColor=sageDark, headerColorOne=sageDark, headerColorTwo=sageMid,
+			headerFontColor=white, boxColorOne=white,
+		}
+	{\hspace{0.5cm}\raisebox{-0.5\height}{\safefig[width=3.4cm,height=2.6cm,keepaspectratio]{figures/logoITBA.png}}}
+	{\textsc{\textbf{\Large Medici\'on de presi\'on en sistemas de part\'iculas autopropulsadas confinadas mediante sensores FSR en configuraci\'on integral y distribuida}}}
+	{\vspace{0.15em}{\normalsize Dylan Frigerio$^{1}$ y Germ\'an Patterson$^{1,2}$ -- $^{1}$ITBA \ $^{2}$CONICET\\[0.08em]
+			\footnotesize\texttt{dyfrigerio@itba.edu.ar, gpatterson@itba.edu.ar}}}
+	{\raisebox{-0.5\height}{\safefig[width=3.4cm,height=2.4cm,keepaspectratio]{figures/logoCONICET.png}}\hspace{0.5cm}}
+		
+		%% ===========================================================================
+		%% RESUMEN -- span=6, full width, first box (row=0 by default). Kept to a
+		%% single tight paragraph per the "ultra resumido" instruction; every other
+		%% box on the poster stays terse, this is the one place with real prose.
+		%% ===========================================================================
+		\begin{posterbox}[name=resumen,column=0,height=auto,span=5]{{Resumen}}
+			\small
+			La materia activa son sistemas que se encuentran fuera del equilibrio termodin\'amico, lo que implica que magnitudes fundamentales como la presi\'on mec\'anica no necesariamente se comportan como en los sistemas cl\'asicos. En particular, se ha demostrado que la presi\'on puede depender de la \textbf{geometr\'ia del contenedor} y no obedecer a una ecuaci\'on de estado convencional. Recientemente, se ha mostrado que el flujo de part\'iculas autopropulsadas a trav\'es de una abertura angosta exhibe una din\'amica de presi\'on de acumulaci\'on lenta y liberaci\'on r\'apida, relacionada con procesos difusivos de envejecimiento estructural. En este trabajo presentamos un montaje para medir la presi\'on en un recinto cerrado. Este se basa en un sensor de fuerza de bajo costo del tipo cinta resistiva (FSR) para medir la presi\'on ejercida por un n\'umero variable de \textbf{Kilobots} confinados en un recinto circular. En una primera etapa consideramos una medici\'on \textbf{integral} que nos permita correlacionar la din\'amica colectiva con la presi\'on ejercida sobre las paredes.
+			\smallskip
+		\end{posterbox}
+		
+		%% ===========================================================================
+		%% LEFT COLUMN (span=2 each): Setup -> Trabajo Futuro -> Leyenda.
+		%% Three independent boxes chained with below=, so any one of them can be
+		%% reordered or resized without touching the others.
+		%% ===========================================================================
+		\begin{posterbox}[name=setup,column=0,below=resumen,height=auto,span=2]{{Setup Experimental (Integral)}}
+			\small
+			El montaje experimental consta de un recinto circular donde se confinan los Kilobots. 
+			
+			\begin{center}
+				\begin{minipage}[t]{0.35\linewidth}
+					\centering
+					\figcard[width=0.8\linewidth]{figures/Kilobot.png}\\[2pt]
+					{\footnotesize\itshape Kilobots.}
+				\end{minipage}%
+				\quad
+				\begin{minipage}[t]{0.45\linewidth}
+					\centering
+					\figcard[width=0.8\linewidth]{figures/fsr408.png}\\[2pt]
+					{\footnotesize\itshape Cinta FSR-408.}
+				\end{minipage}
+			\end{center}
+			\smallskip
+			
+			En el per\'imetro interior se ubica una cinta sensora FSR para registrar la presi\'on integral ejercida por el enjambre.
+			
+			\begin{center}
+				\figcard[width=0.48\linewidth]{figures/kilobots_recinto.png}
+				
+				{\footnotesize\itshape Vista del recinto con Kilobots confinados ($N\approx27$). El anillo de FSR recubre el per\'imetro interior.}
+			\end{center}
+			
+			La etapa de adquisici\'on consta de un amplificador inversor y un microcontrolador para la digitalizaci\'on.
+			
+			\smallskip
+			\begin{center}
+				\resizebox{0.80\linewidth}{!}{%
+					\begin{circuitikz}[american voltages, scale=1.1, every node/.append style={font=\LARGE}, color=sageDark]
+						\node[op amp] (opamp) at (3.4,0) {};
+						\draw (opamp.-) -- ++(-0.7,0) coordinate(sj)
+						to[vR, l_=$R_{FSR}$, *-*, mirror, invert] ++(-2.0,0) coordinate(fsrleft);
+						\draw (fsrleft) -- ++(0,-0.35) coordinate(battop);
+						\draw (battop) to[battery1, l_={$V_{exc}$}] ++(0,-1.15) node[ground]{};
+						\draw (opamp.+) -- ++(-0.5,0) -- ++(0,-0.7) node[ground]{};
+						\coordinate (fbtop) at ($(opamp.out)+(0,1.1)$);
+						\coordinate (fbleft) at (sj |- fbtop);
+						\draw (sj) -- (fbleft);
+						\draw (fbleft) to[R, l={$R_f$}] (fbtop);
+						\draw (fbtop) -- (opamp.out);
+						\node[draw=sageDark, thick, fill=sagePale, minimum width=2.6cm, minimum height=2.0cm, inner sep=5pt, align=center]
+						(mcu) at ($(opamp.out)+(2.1,0)$) {\Large\textbf{MCU}};
+						\draw[-{Latex[length=2mm]}] (opamp.out) -- (mcu.west);
+						\draw[-{Latex[length=2.2mm]}, thick] (mcu.east) -- ++(1.0,0) node[right, align=left] {\textbf{UART}};
+						\fill (sj) circle(1.6pt);
+					\end{circuitikz}%
+				}
+				
+				{\footnotesize Etapa inversora: $V_{\text{out}} = -V_{exc}\,R_f/R_{FSR}$. El ADC del MCU muestrea a $6\,\text{kSps}$ y el firmware promedia cada $300$ muestras para transmitir $20\,\text{Sps}$.}
+			\end{center}
+			\smallskip
+		\end{posterbox}
+		
+		\begin{posterbox}[name=futuro,column=0,below=setup,above=bottom,span=2]{{Pr\'oximos Pasos}}
+			\small
+			$N_{\mathrm{FSR}}=18$ mini-FSR repartidos en $M{=}3$ multiplexores; cada salida de MUX se acondiciona con \textbf{un OpAmp dedicado} antes de entrar a uno de los canales del ADC.
+			\smallskip
+			
+			\begin{center}
+				\resizebox{0.62\linewidth}{!}{%
+					\begin{tikzpicture}[>=Latex, node distance=0.9cm, auto, font=\large]
+						% FSRs
+						\node[draw=sageDark, thick, fill=sagePale, minimum width=2.3cm, minimum height=0.7cm, align=center] (fsr1) {FSR $\times 6$};
+						\node[draw=sageDark, thick, fill=sagePale,  minimum width=2.3cm, minimum height=0.7cm, align=center, below=0.35cm of fsr1] (fsr2) {FSR $\times 6$};
+						\node[draw=sageDark, thick, fill=sagePale, minimum width=2.3cm, minimum height=0.7cm, align=center, below=0.35cm of fsr2] (fsr3) {FSR $\times 6$};
+						
+						% MUXs
+						\node[draw=sageDark, thick, minimum height=0.7cm, minimum width=1.8cm, fill=sageMid, text=white, right=0.8cm of fsr1] (mux1) {MUX$_1$};
+						\node[draw=sageDark, thick, minimum height=0.7cm, minimum width=1.8cm, fill=sageMid, text=white, right=0.8cm of fsr2] (mux2) {MUX$_2$};
+						\node[draw=sageDark, thick, minimum height=0.7cm, minimum width=1.8cm, fill=sageMid, text=white, right=0.8cm of fsr3] (mux3) {MUX$_3$};
+						
+						% OpAmps
+						\node[draw=sageDark, thick, minimum height=0.7cm, minimum width=1.8cm, right=0.8cm of mux1] (op1) {OpAmp$_1$};
+						\node[draw=sageDark, thick, minimum height=0.7cm, minimum width=1.8cm, right=0.8cm of mux2] (op2) {OpAmp$_2$};
+						\node[draw=sageDark, thick, minimum height=0.7cm, minimum width=1.8cm, right=0.8cm of mux3] (op3) {OpAmp$_3$};
+						
+						% ADC centrado respecto a op2
+						\node[draw=sageDark, thick, fill=sagePale, minimum width=2.0cm, minimum height=3.4cm, align=center, right=1.1cm of op2] (adc) {\textbf{MCU}\\[2pt]3 canales};
+						
+						% Conexiones FSR -> MUX
+						\draw[->, thick] (fsr1) -- (mux1);
+						\draw[->, thick] (fsr2) -- (mux2);
+						\draw[->, thick] (fsr3) -- (mux3);
+						
+						% Conexiones MUX -> OpAmp
+						\draw[->, thick] (mux1) -- (op1);
+						\draw[->, thick] (mux2) -- (op2);
+						\draw[->, thick] (mux3) -- (op3);
+						
+						% Conexiones OpAmp -> ADC
+						\draw[->, thick] (op1) -- (op1 -| adc.west);
+						\draw[->, thick] (op2) -- (op2 -| adc.west);
+						\draw[->, thick] (op3) -- (op3 -| adc.west);
+					\end{tikzpicture}%
+				}
+			\end{center}
+			{\footnotesize Cada MUX gestiona 6 sensores. Cada rama se digitaliza en un canal distinto del mismo ADC para lectura simult\'anea de secciones.}
+			
+			\begin{center}
+				\resizebox{0.22\linewidth}{!}{%
+					\begin{tikzpicture}
+						% Ring "seccionado": 18 mini-FSR segments grouped into M=3 clusters of 6 sensors
+						% Group 1 (MUX_1, 6 segments, sageDark)
+						\draw[sageDark, line width=3.4pt] (8:1.5cm) arc (8:21.2:1.5cm);
+						\draw[sageDark, line width=3.4pt] (28:1.5cm) arc (28:41.2:1.5cm);
+						\draw[sageDark, line width=3.4pt] (48:1.5cm) arc (48:61.2:1.5cm);
+						\draw[sageDark, line width=3.4pt] (68:1.5cm) arc (68:81.2:1.5cm);
+						\draw[sageDark, line width=3.4pt] (88:1.5cm) arc (88:101.2:1.5cm);
+						\draw[sageDark, line width=3.4pt] (108:1.5cm) arc (108:121.2:1.5cm);
+						
+						% Group 2 (MUX_2, 6 segments, sageMid)
+						\draw[sageMid, line width=3.4pt] (128:1.5cm) arc (128:141.2:1.5cm);
+						\draw[sageMid, line width=3.4pt] (148:1.5cm) arc (148:161.2:1.5cm);
+						\draw[sageMid, line width=3.4pt] (168:1.5cm) arc (168:181.2:1.5cm);
+						\draw[sageMid, line width=3.4pt] (188:1.5cm) arc (188:201.2:1.5cm);
+						\draw[sageMid, line width=3.4pt] (208:1.5cm) arc (208:221.2:1.5cm);
+						\draw[sageMid, line width=3.4pt] (228:1.5cm) arc (228:241.2:1.5cm);
+						
+						% Group 3 (MUX_3, 6 segments, verdeSavia)
+						\draw[verdeSavia, line width=3.4pt] (248:1.5cm) arc (248:261.2:1.5cm);
+						\draw[verdeSavia, line width=3.4pt] (268:1.5cm) arc (268:281.2:1.5cm);
+						\draw[verdeSavia, line width=3.4pt] (288:1.5cm) arc (288:301.2:1.5cm);
+						\draw[verdeSavia, line width=3.4pt] (308:1.5cm) arc (308:321.2:1.5cm);
+						\draw[verdeSavia, line width=3.4pt] (328:1.5cm) arc (328:341.2:1.5cm);
+						\draw[verdeSavia, line width=3.4pt] (348:1.5cm) arc (348:361.2:1.5cm);
+						
+						\draw[sageDark, thin, dashed] (0,0) circle (1.5cm);
+						\foreach \i in {1,...,18}{
+							\pgfmathsetmacro{\ang}{mod(\i*137+19,360)}
+							\pgfmathsetmacro{\rad}{0.15+1.15*mod(\i*53+17,91)/91}
+							\fill[sageDark] (\ang:\rad cm) circle (2.3pt);
+						}
+					\end{tikzpicture}%
+				}
+				
+				{\footnotesize\itshape Config. distribuida: 18 mini-FSR en $M{=}3$ grupos separados por MUX.}
+			\end{center}
+		\end{posterbox}
+		
+		%% ===========================================================================
+		%% RIGHT COLUMN (span=4 each): two independent result boxes (rotated from the
+		%% original A/B/C -- jamming moved up front, histograms+impactos merged into
+		%% one "Estudio de la Presion" box) plus Conclusiones.
+		%% ===========================================================================
+		\begin{posterbox}[name=atasco,column=2,below=resumen,height=auto,span=3]{{Ciclo de Atasco}}
+			\begin{center}
+				\figcard[width=0.55\linewidth]{figures/Jamming.pdf}\\[2pt]
+				{\footnotesize\itshape Serie temporal representativa ($N=27$): la presi\'on sube mientras un arco bloquea la salida y cae abruptamente al desatascarse.}
+			\end{center}
+			\vspace{1pt}
+			\small
+			Este comportamiento es an\'alogo a las avalanchas de sistemas granulares confinados: la fuerza crece de forma continua ($\sim$20\,s) mientras el arco resiste, y colapsa en menos de 1\,s al superarse el umbral de fricci\'on est\'atica entre Kilobots.
+			\medskip
+		\end{posterbox}
+		
+		\begin{posterbox}[name=estudio,column=2,below=atasco,height=auto,span=3]{{Estudio de la Presi\'on}}
+			\begin{center}
+				\begin{minipage}[t]{0.47\linewidth}\centering
+					\figcard[width=0.7\linewidth]{figures/Null_Histogram.pdf}
+				\end{minipage}%
+				\hfill
+				\begin{minipage}[t]{0.47\linewidth}\centering
+					\figcard[width=0.7\linewidth]{figures/Histogram_25.pdf}
+				\end{minipage}\\[3pt]
+				\begin{minipage}[t]{0.47\linewidth}\centering
+					\figcard[width=0.7\linewidth]{figures/Histogram_26.pdf}
+				\end{minipage}%
+				\hfill
+				\begin{minipage}[t]{0.47\linewidth}\centering
+					\figcard[width=0.7\linewidth]{figures/Histogram_27.pdf}
+				\end{minipage}
+				{\footnotesize\itshape Histogramas de $\delta G$ ($\delta t=2.5\,$s, 50 bins); el ancho de la distribuci\'on crece mon\'otonamente con $N$.}
+			\end{center}
+			
+			\begin{center}
+				\begin{minipage}{0.48\linewidth}\centering
+					\figcard[width=0.94\linewidth]{figures/Skewness vs deltaT.pdf}\\[2pt]
+					{\footnotesize\itshape Picos de asimetr\'ia $\to$ empujones coordinados contra la pared.}
+				\end{minipage}%
+				\hfill
+				\begin{minipage}{0.48\linewidth}\centering
+					\figcard[width=0.82\linewidth]{figures/Supervivencia.pdf}\\[2pt]
+					{\footnotesize\itshape Cola de decaimiento m\'as lenta $\to$ impactos extremos m\'as frecuentes.}
+				\end{minipage}
+			\end{center}
+			
+			\begin{center}
+				{\footnotesize\legendrow{cVacio}{$\varnothing$}\quad\legendrow{cN25}{$N=25$}\quad\legendrow{cN26}{$N=26$}\quad\legendrow{cN27}{$N=27$}\quad
+					
+					\textit{(mismo c\'odigo en todo el p\'oster)}}
+			\end{center}
+			\vspace{0.0005cm}
+		\end{posterbox}
+		
+		\begin{posterbox}[name=conclusiones,column=2,below=estudio,above=bottom,span=3]{{Conclusiones}}
+			\smallskip
+			\begin{itemize}[leftmargin=3.3em,rightmargin=3.3em,itemsep=0em,topsep=0.8em]
+				\item \textbf{Validaci\'on:} El FSR result\'o ser una t\'ecnica viable, de alta resoluci\'on y bajo costo para materia activa.
+				\item \textbf{Efectos de densidad ($N$):} A mayor $N$, la presi\'on se coordina fuertemente (picos de asimetr\'ia) y aumenta la heterogeneidad espaciotemporal.
+				\item \textbf{Distribuciones:} Los histogramas de $\delta G$ pasan de Gaussianas angostas (ruido) a distribuciones anchas con colas pesadas.
+				\item \textbf{Ciclo de atasco:} Se registr\'o claramente la lenta acumulaci\'on de fuerza por bloqueo estructural y su colapso abrupto.
+				\item \textbf{Trabajo futuro:} El arreglo distribuido ($18$ FSR, $3$ MUX) mapear\'a correlaciones espaciales durante la formaci\'on de arcos.
+			\end{itemize}
+		\end{posterbox}
+		
+	\end{poster}
+	\shorthandon{>}
+\end{document}
