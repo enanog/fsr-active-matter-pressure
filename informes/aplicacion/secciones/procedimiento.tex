@@ -207,6 +207,53 @@ python software/vidfetch/tools/verificar_giro.py ^
 \end{verbatim}
 Escribe \nolinkurl{datos/video/verificacion/giro_<código>.png} (o \texttt{-{}-salida}).
 
+\subsection{Verificar posiciones, ejes y velocidades: \texttt{verificar\_cinematica.py}}\label{sec:verif_cin}
+
+Es el equivalente de \texttt{verificar\_giro.py} para la traslación. Trabaja solo con el CSV exportado
+(y su \texttt{\_info.json}) y el video, es decir, verifica los datos tal como los usan los informes.
+Necesita solo OpenCV, NumPy y pandas y tarda unos segundos:
+\begin{verbatim}
+python software/vidfetch/tools/verificar_cinematica.py ^
+       datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
+       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+       [--cuadro 6000] [--robots 3,7,12] [--delta 5]
+\end{verbatim}
+Escribe \nolinkurl{datos/video/verificacion/cinematica_<código>.png} y \texttt{.txt}. Qué mirar:
+\begin{itemize}
+  \item \textbf{Panel A (ejes y origen).} El cuadro se des-espeja (queda como la escena real vista desde
+        arriba) y cada robot se redibuja \emph{solo} con \texttt{x\_mm}, \texttt{y\_mm}:
+        $u = X_c' + x/s$, $v = Y_c - y/s$. Se dibujan además el recinto, el centro y los ejes $+x$
+        (derecha) y $+y$ (arriba), y se escriben las coordenadas de tres robots. Cada círculo tiene que
+        caer sobre su robot y las coordenadas tienen que tener el signo que corresponde al cuadrante donde
+        se ve el robot. Un error de origen, de espejado, de signo de $y$ o de escala desplazaría o achicaría
+        los círculos.
+  \item \textbf{Panel B (desplazamiento y velocidad).} Para los cuatro robots que más se mueven (o los de
+        \texttt{-{}-robots}), la flecha amarilla en el cuadro $t$ es la integral de la velocidad del CSV,
+        $\int_t^{t+\Delta t}\vec v\,\mathrm{d}t$. En el cuadro $t+\Delta t$ el círculo amarillo es esa
+        predicción y el verde la posición exportada: el robot real tiene que estar dentro de ambos.
+  \item \textbf{Controles numéricos (en el \texttt{.txt}).} (1) $x$, $y$ reconstruidos desde
+        \texttt{x\_video\_px}, \texttt{xc\_video\_px}, \texttt{mm\_per\_px} y el espejado; (2) integral de
+        $\vec v$ en \SI{10}{\second} contra el desplazamiento, para todos los robots cada \SI{30}{\second};
+        (3) velocidad exportada contra una diferencia finita cruda de los píxeles del video
+        ($\pm 3$~cuadros, sin Savitzky--Golay): la pendiente da el signo y la escala de los ejes; (4) radio
+        de contacto contra $R_{\mathrm{int}}-D/2$ y signo de $\overline{\omega}$.
+\end{itemize}
+
+\paragraph{Pruebas físicas recomendadas.} Lo anterior verifica que los datos son coherentes con el video;
+para verificar las magnitudes absolutas contra la realidad conviene filmar, con la misma cámara y
+altura, unos segundos de:
+\begin{enumerate}
+  \item \textbf{Distancia conocida}: un robot quieto movido a mano a lo largo de una regla una distancia
+        medida (por ejemplo \SI{50}{\milli\metre}). La diferencia de \texttt{x\_mm}, \texttt{y\_mm} entre el
+        antes y el después tiene que dar esa distancia (verifica la escala y la perspectiva).
+  \item \textbf{Ejes y espejado}: un papel con una flecha y una letra asimétrica (``R'') apuntando a un
+        lugar identificable del laboratorio (la protoboard, la puerta). En el panel A la letra tiene que
+        leerse bien y, si se empuja un robot en el sentido de la flecha, el desplazamiento exportado tiene
+        que apuntar en esa dirección.
+  \item \textbf{Velocidad}: el mismo robot empujado a ritmo aproximadamente constante a lo largo de la
+        regla durante un tiempo cronometrado; \texttt{speed\_mm\_s} medio tiene que dar distancia/tiempo.
+\end{enumerate}
+
 \subsection{Generar el informe de ensayos}
 
 Dos scripts de \nolinkurl{software/analisis_video/} arman \nolinkurl{informes/ensayos/informe_ensayos.tex}

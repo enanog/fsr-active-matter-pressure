@@ -42,6 +42,11 @@ manual, exportar todos los datos de un solo robot, informes completos con cómo 
   descartar manual, diámetros, mostrar), combo "Escala desde", "Exportar un robot", "Exportar cada robot".
   Detecta el recinto durante "Analizar video"; sesiones viejas lo miden al cargarse. Overlay en video exportado.
 - **`tools/reexportar.py` (nuevo):** sesión → CSV/JSON/resumen/por robot, `--redetectar`, `--guardar-sesion`.
+- **`tools/verificar_cinematica.py` (nuevo, solo cv2/numpy/pandas):** panel A = cuadro des-espejado con robots
+  redibujados solo desde x_mm/y_mm + recinto + ejes; panel B = ∫v dt en Δ (def. 5 s) vs posición en t+Δ;
+  .txt con 4 controles. Resultado en los 3 ensayos: transformación 0,0005 mm; ∫v vs Δpos 10 s mediana
+  0,13 mm (2,5–2,8 %); v vs diferencia finita cruda r = 0,96, pendiente 1,05. Pendiente: pruebas físicas
+  (regla, flecha/letra para el espejado, velocidad cronometrada).
 - **Scripts:** `generar_informe.py` y `comparar_ensayos.py` leen el formato nuevo (y el viejo). Umbral de
   atasco **0,52 mm/s** (= 0,6 × 0,869: mismos episodios). FSRScope `robots.py` acepta speed_mm_s.
 - **Datos regenerados (08/10):** 3 sesiones con recinto (medido cada 30 cuadros sobre JPEG q2 extraídos con

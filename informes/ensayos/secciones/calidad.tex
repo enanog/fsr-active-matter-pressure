@@ -43,3 +43,43 @@ con coberturas del anillo de \num{0.73} a \num{0.78}: su anillo se veía parcial
 posición es correcta. Como todos los puntos quedan con su estado en la columna \texttt{status},
 pueden excluirse en cualquier análisis sensible; con menos del \SI{0.14}{\percent} de puntos
 afectados, incluirlos no cambia ningún resultado de este informe.
+
+\paragraph{Verificación de posiciones, ejes y velocidades.} La herramienta
+\texttt{verificar\_cinematica.py} (informe de la aplicación) contrasta los CSV con los videos
+(\cref{fig:verif_cin,tab:verif_cin}). En los tres ensayos, los robots redibujados solo con
+$(x, y)$ caen sobre los robots del video des-espejado, con los ejes en el sentido correcto; la integral de
+la velocidad exportada en \SI{10}{\second} reproduce el desplazamiento con un error mediano de
+\SI{0.13}{\milli\metre} (\SI{2.5}{\percent} a \SI{2.8}{\percent} en los desplazamientos mayores que
+\SI{2}{\milli\metre}, el efecto esperado del suavizado); y la velocidad exportada coincide con una
+diferencia finita cruda de los píxeles del video (correlación \num{0.96}, pendiente \num{1.05}: mismo
+signo y misma escala; la pendiente algo mayor que 1 es el ruido de la diferencia cruda, que el filtro
+elimina). Estas pruebas verifican la coherencia interna y con el video; la escala absoluta se apoya en
+el diámetro del recinto y las tres validaciones de la \cref{sec:recinto_ens}.
+
+\begin{table}[H]
+  \centering
+  \caption{Controles de \texttt{verificar\_cinematica.py}.}
+  \label{tab:verif_cin}
+  \small
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    & \Cmp{Lab}{A} & \Cmp{Lab}{B} & \Cmp{Lab}{C} \\
+    \midrule
+    $x$, $y$ reconstruidos desde los píxeles: diferencia máxima [\si{\milli\metre}] & \num{0.0005} & \num{0.0005} & \num{0.0005} \\
+    $\int\vec v\,\mathrm{d}t$ vs desplazamiento en \SI{10}{\second}: mediana / p95 [\si{\milli\metre}] & \num{0.13} / \num{0.57} & \num{0.14} / \num{0.56} & \num{0.13} / \num{0.55} \\
+    Ídem, error relativo (desplazamientos $>\SI{2}{\milli\metre}$) [\si{\percent}] & \num{2.5} & \num{2.8} & \num{2.5} \\
+    $\vec v$ exportada vs diferencia finita cruda: correlación / pendiente & \num{0.967} / \num{1.049} & \num{0.964} / \num{1.047} & \num{0.967} / \num{1.055} \\
+    Panel B: diferencia predicción--posición en \SI{5}{\second} [\si{\milli\metre}] & \num{0.14}--\num{1.02} & \num{0.29}--\num{0.85} & \num{0.12}--\num{0.62} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/verificacion_cinematica.png}
+  \caption{Verificación de \Cmp{Lab}{A}. Izquierda: cuadro des-espejado con los robots redibujados solo
+    con $(x, y)$ del CSV, el recinto (amarillo) y los ejes. Derecha: cuatro robots en $t$ (celeste: posición;
+    flecha: integral de la velocidad en \SI{5}{\second}) y en $t+\SI{5}{\second}$ (amarillo: predicción;
+    verde: posición exportada).}
+  \label{fig:verif_cin}
+\end{figure}

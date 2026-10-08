@@ -14,6 +14,8 @@ python main.py
 - `gui/`: interfaz (pestañas *Original*, *Recortar*, *Procesar*, *Seguimiento*).
 - `tools/reexportar.py`: reexporta una sesión `.npz` sin interfaz (recinto, CSV, resumen, un CSV por robot).
 - `tools/verificar_giro.py`: verificación visual de θ sobre el video.
+- `tools/verificar_cinematica.py`: verificación visual y numérica de posiciones, ejes, desplazamientos y
+  velocidades del CSV contra el video (`datos/video/verificacion/cinematica_<código>.png` y `.txt`).
 
 Para los videos del proyecto: escala de tiempo **3 cuadros = 1 s real**, diámetro del robot **33 mm**,
 recinto **Ø 185 mm interior / 195 mm exterior**, **Video espejado: horizontal**, **Escala desde: Recinto**.
