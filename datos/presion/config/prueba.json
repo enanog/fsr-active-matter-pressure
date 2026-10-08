@@ -1,0 +1,197 @@
+{
+  "calibration": {
+    "mode": "auto",
+    "v_ref": 3.3,
+    "v_exc": 0.7534,
+    "r_feedback": 1000.0,
+    "adc_fs": 1023.0
+  },
+  "analysis": {
+    "step_s": 0.05,
+    "deltaT_fixed_s": 2.5,
+    "deltaT_max_s": 15.0,
+    "t_start": null,
+    "t_end": null,
+    "exclusions": [],
+    "exclude_saturated": false,
+    "hist_bins": 120
+  },
+  "sync": {
+    "offset_auto": true,
+    "offset_s": 0.0,
+    "frames_per_s": 3.0,
+    "mirror": true,
+    "show_robots": false,
+    "robot_radius_px": 47.0,
+    "video_path": "C:/Users/dylan/OneDrive/Desktop/Proyecto_PresionRecintoCircular/datos/video/recortados/VC_20262409_1600_22QR_60.MP4"
+  },
+  "playback": {
+    "speed": 10.0,
+    "live": false,
+    "live_window_s": 120.0,
+    "stats_period_s": 1.0
+  },
+  "plots": [
+    {
+      "id": "G",
+      "visible": true,
+      "options": {
+        "log_y": false,
+        "show_sat": true,
+        "show_gmax": false
+      }
+    },
+    {
+      "id": "dG",
+      "visible": true,
+      "options": {
+        "log_y": false
+      }
+    },
+    {
+      "id": "robots",
+      "visible": true,
+      "options": {
+        "show_p90": true,
+        "smooth_s": 0.0
+      }
+    },
+    {
+      "id": "R",
+      "visible": false,
+      "options": {
+        "log_y": true,
+        "show_floor": true
+      }
+    },
+    {
+      "id": "ADC",
+      "visible": false,
+      "options": {
+        "show_fs": true
+      }
+    },
+    {
+      "id": "raw",
+      "visible": false,
+      "options": {
+        "column": "",
+        "log_y": false
+      }
+    },
+    {
+      "id": "skew",
+      "visible": true,
+      "options": {
+        "mark_fixed": true
+      }
+    },
+    {
+      "id": "kurt",
+      "visible": false,
+      "options": {
+        "mark_fixed": true
+      }
+    },
+    {
+      "id": "surv",
+      "visible": true,
+      "options": {
+        "log_x": false,
+        "log_y": true
+      }
+    },
+    {
+      "id": "hist_G",
+      "visible": false,
+      "options": {
+        "log_y": false
+      }
+    },
+    {
+      "id": "hist_dG",
+      "visible": true,
+      "options": {
+        "log_y": true
+      }
+    }
+  ],
+  "export_columns": [
+    [
+      "tiempo",
+      true
+    ],
+    [
+      "ADC_RAW",
+      true
+    ],
+    [
+      "G",
+      true
+    ],
+    [
+      "deltaG",
+      true
+    ],
+    [
+      "deltaT",
+      true
+    ],
+    [
+      "skewness",
+      true
+    ],
+    [
+      "G_surv",
+      true
+    ],
+    [
+      "P_G_geq",
+      true
+    ],
+    [
+      "kurtosis",
+      false
+    ],
+    [
+      "R",
+      false
+    ],
+    [
+      "tiempo_video",
+      false
+    ],
+    [
+      "saturado",
+      false
+    ],
+    [
+      "en_analisis",
+      false
+    ],
+    [
+      "hist_G_centro",
+      false
+    ],
+    [
+      "hist_G_densidad",
+      false
+    ],
+    [
+      "hist_dG_centro",
+      false
+    ],
+    [
+      "hist_dG_densidad",
+      false
+    ],
+    [
+      "v_robots_mediana",
+      false
+    ],
+    [
+      "v_robots_p90",
+      false
+    ]
+  ]
+}

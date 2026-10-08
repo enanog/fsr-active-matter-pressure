@@ -10,6 +10,33 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-10-08 — Deriva del giro acumulado θ: diagnóstico y corrección
+
+**Problema (reportado por el usuario: la desrotación del informe no queda quieta):** θ se resolvía solo con
+enlaces de 1, 2, 4, 8 y 16 cuadros. Cada paso subestima levemente el giro (~0,8 % en 32 cuadros; el
+gradiente de iluminación no gira con el robot) y el error se acumula. Contra la comparación directa de la
+huella entre cuadros separados (q ≥ 0,8), θ erraba en mediana 30 / 44 / 30° a 10 min (p90 107–138°) en
+24/09, 25/09 12:30 y 25/09 15:00.
+- Las comparaciones directas de largo alcance son confiables: cierre en triángulo a 5+5 min p90 < 1°.
+- **Corrección (`core/rotation.py`):** `solve_angles` agrega enlaces de 32, 64, 128… muestras hasta todo el
+  registro (uno cada L/128 muestras, q ≥ 0,80), rama 2π elegida con la solución del nivel anterior
+  (tolerancia 90°), 3 pasadas, pasada robusta (descarta residuos > 15°, conserva lag 1). Sistemas con
+  enlaces largos: CG con Jacobi arrancado en la solución previa (10× más rápido que spsolve).
+  `solve_angles(sig, long_range=False)` reproduce el método anterior exacto (dif. 3e-12°).
+- **Validación con bloques retenidos (77 muestras, enlaces largos solo entre bloques pares, evaluación en
+  impares):** a 10 min mediana 0,9 / 0,9 / 0,9°, p90 2,8 / 3,3 / 2,8° (antes 32 / 44 / 29°, p90 112 / 139 / 108°).
+- Costo: ~3 s por robot (~1–2 min por video). `kinematics._rotation` cachea θ en el `TrackingResult`
+  (cambiar escala de tiempo o ventana no lo recalcula).
+- Impacto: ω̄ por robot cambia ≤ 0,6 °/s (~3 %); ningún cambio de signo; siguen 14 de 22 horarios en los 3
+  ensayos. θ final cambia en mediana 190–360° (hasta ~6 vueltas en los que más giran).
+- Caso conocido: 25/09 12:30 robots 20 y 21 tienen los primeros ~7 s con pasos de baja calidad (q 0,3–0,5,
+  saltos de ~95°) sin enlace largo posible: todo su θ queda con desfase constante (ω no se afecta salvo ahí).
+- Herramienta `software/vidfetch/tools/verificar_giro.py`: recortes del VC cada 2,5 min, grabado / desgirado
+  con θ anterior / con θ nuevo (probada con video sintético de giro conocido; signo: desgirar = rotar −θ).
+- Figura `informes/ensayos/figuras/rotacion_deriva.png` (error vs tiempo y vs separación, antes/ahora).
+- Sesiones recargadas por el usuario el 08/10: diámetro 33 mm en las 3; **24/09 con espejo `no` y ventana 3**
+  (las otras: horizontal, 5) → pendiente confirmar.
+
 ## 2026-10-08 — Versionado de sesiones y trayectorias de video
 - `.gitignore`: se ignoran solo los videos (`originales/`, `recortados/`, `seguimiento/`, `*.mp4`) y `Videos/`; `.gitkeep` conserva esas carpetas.
 - Se versionan `datos/video/sesiones/*.npz` (54–64 MB) y `trayectorias/*.csv` (≤ 56 MB): < 100 MB (límite duro de GitHub); > 50 MB da solo advertencia. Sin Git LFS (no instalado).

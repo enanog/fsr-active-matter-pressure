@@ -107,6 +107,21 @@ def _derivative(v: np.ndarray, fps: float, p: KinematicsParams) -> np.ndarray:
 
 
 def _rotation(result: TrackingResult, cand_sig: Optional[list]) -> tuple[np.ndarray, np.ndarray]:
+    # Theta does not depend on fps or the SG window: cache it on the result so changing the time
+    # scale or the window does not re-run the (global, slower) angle solver.
+    cache = getattr(result, "_rotation_cache", None)
+    if cache is not None and cache[0] is cand_sig:
+        return cache[1].copy(), cache[2].copy()
+    theta, st = _rotation_uncached(result, cand_sig)
+    try:
+        result._rotation_cache = (cand_sig, theta, st)
+    except AttributeError:
+        pass
+    return theta.copy(), st.copy()
+
+
+def _rotation_uncached(result: TrackingResult, cand_sig: Optional[list],
+                       long_range: bool = True) -> tuple[np.ndarray, np.ndarray]:
     F, N = result.x.shape
     theta = np.full((F, N), np.nan)
     st = np.full((F, N), ROT_UNAVAILABLE, np.int8)
@@ -121,7 +136,7 @@ def _rotation(result: TrackingResult, cand_sig: Optional[list]) -> tuple[np.ndar
         if len(rows) == 0:
             continue
         sig = np.stack([cand_sig[r][ci[r]] for r in rows])
-        ang, _ = rot.solve_angles(sig)
+        ang, _ = rot.solve_angles(sig, long_range=long_range)
         theta[:, k] = np.interp(rows_all, rows, ang)   # holds the end values outside the range
         st[:, k] = ROT_INTERPOLATED
         st[rows, k] = ROT_MEASURED

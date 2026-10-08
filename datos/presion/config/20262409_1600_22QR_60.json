@@ -3,7 +3,7 @@
     "mode": "manual",
     "v_ref": 3.3,
     "v_exc": 0.7534,
-    "r_feedback": 10000.0,
+    "r_feedback": 50000.0,
     "adc_fs": 1023.0
   },
   "analysis": {
@@ -20,15 +20,15 @@
     "offset_auto": true,
     "offset_s": 20.7,
     "frames_per_s": 3.0,
-    "mirror": true,
-    "show_robots": true,
-    "robot_radius_px": 47.0,
-    "video_path": "D:/Documentos/ITBA/Proyecto_PresionRecintoCircular/datos/video/recortados/VC_20262409_1600_22QR_60.MP4"
+    "mirror": false,
+    "show_robots": false,
+    "robot_radius_px": 48.0,
+    "video_path": "C:/Users/dylan/OneDrive/Desktop/Proyecto_PresionRecintoCircular/datos/video/seguimiento/VS_20262409_1600_22QR_60.mp4"
   },
   "playback": {
     "speed": 20.0,
     "live": false,
-    "live_window_s": 120.0,
+    "live_window_s": 870.0,
     "stats_period_s": 1.0
   },
   "plots": [
