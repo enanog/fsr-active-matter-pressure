@@ -23,6 +23,9 @@ dejar en Python solo la lógica de decisión.
     & \texttt{cvtColor}, \texttt{resize} (\texttt{INTER\_AREA}) & pasar a grises y reducir la imagen a la escala de análisis \\
     & \texttt{filter2D} & convolución con los núcleos de disco y anillo (filtro de anillo, \cref{sec:deteccion}) \\
     & \texttt{warpPolar} & imagen en coordenadas polares alrededor de cada centro: cobertura del anillo y firma de rotación \\
+    & \texttt{COLOR\_BGR2HSV}, \texttt{threshold} (Otsu), \texttt{morphologyEx} & máscara del anillo del recinto por tono y saturación (\cref{sec:recinto}) \\
+    & \texttt{HoughCircles}, \texttt{remap} & centro provisorio del recinto; perfiles de saturación a lo largo de los rayos \\
+    & \texttt{grab}, \texttt{retrieve} & recorrer el video decodificando solo los cuadros donde se mide el recinto \\
     & \texttt{GaussianBlur}, \texttt{threshold}, \texttt{Canny}, \texttt{convertScaleAbs}, \texttt{dilate} & operaciones de la pestaña \emph{Procesar} y calibración \\
     & \texttt{circle}, \texttt{line}, \texttt{arrowedLine}, \texttt{putText}, \texttt{ellipse} & dibujo de la superposición y del video anotado \\
     \midrule
@@ -34,11 +37,12 @@ dejar en Python solo la lógica de decisión.
       \texttt{optimize.linear\_sum\_assignment} & asignación óptima candidato--robot (algoritmo húngaro) \\
     & \texttt{spatial.cKDTree} & búsqueda de vecinos para confirmar robots nuevos por persistencia \\
     & \texttt{signal.savgol\_filter} & derivadas suavizadas: velocidad y $\omega$ \\
-    & \texttt{sparse.coo\_matrix}, \texttt{sparse.linalg.spsolve} & mínimos cuadrados del ángulo acumulado \\
+    & \texttt{sparse.coo\_matrix}, \texttt{sparse.linalg.spsolve}, \texttt{sparse.linalg.cg} & mínimos cuadrados del ángulo acumulado (gradiente conjugado con enlaces largos) \\
     \midrule
     \textbf{NumPy} \newline (2.5) &
       \texttt{fft.fft}, \texttt{fft.ifft} & armónicos de la firma de rotación y correlación circular \\
     & arreglos, \texttt{interp}, \texttt{savez\_compressed}, \texttt{load} & todo el cálculo numérico, interpolación de huecos y sesiones \texttt{.npz} \\
+    & \texttt{linalg.lstsq}, \texttt{median}, \texttt{sliding\_window\_view} & ajuste de círculos (Kåsa), rechazo por MAD y mediana móvil del recinto \\
     \midrule
     \textbf{pandas} \newline (3.0) & \texttt{DataFrame}, \texttt{pivot}, \texttt{to\_csv}, \texttt{read\_csv} & tablas de candidatos y de resultados, formato ancho, CSV \\
     \midrule

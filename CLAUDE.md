@@ -10,6 +10,50 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-10-08 (noche) — Recinto: origen en el centro, escala, exportación por robot
+
+**Pedido:** (0,0) en el centro del recinto (Ø int 18,5 cm / ext 19,5 cm — el usuario escribió "r"; son
+**diámetros**: con radios el anillo no entra en el VC de 610 px), detección automática con alternativa
+manual, exportar todos los datos de un solo robot, informes completos con cómo re-ejecutar todo.
+
+- **`core/arena.py` (nuevo):** máscara HSV del anillo (tono dominante saturado ±12; LEDs/pilas fuera),
+  720 rayos con borde subpíxel en S, ajuste de **2 círculos concéntricos** (Kåsa + MAD), `detect_one`
+  (~0,12 s/cuadro), `ArenaTrack` (muestras cada `DEFAULT_STEP`=15 cuadros, mediana móvil 5, interp.),
+  manual por ≥3 clics (`fit_points`) con opción de seguir el movimiento detectado, `track_video` (grab +
+  retrieve), `draw`. Guardado en la sesión `.npz` (`arena` array + meta, versión 3).
+- **Hallazgos en los 3 VC:** (1) el anillo **se desliza sobre la placa** 1,5–2,6 × 3,3–4,1 mm (mismo patrón
+  los 3 días: baja ~2 mm los primeros 15 min y vuelve entre 15–30 min); la placa no se mueve (correlación de
+  fase < 1 px). (2) **La cámara cambia de aumento** en saltos de +0,5 % (24/09 min 18, 25/09 15:00 min 13): la
+  placa también se agranda 0,47 % → reenfoque. ⇒ centro y escala por cuadro.
+- **Escala:** recinto 0,3233/0,3241/0,3230 mm/px. r_ext/r_int = 1,0545–1,0547 vs 195/185 = 1,0541. Cuerpo del
+  robot 101 px (4870 rayos libres) = 32,7 mm. Capas a 75,2 y 42,8 mm → separación 32,5 mm = D. La escala
+  vieja (35 mm / 2·47 px = 0,372) estaba **15 % alta** (r_ext del detector = anillo oscuro, no el cuerpo
+  ~51 px) ⇒ longitudes y velocidades **−13 %** respecto de los informes anteriores. Diámetro robot por
+  defecto: **33 mm**.
+- **Perspectiva:** R_c = q99,5(r) = 77,8–78,2 mm vs R_int − D/2 = 76 mm ⇒ κ = 0,972–0,978 (2,5 %). Se reporta,
+  no se aplica por defecto (opción `scale_source="perspectiva"`).
+- **Export (`kinematics.table`, 34 col.):** x_mm, y_mm (origen centro del recinto del cuadro, y arriba,
+  espejo corregido), r_mm, phi_deg, wall_dist_mm (= R_int − r), v{x,y}_mm_s (SG de las posiciones en mm →
+  relativas al recinto, incluyen la escala por cuadro), speed, vel_dir, v_rad, v_tan (>0 antihorario),
+  θ/ω, px centrados, mm_per_px, xc/yc_video_px, x/y_video_px, mass, ring_cov, status_code, espejo.
+  **Cambian nombres**: x_m/speed_m_s → *_mm*. `_info.json` junto a cada CSV. `robot_table`, resumen con
+  mean_r, pct_wall_layer (r ≥ R_c − D/2), mean_v_tan, pct_omega_cw, turns.
+- **GUI:** grupo "Recinto: origen (0,0) y escala" (detectar, marcar a mano, ajustar, seguir movimiento,
+  descartar manual, diámetros, mostrar), combo "Escala desde", "Exportar un robot", "Exportar cada robot".
+  Detecta el recinto durante "Analizar video"; sesiones viejas lo miden al cargarse. Overlay en video exportado.
+- **`tools/reexportar.py` (nuevo):** sesión → CSV/JSON/resumen/por robot, `--redetectar`, `--guardar-sesion`.
+- **Scripts:** `generar_informe.py` y `comparar_ensayos.py` leen el formato nuevo (y el viejo). Umbral de
+  atasco **0,52 mm/s** (= 0,6 × 0,869: mismos episodios). FSRScope `robots.py` acepta speed_mm_s.
+- **Datos regenerados (08/10):** 3 sesiones con recinto (medido cada 30 cuadros sobre JPEG q2 extraídos con
+  ffmpeg en la PC; `--redetectar` usa el video, paso 15) y 3 VP_ (espejo horizontal, ventana 5, D 33 mm).
+  Calidad recalculada: estrictos 265302/217149/241944; episodios 46/33/15.
+- **Resultados nuevos:** φ = 0,70 (antes 0,58); capas 75,2/42,8/~11 mm con 12,5/7,3/2,2 robots (87–90 %
+  llenas); |v| mediana 0,50/0,56/0,61 mm/s; contrarrotantes en la pared: A 65 vs 52 %, C 75 vs 45 %, **B 57 vs
+  58 % (no se cumple)** → hipótesis de rodadura abierta.
+- **Pendientes:** medir alturas de pared y robots (κ geométrico); fijar anillo y foco de la cámara; ubicar
+  el FSR en φ; el usuario debe revisar que las sesiones 24/09 tenían espejo `no`/ventana 3 (se regeneraron
+  con horizontal/5, como los otros dos). Cambios no commiteados (el usuario decide el commit).
+
 ## 2026-10-08 — Deriva del giro acumulado θ: diagnóstico y corrección
 
 **Problema (reportado por el usuario: la desrotación del informe no queda quieta):** θ se resolvía solo con

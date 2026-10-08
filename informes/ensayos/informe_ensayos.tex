@@ -2,9 +2,11 @@
 % Report 2 of 2: results of the filmed tests.
 %
 % Data sections are generated from the CSVs exported by VidFetch (see informe_aplicacion.tex,
-% section "Procedimiento"):
-%   python informe/generar_informe.py <VP_..._robots.csv> --video <VC_...MP4> --nombre <código>
-%   python informe/comparar_ensayos.py <VP_*_robots.csv> --mediciones <carpeta Mediciones>
+% section "Procedimiento"), from the repository root:
+%   python software/vidfetch/tools/reexportar.py datos/video/sesiones/VA_<código>_analisis.npz ...   (optional)
+%   python software/analisis_video/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv \
+%          --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
+%   python software/analisis_video/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv"
 % Then compile this file twice. Hand-written text: secciones/*.tex.
 % ============================================================================
 \documentclass[11pt, a4paper]{article}
@@ -23,15 +25,20 @@
 
 \begin{abstract}
 \noindent Se analizaron con VidFetch tres ensayos filmados de 55 a 67 minutos con 22 robots
-autopropulsados en una arena circular densa. Los tres dan resultados reproducibles: rapidez mediana
-de \num{0.58} a \SI{0.70}{\milli\metre\per\second} con episodios cortos de hasta
-\SI{8}{\milli\metre\per\second}, rotación propia persistente de unos \SI{3}{\degree\per\second}
-(14 de 22 robots giran a la derecha, como está programado, y 8 contrarrotan apoyados en la pared) y un
-ordenamiento en tres capas concéntricas. Los datos están corregidos por el espejado del video. La
-principal diferencia entre ensayos son los atascos colectivos, en los que todo el grupo se detiene
-(\SI{17}{\percent}, \SI{3}{\percent} y \SI{6}{\percent} del tiempo). Sincronizado con el pulso LED del
-registrador, el sensor de presión muestra que en dos ensayos los atascos coinciden con la fuerza
-máxima: el atasco de \SI{382}{\second} del 24/09 coincide con el episodio de saturación del sensor.
+autopropulsados en un recinto circular de \SI{18.5}{\centi\metre} de diámetro interior ($\phi = 0{,}70$).
+Las posiciones se miden respecto del centro del recinto, que se detecta en cada cuadro: el anillo se
+desliza hasta \SI{4}{\milli\metre} sobre la placa y la cámara cambia levemente de aumento, y ambas cosas
+quedan corregidas. La escala sale del diámetro del recinto (\SI{0.323}{\milli\metre\per px}) y lo
+confirman otras dos mediciones independientes; la escala anterior estaba \SI{15}{\percent} alta, por lo que
+longitudes y velocidades bajan \SI{13}{\percent} respecto de la versión previa. Los tres ensayos dan
+resultados reproducibles: rapidez mediana de \num{0.50} a \SI{0.61}{\milli\metre\per\second} con episodios
+cortos de hasta \SI{7}{\milli\metre\per\second}, rotación propia persistente de unos \SI{3.5}{\degree\per\second}
+(14 de 22 robots giran a la derecha, como está programado) y un ordenamiento en tres capas concéntricas
+separadas un diámetro. Los datos están corregidos por el espejado del video. La principal diferencia entre
+ensayos son los atascos colectivos, en los que todo el grupo se detiene (\SI{17}{\percent},
+\SI{3}{\percent} y \SI{6}{\percent} del tiempo). Sincronizado con el pulso LED del registrador, el sensor de
+presión muestra que en dos ensayos los atascos coinciden con la fuerza máxima: el atasco de
+\SI{381}{\second} del 24/09 coincide con el episodio de saturación del sensor.
 \end{abstract}
 
 \newpage

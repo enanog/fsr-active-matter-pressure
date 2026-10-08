@@ -1,38 +1,221 @@
 % ============================================================================
-% How to analyse a video and add it to this report; meaning of every export.
+% How to run everything (GUI and command line), exports and their columns.
 % ============================================================================
 \section{Procedimiento y exportaciones}\label{sec:procedimiento}
 
-\subsection{Analizar un video}
+Todos los comandos se ejecutan desde la \textbf{raíz del repositorio}. En Windows (\texttt{cmd} o
+PowerShell) una línea se continúa con \verb|^| (cmd) o \verb|`| (PowerShell); en Linux o macOS, con
+\verb|\|. Las rutas usan \verb|/|, que Python acepta también en Windows.
 
+\subsection{Instalación}
+
+\begin{verbatim}
+pip install -r software/vidfetch/requirements.txt
+pip install -r software/fsrscope/requirements.txt     (solo para FSRScope)
+\end{verbatim}
+Requiere Python~3.10 o superior. Para compilar los informes hace falta una distribución de \LaTeX\
+(MiKTeX o TeX Live) con \texttt{pgfplots}, \texttt{siunitx} y \texttt{listings}.
+
+\subsection{Analizar un video con la interfaz}
+
+\begin{verbatim}
+python software/vidfetch/main.py
+\end{verbatim}
 \begin{enumerate}
   \item \textbf{Abrir} el \texttt{VC\_<código>.MP4} (menú \emph{Archivo}, pestaña \emph{1 · Original}).
   \item \textbf{Escala de tiempo.} En la misma pestaña, dejar marcada \emph{Video acelerado
-        (time-lapse)} y fijar $\fr$ (\cref{sec:escala}). Si se conoce la duración real medida,
-        usar \emph{Calcular desde la duración real\ldots}.
-  \item \textbf{Recorte} (opcional, pestaña \emph{2 · Recortar}): tramo temporal y rectángulo a analizar.
-        Los \texttt{VC} ya están recortados a la arena, así que normalmente no hace falta.
-  \item \textbf{Seguimiento} (pestaña \emph{4 · Seguimiento}): indicar $N$, verificar el diámetro real
-        (\SI{35}{\milli\metre}), indicar si el video está espejado y pulsar \emph{Analizar video}. La calibración del tamaño es automática
-        (casilla \emph{Calibrar tamaño automáticamente al analizar}).
-  \item \textbf{Revisar} los cuadros de la lista \emph{Cuadros con problemas} (botones \emph{Anterior} y
-        \emph{Siguiente}) y, si hace falta, elegir el robot y hacer clic sobre su centro real (ancla). El
-        seguimiento se rehace en segundos, sin volver a leer el video.
-  \item \textbf{Guardar} el análisis (\emph{Guardar análisis\ldots}, archivo \texttt{.npz}) y exportar el
-        CSV con \emph{Exportar CSV (todos los robots)\ldots}, formato \emph{una fila por robot y cuadro}.
+        (time-lapse)} y fijar $\fr$ (\cref{sec:escala}); para los videos del proyecto, 3.
+  \item \textbf{Recorte} (opcional, pestaña \emph{2 · Recortar}): tramo temporal y rectángulo. Los
+        \texttt{VC} ya están recortados a la arena. El rectángulo debe contener el anillo completo o casi
+        completo: el recinto se detecta dentro de él.
+  \item \textbf{Parámetros} (pestaña \emph{4 · Seguimiento}): cantidad de robots $N$, diámetro real del
+        robot (\SI{33}{\milli\metre}), \emph{Video espejado: horizontal}, diámetros del recinto
+        (\SI{185}{} y \SI{195}{\milli\metre}), \emph{Escala desde: Recinto} y la casilla \emph{Detectar
+        el recinto al analizar} marcada.
+  \item \textbf{Analizar video.} En una sola lectura del video se calibra el tamaño de los robots, se
+        detectan los candidatos, se mide el recinto cada \num{15}~cuadros y se hace el seguimiento.
+  \item \textbf{Revisar el recinto}: con \emph{Mostrar recinto y ejes} se dibujan el borde interior
+        (amarillo), el exterior (celeste, punteado), el centro (cruz roja) y los ejes $x$, $y$ tal como caen
+        sobre la imagen (con el video espejado, $+x$ apunta a la izquierda de la imagen). El cuadro
+        \emph{Recinto} muestra centro, radio, escala, $r_{\mathrm{ext}}/r_{\mathrm{int}}$ contra el
+        esperado, residuo, movimiento del recinto y variación de escala. Si el círculo amarillo no apoya
+        sobre el borde interior del anillo, marcarlo a mano (\cref{paso:manual}).
+  \item \textbf{Revisar los robots}: lista \emph{Cuadros con problemas} (botones \emph{Anterior} y
+        \emph{Siguiente}); para corregir un centro, clic sobre el robot y clic en su centro real (ancla).
+        El seguimiento se rehace en segundos, sin volver a leer el video.
+  \item \textbf{Guardar} el análisis (\emph{Guardar análisis\ldots}, \texttt{.npz}: incluye el recinto) y
+        exportar (\cref{sec:exportar}).
 \end{enumerate}
+
+\subsection{Definir el recinto a mano}\label{paso:manual}
+
+\begin{enumerate}
+  \item Ir a un cuadro donde el borde interior del anillo se vea bien (sin robots encima).
+  \item Pulsar \emph{Marcar a mano (clics en el borde interior)}. Mientras está activo, los clics no
+        seleccionan robots: cada clic agrega un punto (magenta).
+  \item Hacer al menos 3 clics, mejor 6 a 8 repartidos en todo el contorno, sobre el borde interior del
+        canto del anillo (el límite entre el anillo de color y la franja gris de adentro). \emph{Borrar
+        puntos} empieza de nuevo.
+  \item \emph{Ajustar círculo a los puntos}: se ajusta el círculo, se recalcula la cinemática y el modo
+        manual se desactiva.
+  \item Si existe una detección automática, \emph{El círculo manual sigue el movimiento detectado} lo
+        traslada y escala con ella (\cref{sec:recinto}, punto~5). Sin detección automática, el círculo
+        queda fijo en todo el video.
+  \item \emph{Descartar el círculo manual} vuelve al automático; \emph{Detectar recinto
+        automáticamente} repite la medición sobre todo el tramo analizado.
+\end{enumerate}
+Al cargar una sesión guardada antes de que existiera el recinto, la aplicación lo detecta sola
+(lee el video una vez, \num{30}--\SI{90}{\second}).
+
+\subsection{Exportaciones}\label{sec:exportar}
+
+Todas usan el tramo vigente y el sistema del recinto (\cref{sec:referencia}). Junto a cada CSV se escribe
+\texttt{<nombre>\_info.json} con el recinto (centro, radio, escala, cociente de radios, residuo,
+movimiento, variación de escala, cantidad de muestras), la fuente de la escala, $\kappa$ medido y
+aplicado, el radio de contacto, el diámetro del robot, el espejado, $\fr$, el video y el recorte.
+
+\begin{itemize}
+  \item \textbf{Exportar CSV (todos los robots)}: un único archivo; en el diálogo se elige \emph{una fila
+        por robot y cuadro} (formato largo, \cref{tab:columnas}, el que usan los informes) o \emph{una fila
+        por cuadro} (formato ancho: columnas \texttt{r00\_x\_mm}, \texttt{r01\_x\_mm}, \ldots).
+  \item \textbf{Exportar un robot (todos los datos)}: elegir el robot en la lista \emph{Robot} y
+        exportar: todas las columnas de la \cref{tab:columnas}, una fila por cuadro, solo para ese robot.
+  \item \textbf{Exportar cada robot en su propio archivo}: elegir una carpeta; se escribe
+        \texttt{<video>\_robot00.csv} \ldots\ \texttt{<video>\_robot21.csv} y un JSON.
+  \item \textbf{Exportar resumen por robot}: una fila por robot (\cref{tab:resumen}).
+  \item \textbf{Exportar video con seguimiento}: el tramo con la superposición (robots, velocidad,
+        orientación y, si está marcado, el recinto con sus ejes).
+  \item \textbf{Guardar análisis}: sesión \texttt{.npz} (candidatos, firmas de rotación, anclas, recinto y
+        parámetros; NumPy comprimido, sin \texttt{pickle}).
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \caption{Columnas del CSV de seguimiento (formato largo y por robot). Posiciones y velocidades en el
+    sistema del recinto (\cref{eq:marco}).}
+  \label{tab:columnas}
+  \small
+  \begin{tabular}{@{}p{3.9cm}lp{8.2cm}@{}}
+    \toprule
+    Columna & Unidad & Contenido \\
+    \midrule
+    \texttt{frame} & --- & número de cuadro $n$ en el archivo de video \\
+    \texttt{t\_s} & \si{\second} & tiempo real $n/\fr$ \\
+    \texttt{particle} & --- & identificador del robot ($0\ldots N-1$), fijo durante el ensayo \\
+    \texttt{status} & --- & estado de la posición (\cref{tab:estados}); \texttt{status\_code}, su código \\
+    \texttt{x\_mm}, \texttt{y\_mm} & \si{\milli\metre} & centro del robot; origen en el centro del recinto, $y$ hacia arriba \\
+    \texttt{r\_mm}, \texttt{phi\_deg} & \si{\milli\metre}, \si{\degree} & coordenadas polares; $\phi$ antihorario desde $+x$ \\
+    \texttt{wall\_dist\_mm} & \si{\milli\metre} & $R_{\mathrm{int}} - r$: del centro del robot a la pared \\
+    \texttt{vx\_mm\_s}, \texttt{vy\_mm\_s} & \si{\milli\metre\per\second} & velocidad respecto del recinto \\
+    \texttt{speed\_mm\_s} & \si{\milli\metre\per\second} & rapidez $|\vec v|$ \\
+    \texttt{vel\_dir\_deg} & \si{\degree} & dirección de $\vec v$, antihoraria, \SI{0}{\degree} = $+x$ \\
+    \texttt{v\_rad\_mm\_s}, \texttt{v\_tan\_mm\_s} & \si{\milli\metre\per\second} & componentes radial ($>0$ hacia afuera) y tangencial ($>0$ antihoraria) \\
+    \texttt{theta\_deg} & \si{\degree} & orientación acumulada $\theta$, cero en el primer cuadro del tramo \\
+    \texttt{omega\_deg\_s}, \texttt{omega\_rad\_s} & \si{\degree\per\second}, \si{\radian\per\second} & velocidad angular $\omega$ (antihoraria positiva) \\
+    \texttt{rot\_status} & --- & \emph{medida}, \emph{interpolada} o \emph{no disponible} \\
+    \texttt{x\_px}, \texttt{y\_px}, \texttt{r\_px} & px & lo mismo que \texttt{x\_mm}, \texttt{y\_mm}, \texttt{r\_mm} sin escalar \\
+    \texttt{vx\_px\_s}, \texttt{vy\_px\_s}, \texttt{speed\_px\_s} & \si{px\per\second} & velocidad en píxeles (ejes del recinto) \\
+    \texttt{mm\_per\_px} & \si{\milli\metre\per px} & escala $s(n)$ del cuadro \\
+    \texttt{xc\_video\_px}, \texttt{yc\_video\_px} & px & centro del recinto en ese cuadro, en píxeles del video \\
+    \texttt{x\_video\_px}, \texttt{y\_video\_px} & px & centro del robot en píxeles del video (sin espejar, $y$ hacia abajo) \\
+    \texttt{mass}, \texttt{ring\_cov} & --- & intensidad de la detección y cobertura del anillo \\
+    \texttt{espejo} & --- & solo si se corrigió el espejado: \texttt{horizontal} o \texttt{vertical} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{Columnas del resumen por robot (en \si{\milli\metre} si hay escala; en px si no).}
+  \label{tab:resumen}
+  \small
+  \begin{tabular}{@{}p{4.6cm}p{10.0cm}@{}}
+    \toprule
+    Columna & Contenido \\
+    \midrule
+    \texttt{frames}, \texttt{duration\_s} & cuadros y duración real del tramo \\
+    \texttt{pct\_position\_observed}, \texttt{pct\_rotation\_measured} & \% de posiciones observadas y de $\theta$ medido (no interpolado) \\
+    \texttt{mean/median/max\_speed\_mm\_s} & rapidez media, mediana y máxima \\
+    \texttt{path\_length\_mm}, \texttt{net\_displacement\_mm} & recorrido total y desplazamiento neto \\
+    \texttt{mean\_r\_mm} & distancia media al centro del recinto \\
+    \texttt{total\_rotation\_deg}, \texttt{turns} & giro neto en grados y en vueltas (antihorario positivo) \\
+    \texttt{mean\_omega\_deg\_s}, \texttt{mean\_abs\_omega\_deg\_s} & $\overline{\omega}$ con signo y $\overline{|\omega|}$ \\
+    \texttt{pct\_omega\_cw} & \% del tiempo girando en sentido horario ($\omega<0$) \\
+    \texttt{mean\_v\_tan\_mm\_s} & $\overline{v_t}$: circulación alrededor del centro ($>0$ antihoraria) \\
+    \texttt{pct\_wall\_layer} & \% del tiempo en la capa de la pared: $r \geq q_{99.5}(r) - D/2$ (a menos de medio diámetro del radio de contacto) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Leer los CSV en otros programas.} El separador es la coma y el decimal el punto. En un Excel
+configurado en español conviene importarlos con \emph{Datos $\to$ Desde texto/CSV} eligiendo punto
+como separador decimal; abrirlos con doble clic puede leer \texttt{0.52} como texto o fecha. En Python:
+\begin{lstlisting}[caption={Lectura de un CSV exportado (un robot y solo puntos detectados).}]
+import pandas as pd
+df = pd.read_csv("datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv")
+r7 = df[(df.particle == 7) & (df.status == "detectado")]       # robot 7, observed points only
+print(r7[["t_s", "x_mm", "y_mm", "speed_mm_s", "omega_deg_s"]].describe())
+wall = df.r_mm >= df.r_mm.quantile(0.995) - 33 / 2               # wall layer (D = 33 mm)
+\end{lstlisting}
+
+\subsection{Reexportar sin la interfaz: \texttt{reexportar.py}}\label{sec:reexportar}
+
+Carga una sesión \texttt{.npz}, rehace el seguimiento y la cinemática con las opciones indicadas y
+escribe los mismos archivos que la interfaz. Es la forma de regenerar las trayectorias de un ensayo:
+\begin{verbatim}
+python software/vidfetch/tools/reexportar.py ^
+       datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
+       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+       --espejo horizontal --ventana 5 --diametro-robot 33 --escala recinto ^
+       --cuadros-por-segundo 3 ^
+       --salida datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
+       --resumen --guardar-sesion
+\end{verbatim}
+
+\begin{table}[H]
+  \centering
+  \caption{Opciones de \texttt{reexportar.py}.}
+  \small
+  \begin{tabular}{@{}p{4.4cm}p{10.2cm}@{}}
+    \toprule
+    Opción & Efecto \\
+    \midrule
+    \texttt{sesion} (obligatoria) & análisis guardado por la app (\texttt{.npz}) \\
+    \texttt{-{}-video} & video analizado, si no está en la ruta guardada en la sesión \\
+    \texttt{-{}-salida} & CSV largo (por defecto \texttt{<sesión>\_robots.csv}); también escribe \texttt{\_info.json} \\
+    \texttt{-{}-resumen} & escribe además \texttt{<salida>\_resumen.csv} \\
+    \texttt{-{}-por-robot CARPETA} & un CSV por robot en esa carpeta \\
+    \texttt{-{}-espejo}, \texttt{-{}-ventana}, \texttt{-{}-diametro-robot} & como en la pestaña \emph{Seguimiento} \\
+    \texttt{-{}-escala recinto|perspectiva|robot} & fuente de la escala (\cref{sec:recinto}, punto 6) \\
+    \texttt{-{}-cuadros-por-segundo} & $\fr$ \\
+    \texttt{-{}-d-int}, \texttt{-{}-d-ext} & diámetros del recinto [\si{\milli\metre}] (por defecto 185 y 195) \\
+    \texttt{-{}-redetectar}, \texttt{-{}-paso} & vuelve a medir el recinto en el video cada \texttt{paso} cuadros (por defecto 15); sin esta opción se usa el guardado en la sesión, y solo se mide si la sesión no lo tiene \\
+    \texttt{-{}-guardar-sesion [NPZ]} & guarda la sesión con el recinto (sobre la misma o en \texttt{NPZ}) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Verificar el giro: \texttt{verificar\_giro.py}}
+
+Recorta algunos robots del video cada pocos minutos y los muestra tal como se grabaron y girados por
+$-\theta$ (método anterior y actual). Si $\theta$ es correcto, las marcas del robot quedan quietas:
+\begin{verbatim}
+python software/vidfetch/tools/verificar_giro.py ^
+       datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
+       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+       --robots 3,7,12 --inicio 0 --cada 2.5 --duracion 15
+\end{verbatim}
+Escribe \nolinkurl{datos/video/verificacion/giro_<código>.png} (o \texttt{-{}-salida}).
 
 \subsection{Generar el informe de ensayos}
 
-Dos scripts de \nolinkurl{software/analisis_video/} arman el informe de resultados
-(\nolinkurl{informes/ensayos/informe_ensayos.tex}) a partir de los CSV exportados. Se ejecutan desde
-la raíz del repositorio; en Windows la línea se continúa con \verb|^| y en Linux o macOS con
-\verb|\|. Por defecto escriben en \nolinkurl{informes/ensayos/generado/} y leen el registro de
-presión de \nolinkurl{datos/presion/crudos/}.
+Dos scripts de \nolinkurl{software/analisis_video/} arman \nolinkurl{informes/ensayos/informe_ensayos.tex}
+a partir de los CSV (y sus \texttt{\_info.json}). Por defecto escriben en
+\nolinkurl{informes/ensayos/generado/} y leen el registro de presión de \nolinkurl{datos/presion/crudos/}.
 
-\paragraph{Una sección por ensayo.} \texttt{generar\_informe.py} crea
-\nolinkurl{generado/<nombre>/} con la tabla de datos, la captura anotada, los gráficos y un
-párrafo automático, y actualiza \nolinkurl{generado/lista_ensayos.tex}:
+\paragraph{Una sección por ensayo.} \texttt{generar\_informe.py} crea \nolinkurl{generado/<nombre>/}
+con la tabla de datos (incluido el recinto), la captura anotada (con el recinto y los ejes), los gráficos y
+un párrafo automático, y actualiza \nolinkurl{generado/lista_ensayos.tex}:
 \begin{verbatim}
 python software/analisis_video/generar_informe.py ^
        datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
@@ -41,79 +224,57 @@ python software/analisis_video/generar_informe.py ^
 \end{verbatim}
 Opciones:
 \begin{itemize}
-  \item \texttt{-{}-cuadros-por-segundo F}: reexpresa el CSV con $\fr = F$. Recalcula $t = n/F$ y
-        multiplica velocidades y velocidades angulares por $F/\fr^{\mathrm{CSV}}$, donde
-        $\fr^{\mathrm{CSV}}$ se deduce de las columnas \texttt{frame} y \texttt{t\_s}. Corrige un CSV
-        exportado con otra escala sin repetir el análisis.
+  \item \texttt{-{}-cuadros-por-segundo F}: reexpresa el CSV con $\fr = F$ (recalcula $t = n/F$ y
+        multiplica velocidades y velocidades angulares por $F/\fr^{\mathrm{CSV}}$, con
+        $\fr^{\mathrm{CSV}}$ deducido de \texttt{frame} y \texttt{t\_s}).
   \item \texttt{-{}-imagen archivo.png -{}-frame n}: usa una imagen ya extraída del cuadro $n$ para la
-        captura anotada, en lugar de leer el video (útil si el video no está en la misma máquina).
-  \item \texttt{-{}-titulo}, \texttt{-{}-diametro-mm}, \texttt{-{}-diametro-px} (si el CSV no trae escala).
+        captura, en lugar de leer el video.
+  \item \texttt{-{}-titulo}; \texttt{-{}-diametro-mm} (por defecto, el del JSON o 33);
+        \texttt{-{}-diametro-px} (solo para CSV viejos sin escala).
 \end{itemize}
 Si la duración real supera \SI{10}{\minute}, los ejes de tiempo van en minutos y las trayectorias se
 grafican solo para los primeros \SI{5}{\minute}. Las observaciones propias van en
-\nolinkurl{generado/<nombre>/notas.tex}, que el script nunca sobrescribe. Si el CSV se exportó con
-la corrección de video espejado (columna \texttt{espejo}), la captura se dibuja igual sobre la
-imagen original.
+\nolinkurl{generado/<nombre>/notas.tex}, que el script nunca sobrescribe. Los CSV anteriores al
+recinto (con \texttt{x\_px} relativo a la esquina del recorte) siguen funcionando.
 
 \paragraph{Comparación entre ensayos.} \texttt{comparar\_ensayos.py} recibe todos los CSV y genera
-\nolinkurl{generado/comparacion/}: tabla comparativa, series temporales con los atascos
-marcados, distribuciones, rotación por robot, desplazamiento cuadrático medio, mapas de ocupación y,
-si encuentra los registros del sensor, la alineación con el registro del sensor de presión
-(\texttt{R\_<código>.csv}) mediante el pulso LED de sincronización y la correlación cruzada:
+\nolinkurl{generado/comparacion/}: tabla comparativa (incluidos recinto, radio de contacto, $\phi$,
+movimiento del recinto y zoom), series temporales con los atascos, distribuciones, rotación por robot,
+desplazamiento cuadrático medio, mapas de ocupación con la pared y el radio de contacto, densidad radial
+y, si encuentra los registros, el contraste con el sensor de presión:
 \begin{verbatim}
 python software/analisis_video/comparar_ensayos.py ^
        "datos/video/trayectorias/VP_*_robots.csv"
 \end{verbatim}
-Después se compila \texttt{informes/ensayos/informe\_ensayos.tex} dos veces (\texttt{pdflatex} o
-\texttt{latexmk -pdf}). Este informe (\texttt{informe\_aplicacion.tex}) no depende de los datos.
+El umbral de atasco (percentil 90 de la rapidez suavizado en \SI{30}{\second} menor que
+\SI{0.52}{\milli\metre\per\second} durante al menos \SI{20}{\second}) está al comienzo del script
+(\texttt{FREEZE\_P90\_MM\_S}).
 
-\subsection{Archivos exportados}
+\paragraph{Compilar.} Desde \nolinkurl{informes/ensayos/} y \nolinkurl{informes/aplicacion/}:
+\begin{verbatim}
+latexmk -pdf informe_ensayos.tex          (o dos pasadas de pdflatex)
+latexmk -pdf informe_aplicacion.tex
+\end{verbatim}
 
-\paragraph{CSV de seguimiento (una fila por robot y cuadro).} Es el archivo de datos del ensayo y la
-entrada del informe. Tiempos, velocidades y velocidades angulares están en tiempo real, con la
-escala $\fr$ vigente al exportar (\cref{tab:columnas}).
+\subsection{Rehacer todo desde cero}
 
-\begin{table}[H]
-  \centering
-  \caption{Columnas del CSV de seguimiento.}
-  \label{tab:columnas}
-  \small
-  \begin{tabular}{@{}llp{8.6cm}@{}}
-    \toprule
-    Columna & Unidad & Contenido \\
-    \midrule
-    \texttt{frame} & --- & número de cuadro $n$ en el archivo de video \\
-    \texttt{t\_s} & \si{\second} & tiempo real $n/\fr$ \\
-    \texttt{particle} & --- & identificador del robot ($0\ldots N-1$), fijo durante todo el ensayo \\
-    \texttt{x\_px}, \texttt{y\_px} & px & centro, relativo al rectángulo analizado ($y$ hacia abajo) \\
-    \texttt{status} & --- & estado de la posición (\cref{tab:estados}); \texttt{status\_code}, su código numérico \\
-    \texttt{vx\_px\_s}, \texttt{vy\_px\_s} & \si{px\per\second} & componentes de la velocidad \\
-    \texttt{speed\_px\_s} & \si{px\per\second} & rapidez $|\vec v|$ \\
-    \texttt{vel\_dir\_deg} & \si{\degree} & dirección $\varphi$ de $\vec v$, antihoraria, \SI{0}{\degree} = derecha \\
-    \texttt{theta\_deg} & \si{\degree} & orientación acumulada $\theta$, cero en el primer cuadro del tramo \\
-    \texttt{omega\_deg\_s}, \texttt{omega\_rad\_s} & \si{\degree\per\second}, \si{\radian\per\second} & velocidad angular $\omega$ \\
-    \texttt{rot\_status} & --- & \emph{medida}, \emph{interpolada} o \emph{no disponible} \\
-    \texttt{x\_m}, \texttt{y\_m} & \si{\metre} & posición en SI (si se cargó el diámetro real) \\
-    \texttt{vx\_m\_s}, \texttt{vy\_m\_s}, \texttt{speed\_m\_s} & \si{\metre\per\second} & velocidad en SI \\
-    \texttt{mass}, \texttt{ring\_cov} & --- & intensidad de la detección y cobertura del anillo \\
-    \texttt{x\_video\_px}, \texttt{y\_video\_px} & px & centro en coordenadas del video completo (sin corregir espejado) \\
-    \texttt{espejo} & --- & solo si se corrigió el espejado: \texttt{horizontal} o \texttt{vertical} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\paragraph{CSV de seguimiento (una fila por cuadro).} Mismos datos en formato ancho: una fila por
-cuadro y, por cada robot $k$, las columnas anteriores con el prefijo \texttt{r}$k$\texttt{\_}
-(\texttt{r00\_x\_px}, \texttt{r00\_y\_px}, \ldots). Cómodo para planillas; el informe usa el formato largo.
-
-\paragraph{Resumen por robot.} Una fila por robot: duración (s reales), porcentaje de posiciones
-observadas y de rotación medida, rapidez media y máxima, recorrido total, desplazamiento neto, giro
-total y $\omega$ media y media en valor absoluto, en píxeles y en SI.
-
-\paragraph{Video con seguimiento.} El tramo analizado con la superposición de la aplicación
-(\cref{fig:superposicion}): círculo coloreado por estado, número de robot, flecha de velocidad
-(desplazamiento en \num{7.5}~cuadros) y aguja de orientación. Se reproduce a $\fa$, igual que el original.
+Con los videos copiados en \nolinkurl{datos/video/recortados/}, para cada \texttt{<código>}:
+\begin{enumerate}
+  \item Con la interfaz: abrir \texttt{VC\_<código>.MP4}, fijar parámetros (paso 4 de la lista
+        anterior), \emph{Analizar video}, revisar recinto y robots, \emph{Guardar análisis} como
+        \nolinkurl{datos/video/sesiones/VA_<código>_analisis.npz} y exportar el CSV largo como
+        \nolinkurl{datos/video/trayectorias/VP_<código>_robots.csv}.
+  \item O, si la sesión ya existe, sin interfaz: el comando de \cref{sec:reexportar}
+        (agregar \texttt{-{}-redetectar} para volver a medir el recinto).
+  \item \texttt{generar\_informe.py} para cada ensayo y \texttt{comparar\_ensayos.py} con todos.
+  \item Compilar los dos informes.
+\end{enumerate}
+Las trayectorias versionadas en el repositorio se generaron con \texttt{reexportar.py} y los parámetros
+del ejemplo anterior, con el recinto medido cada \num{30}~cuadros sobre cuadros extraídos del video
+(JPEG de alta calidad) y guardado en cada sesión. Sin \texttt{-{}-redetectar} se reproducen exactamente;
+con \texttt{-{}-redetectar} el recinto se vuelve a medir cada \num{15}~cuadros sobre el video original y
+cabe esperar diferencias del orden del ruido de una muestra (\SI{0.3}{px} en el centro).
 
 \paragraph{Sesión de análisis (\texttt{.npz}).} Guarda candidatos, firmas de rotación, anclas
-manuales y resultado del seguimiento, para retomar el trabajo sin volver a leer el video. Al
-cargarla se aplica la escala de tiempo vigente en la aplicación.
+manuales, recinto (muestras automáticas y círculo manual) y parámetros. Al cargarla se aplica la escala
+de tiempo vigente en la aplicación; las sesiones sin recinto lo miden al cargarse.

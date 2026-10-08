@@ -6,7 +6,9 @@
 VidFetch es una aplicación de escritorio en Python que mide, a partir de un video filmado desde
 arriba, el movimiento de $N$ robots circulares dentro de una arena. Para cada robot y cada cuadro
 entrega la posición del centro, el vector velocidad, la orientación acumulada $\theta$ y la
-velocidad angular $\omega$, en unidades SI y en tiempo real aunque el video esté acelerado.
+velocidad angular $\omega$, en unidades SI y en tiempo real aunque el video esté acelerado. Las
+posiciones se dan con origen en el centro del recinto circular (detectado automáticamente o marcado a
+mano), que además fija la escala espacial.
 
 Usos previstos:
 \begin{itemize}
@@ -16,8 +18,11 @@ Usos previstos:
         calibración automática.
   \item \textbf{Seguir} $N$ robots fijos durante todo el ensayo, revisar los cuadros dudosos y
         corregir centros a mano.
-  \item \textbf{Exportar} los datos (CSV), un resumen por robot, el video anotado y la sesión de
-        análisis para retomarla sin volver a procesar.
+  \item \textbf{Ubicar el recinto} en cada cuadro (centro y radio), para medir respecto de su centro y
+        convertir a milímetros con su diámetro conocido.
+  \item \textbf{Exportar} los datos (CSV de todos los robots, de un robot o un archivo por robot), un
+        resumen por robot, el video anotado y la sesión de análisis para retomarla sin volver a procesar.
+  \item \textbf{Reexportar sin interfaz} una sesión guardada (\texttt{tools/reexportar.py}).
   \item \textbf{Generar los informes} de ensayos a partir de los CSV (\cref{sec:procedimiento}).
 \end{itemize}
 
@@ -53,21 +58,25 @@ solo llama a funciones de \texttt{core/} (\cref{tab:archivos}).
     \texttt{core/processing.py} & 94 & operaciones de imagen encadenables (grises, brillo/contraste, desenfoque, umbral, Canny) \\
     \texttt{core/detection.py} & 182 & detección de robots: filtro de anillo, \texttt{trackpy.locate}, cobertura del anillo \\
     \texttt{core/calibration.py} & 230 & estimación automática del radio del robot y de todos los umbrales \\
-    \texttt{core/analysis.py} & 116 & recorrido del video cuadro a cuadro y tabla de candidatos \\
-    \texttt{core/tracking.py} & 708 & seguimiento con $N$ fijo, anclas manuales, huecos, sesión \texttt{.npz}, dibujo \\
-    \texttt{core/rotation.py} & 139 & firmas polares y orientación acumulada $\theta$ \\
-    \texttt{core/kinematics.py} & 250 & velocidad, $\omega$, escala SI y tablas de exportación \\
+    \texttt{core/analysis.py} & 125 & recorrido del video cuadro a cuadro (candidatos y recinto) \\
+    \texttt{core/tracking.py} & 756 & seguimiento con $N$ fijo, anclas manuales, huecos, sesión \texttt{.npz}, dibujo \\
+    \texttt{core/rotation.py} & 188 & firmas polares y orientación acumulada $\theta$ (enlaces cortos y largos) \\
+    \texttt{core/arena.py} & 717 & recinto: detección, ajuste de círculos, seguimiento temporal, marcado manual, dibujo \\
+    \texttt{core/kinematics.py} & 426 & velocidad, $\omega$, sistema del recinto, escala y tablas de exportación \\
     \midrule
-    \texttt{gui/main\_window.py} & 522 & ventana, menús, diálogos de archivo y tareas en segundo plano \\
+    \texttt{gui/main\_window.py} & 651 & ventana, menús, diálogos de archivo, exportaciones y tareas en segundo plano \\
     \texttt{gui/state.py} & 71 & estado compartido: video, tramo, rectángulo, escala de tiempo \\
     \texttt{gui/tabs.py} & 501 & pestañas \emph{Original}, \emph{Recortar} y \emph{Procesar} \\
-    \texttt{gui/tracking\_tab.py} & 498 & pestaña \emph{Seguimiento} \\
+    \texttt{gui/tracking\_tab.py} & 729 & pestaña \emph{Seguimiento} (incluye el recinto y las exportaciones por robot) \\
     \texttt{gui/player.py}, \texttt{frame\_view.py} & 362 & reproductor y visor con zoom y edición del rectángulo \\
     \texttt{gui/export\_worker.py} & 35 & hilo de trabajo (\texttt{QThread}) para tareas largas \\
     \midrule
+    \texttt{tools/reexportar.py} & 126 & reexportar una sesión sin interfaz (recinto, CSV, resumen, por robot) \\
+    \texttt{tools/verificar\_giro.py} & 137 & verificación visual de $\theta$ sobre el video \\
+    \midrule
     \multicolumn{3}{@{}l}{\textit{En \texttt{software/analisis\_video/}:}} \\
-    \texttt{generar\_informe.py} & 548 & sección de resultados de un ensayo a partir de su CSV \\
-    \texttt{comparar\_ensayos.py} & 530 & comparación entre ensayos y contraste con el sensor de presión \\
+    \texttt{generar\_informe.py} & 637 & sección de resultados de un ensayo a partir de su CSV \\
+    \texttt{comparar\_ensayos.py} & 584 & comparación entre ensayos y contraste con el sensor de presión \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -85,9 +94,9 @@ un único objeto de estado (\texttt{gui/state.py}): lo que se define en una se r
         (parámetros, botón \emph{Calibrar tamaño automáticamente}). Exporta posiciones sueltas o
         vinculadas con \texttt{trackpy.link} y el video procesado.
   \item \textbf{Seguimiento}: análisis completo con $N$ fijo, lista de cuadros con problemas,
-        corrección manual del centro, parámetros de cinemática (ventana de suavizado, diámetro real,
-        corrección de video espejado),
-        superposición de velocidad y orientación, y exportaciones.
+        corrección manual del centro, recinto (detección automática, marcado manual, diámetros),
+        parámetros de cinemática (ventana de suavizado, diámetro real, video espejado, fuente de la
+        escala), superposición de velocidad, orientación y recinto, y exportaciones.
 \end{enumerate}
 
 \subsection{Archivos que lee y escribe}
@@ -104,9 +113,10 @@ un único objeto de estado (\texttt{gui/state.py}): lo que se define en una se r
     \texttt{.mp4 .avi .mov .mkv .m4v .wmv} & entrada & video a analizar (cualquier formato que lea OpenCV/FFmpeg) \\
     \texttt{.mp4} (\texttt{mp4v}), \texttt{.avi} (MJPG) & salida & video recortado, procesado o con el seguimiento dibujado \\
     \texttt{.csv} & salida & posiciones de la pestaña \emph{Procesar}; seguimiento completo en formato largo o ancho;
-                            resumen por robot (columnas en la \cref{tab:columnas}) \\
-    \texttt{.npz} & entrada y salida & sesión de análisis: candidatos, firmas de rotación, anclas manuales y
-                                       parámetros (NumPy comprimido, sin \texttt{pickle}) \\
+                            un robot; un archivo por robot; resumen por robot (\cref{tab:columnas,tab:resumen}) \\
+    \texttt{\_info.json} & salida & junto a cada CSV: recinto, escala, convenciones, $\kappa$, espejado, $\fr$ \\
+    \texttt{.npz} & entrada y salida & sesión de análisis: candidatos, firmas de rotación, anclas manuales,
+                                       recinto y parámetros (NumPy comprimido, sin \texttt{pickle}) \\
     \texttt{.tex}, \texttt{.csv}, \texttt{.png} & salida & secciones de informe generadas por los scripts de \texttt{software/analisis\_video/} \\
     \bottomrule
   \end{tabular}

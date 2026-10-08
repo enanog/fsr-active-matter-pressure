@@ -60,8 +60,10 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
    `python software/fsrscope/procesar_lote.py` procesa todos con la configuración guardada.
 2. **Video**: copiar el video a `datos/video/originales/`, recortarlo con VidFetch
    (`python software/vidfetch/main.py`) a `datos/video/recortados/`, analizarlo (escala de tiempo
-   3 cuadros/s, **video espejado: horizontal**) y guardar la sesión en `sesiones/` y el CSV en
-   `trayectorias/`.
+   3 cuadros/s, **video espejado: horizontal**, robot 33 mm, recinto Ø 185/195 mm, escala desde el
+   recinto) y guardar la sesión en `sesiones/` y el CSV en `trayectorias/`. Las posiciones salen con
+   origen en el centro del recinto (detectado en cada cuadro o marcado a mano), x a la derecha e y hacia
+   arriba. Con una sesión ya guardada, `software/vidfetch/tools/reexportar.py` regenera el CSV sin interfaz.
 3. **Informes**: desde la raíz,
    ```
    python software/analisis_video/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
@@ -77,4 +79,7 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
   salgan con el sentido real.
 - El registrador del sensor enciende un LED 5 s al comenzar; el video recortado empieza al terminar
   ese pulso, lo que permite sincronizar video y presión.
+- El recinto se desliza unos mm sobre la placa durante la primera media hora y la cámara cambia
+  levemente de aumento: VidFetch mide el recinto a lo largo del video y usa el centro y la escala de
+  cada cuadro.
 - Requisitos de Python: `software/vidfetch/requirements.txt` y `software/fsrscope/requirements.txt`.

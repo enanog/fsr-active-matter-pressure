@@ -13,9 +13,13 @@
     Robots $N$ & \num{\Cmp{N}{A}} & \num{\Cmp{N}{B}} & \num{\Cmp{N}{C}} \\
     Cuadros & \num{\Cmp{F}{A}} & \num{\Cmp{F}{B}} & \num{\Cmp{F}{C}} \\
     Duración real [\si{\minute}] & \num{\Cmp{Dur}{A}} & \num{\Cmp{Dur}{B}} & \num{\Cmp{Dur}{C}} \\
-    Escala $s$ [\si{\milli\metre\per px}] & \num{\Cmp{Esc}{A}} & \num{\Cmp{Esc}{B}} & \num{\Cmp{Esc}{C}} \\
-    Radio útil de la arena [\si{\centi\metre}] & \num{\Cmp{Rar}{A}} & \num{\Cmp{Rar}{B}} & \num{\Cmp{Rar}{C}} \\
+    Escala $s$ (mediana) [\si{\milli\metre\per px}] & \num{\Cmp{Esc}{A}} & \num{\Cmp{Esc}{B}} & \num{\Cmp{Esc}{C}} \\
+    Radio interior del recinto $R_{\mathrm{int}}$ [\si{\centi\metre}] & \num{\Cmp{Rar}{A}} & \num{\Cmp{Rar}{B}} & \num{\Cmp{Rar}{C}} \\
+    Radio de contacto $R_{\mathrm{c}}$ [\si{\milli\metre}] & \num{\Cmp{Rc}{A}} & \num{\Cmp{Rc}{B}} & \num{\Cmp{Rc}{C}} \\
     Fracción de área $\phi$ & \num{\Cmp{Phi}{A}} & \num{\Cmp{Phi}{B}} & \num{\Cmp{Phi}{C}} \\
+    Desplazamiento del recinto en $x$ [\si{\milli\metre}] & \num{\Cmp{MovX}{A}} & \num{\Cmp{MovX}{B}} & \num{\Cmp{MovX}{C}} \\
+    Desplazamiento del recinto en $y$ [\si{\milli\metre}] & \num{\Cmp{MovY}{A}} & \num{\Cmp{MovY}{B}} & \num{\Cmp{MovY}{C}} \\
+    Variación de escala (zoom) [\si{\percent}] & \num{\Cmp{Zoom}{A}} & \num{\Cmp{Zoom}{B}} & \num{\Cmp{Zoom}{C}} \\
     \midrule
     \multicolumn{4}{@{}l}{\textit{Seguimiento}} \\
     Posiciones observadas [\si{\percent}] & \num{\Cmp{Obs}{A}} & \num{\Cmp{Obs}{B}} & \num{\Cmp{Obs}{C}} \\
@@ -39,6 +43,7 @@
     Robots con giro neto $<-1$ vuelta & \num{\Cmp{Ncw}{A}} & \num{\Cmp{Ncw}{B}} & \num{\Cmp{Ncw}{C}} \\
     Mayor giro neto de un robot [\si{vueltas}] & \num{\Cmp{Vmax}{A}} & \num{\Cmp{Vmax}{B}} & \num{\Cmp{Vmax}{C}} \\
     Rotación colectiva $\overline{\Phi}$ & \num{\Cmp{Prot}{A}} & \num{\Cmp{Prot}{B}} & \num{\Cmp{Prot}{C}} \\
+    Tiempo en la capa de la pared [\si{\percent}] & \num{\Cmp{Pwall}{A}} & \num{\Cmp{Pwall}{B}} & \num{\Cmp{Pwall}{C}} \\
     \midrule
     \multicolumn{4}{@{}l}{\textit{Atascos}} \\
     Episodios & \num{\Cmp{NAt}{A}} & \num{\Cmp{NAt}{B}} & \num{\Cmp{NAt}{C}} \\
@@ -133,7 +138,7 @@
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{generado/comparacion/ocupacion.png}
-  \caption{Densidad de ocupación de los centros de los robots durante todo cada ensayo. Línea punteada: círculo que pueden alcanzar los centros (radio útil menos el radio del robot).}
+  \caption{Densidad de ocupación de los centros de los robots durante todo cada ensayo, con origen en el centro del recinto de cada cuadro ($y$ hacia arriba, escena real). Círculo naranja: pared interior ($R_{\mathrm{int}}$); punteado blanco: radio de contacto $R_{\mathrm{c}}$ (percentil 99,5 de $r$, centros de los robots apoyados en la pared).}
   \label{fig:cmp_ocupacion}
 \end{figure}
 \begin{figure}[H]

@@ -21,15 +21,15 @@ medición.
     & \Cmp{Lab}{A} & \Cmp{Lab}{B} & \Cmp{Lab}{C} \\
     \midrule
     Puntos (robots $\times$ cuadros) & \num{265518} & \num{217382} & \num{242264} \\
-    Detectados con umbral estricto & \num{265298} & \num{217149} & \num{241966} \\
+    Detectados con umbral estricto & \num{265302} & \num{217149} & \num{241944} \\
     Detectados con umbral relajado & \num{\Cmp{Rel}{A}} & \num{\Cmp{Rel}{B}} & \num{\Cmp{Rel}{C}} \\
     Interpolados & \num{\Cmp{Int}{A}} & \num{\Cmp{Int}{B}} & \num{\Cmp{Int}{C}} \\
     Anclas manuales & \num{\Cmp{Man}{A}} & \num{\Cmp{Man}{B}} & \num{\Cmp{Man}{C}} \\
     Predichos o perdidos & \num{\Cmp{Pre}{A}} & \num{\Cmp{Pre}{B}} & \num{\Cmp{Pre}{C}} \\
     \midrule
-    Episodios con advertencias & 46 & 32 & 16 \\
-    Cuadros afectados & \SI{1.81}{\percent} & \SI{2.22}{\percent} & \SI{2.69}{\percent} \\
-    Episodio más largo & \SI{16}{\second} & \SI{11}{\second} & \SI{52}{\second} \\
+    Episodios con advertencias & 46 & 33 & 15 \\
+    Cuadros afectados & \SI{1.78}{\percent} & \SI{2.22}{\percent} & \SI{2.87}{\percent} \\
+    Episodio más largo & \SI{16}{\second} & \SI{10}{\second} & \SI{53}{\second} \\
     Robots involucrados & 11 & 7 & 5 \\
     Rotación medida (no interpolada) & \SI{100}{\percent} & \SI{99.99}{\percent} & \SI{100}{\percent} \\
     \bottomrule
@@ -41,5 +41,5 @@ Las tres anclas manuales están en los últimos cuadros de \Cmp{Lab}{B} (robot 1
 \SI{19.2}{\minute} y \SI{20.1}{\minute}, es un único robot (el 20) detectado con umbral relajado,
 con coberturas del anillo de \num{0.73} a \num{0.78}: su anillo se veía parcialmente tapado, pero la
 posición es correcta. Como todos los puntos quedan con su estado en la columna \texttt{status},
-pueden excluirse en cualquier análisis sensible; con menos del \SI{0.13}{\percent} de puntos
+pueden excluirse en cualquier análisis sensible; con menos del \SI{0.14}{\percent} de puntos
 afectados, incluirlos no cambia ningún resultado de este informe.

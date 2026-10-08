@@ -23,6 +23,7 @@ import pandas as pd
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 
+from core import arena as arena_mod
 from core import detection as det
 from core.analysis import FrameProcessor, scan_video
 from core.models import Roi, TrimRange
@@ -138,14 +139,23 @@ def candidate_params(p: det.DetectionParams) -> det.DetectionParams:
 
 def extract_candidates(src_path: str, trim: TrimRange, roi: Roi, processor: FrameProcessor,
                        progress: Optional[Callable[[int], None]] = None,
-                       should_cancel: Optional[Callable[[], bool]] = None
-                       ) -> tuple[Optional[CandidateSet], float, bool]:
+                       should_cancel: Optional[Callable[[], bool]] = None,
+                       arena_step: int = 0, d_in_mm: float = arena_mod.D_IN_MM,
+                       d_out_mm: float = arena_mod.D_OUT_MM):
+    """Returns (CandidateSet, fps, cancelled, ArenaTrack or None).
+
+    With arena_step > 0 the enclosure is measured in the same pass (every `arena_step` frames).
+    """
     proc = FrameProcessor(processor.pipeline, candidate_params(processor.detection))
+    samples: list = []
     df, frames, fps, cancelled, sigs = scan_video(src_path, trim, roi, proc, progress, should_cancel,
-                                                  with_signatures=True)
+                                                  with_signatures=True, arena_step=arena_step,
+                                                  arena_samples=samples)
     if cancelled:
-        return None, fps, True
-    return CandidateSet.from_dataframe(df, frames, sigs), fps, False
+        return None, fps, True, None
+    track = (arena_mod.ArenaTrack.from_samples(samples, (roi.x, roi.y), d_in_mm, d_out_mm, arena_step)
+             if arena_step > 0 else None)
+    return CandidateSet.from_dataframe(df, frames, sigs), fps, False, track
 
 
 # --------------------------------------------------------------------------- result
@@ -577,6 +587,7 @@ class TrackingSession:
     result: Optional[TrackingResult] = None
     kin_params: Optional[object] = None   # core.kinematics.KinematicsParams
     kin: Optional[object] = None          # core.kinematics.Kinematics (full range)
+    arena: Optional[arena_mod.ArenaTrack] = None   # enclosure (origin and scale of the exports)
 
     def run(self, progress=None, should_cancel=None) -> Optional[TrackingResult]:
         res = track(self.candidates, self.params, self.anchors, progress, should_cancel)
@@ -591,7 +602,8 @@ class TrackingSession:
         if result is None:
             return None
         p = self.kin_params or km.KinematicsParams()
-        return km.compute(result, self.candidates.sig, self.fps, p, self.detection.r_out)
+        return km.compute(result, self.candidates.sig, self.fps, p, self.detection.r_out, self.arena,
+                          (self.roi.x, self.roi.y, self.roi.w, self.roi.h))
 
     @property
     def has_rotation(self) -> bool:
@@ -634,6 +646,30 @@ class TrackingSession:
             return v.result.to_dataframe(self.fps, (self.roi.x, self.roi.y))
         return km.table(v.result, v.kin, (self.roi.x, self.roi.y), (self.roi.w, self.roi.h))
 
+    def robot_dataframe(self, k: int, view: Optional[SessionView] = None) -> pd.DataFrame:
+        """Every column of the long table for robot k only (one row per frame)."""
+        from core import kinematics as km
+        return km.robot_table(self.to_dataframe(view), k)
+
+    def export_info(self, view: Optional[SessionView] = None) -> dict:
+        """Metadata written next to every CSV export (JSON side-car)."""
+        v = view or self.view()
+        kin = v.kin if v is not None else None
+        info = {"video": self.src_path, "roi": asdict(self.roi),
+                "cuadros": [int(v.result.frames[0]), int(v.result.frames[-1])] if v is not None else None,
+                "cuadros_por_segundo_real": self.fps,
+                "convencion": ("origen en el centro del recinto en cada cuadro; x a la derecha, y hacia arriba; "
+                               "escena real (espejado corregido); ángulos positivos antihorarios; "
+                               "theta = 0 en el primer cuadro del tramo"),
+                "recinto": self.arena.stats() if self.arena is not None else None}
+        if kin is not None:
+            info.update({"origen": kin.origin, "fuente_escala": kin.scale_source,
+                         "mm_por_px_mediana": kin.mm_per_px, "kappa_perspectiva_aplicado": kin.kappa,
+                         "kappa_perspectiva_medido": kin.kappa_measured,
+                         "r_contacto_sobre_r_int": kin.r_contact_rel,
+                         "diametro_robot_mm": kin.robot_diameter_mm, "espejo": kin.mirror})
+        return info
+
     def summary_dataframe(self, view: Optional[SessionView] = None) -> pd.DataFrame:
         from core import kinematics as km
         v = view or self.view()
@@ -649,7 +685,7 @@ class TrackingSession:
         return len(keys)
 
     def annotator(self, view: Optional[SessionView] = None, show_velocity: bool = True,
-                  show_orientation: bool = True) -> Callable[[np.ndarray, int], np.ndarray]:
+                  show_orientation: bool = True, show_arena: bool = True) -> Callable[[np.ndarray, int], np.ndarray]:
         """Thread-safe overlay callable (frame crop, frame index) -> annotated crop."""
         v = view or self.view()
         if v is None:
@@ -664,7 +700,11 @@ class TrackingSession:
             vel = np.stack([kin.vx[i], kin.vy[i]], 1) if (kin is not None and show_velocity) else None
             ang = kin.theta[i] if (kin is not None and show_orientation and self.has_rotation) else None
             xy = np.stack([res.x[i], res.y[i]], 1) - off
-            return draw_tracks(img, xy, res.status[i], r, velocity=vel, theta_deg=ang, fps=self.fps)
+            out = draw_tracks(img, xy, res.status[i], r, velocity=vel, theta_deg=ang, fps=self.fps)
+            if show_arena and self.arena is not None and self.arena.defined:
+                mirror = getattr(self.kin_params, "mirror", "no") if self.kin_params is not None else "no"
+                out = arena_mod.draw(out, self.arena.arena_at(idx), (roi.x, roi.y), mirror)
+            return out
         return annotate
 
     # --- persistence (.npz: arrays + JSON metadata, no pickle) ---
@@ -672,11 +712,14 @@ class TrackingSession:
         cdf = self.candidates.to_dataframe()
         a = np.array([[f, k, x, y] for (f, k), (x, y) in self.anchors.items()], float).reshape(-1, 4)
         kp = asdict(self.kin_params) if self.kin_params is not None else None
-        meta = {"version": 2, "src_path": self.src_path, "roi": asdict(self.roi), "trim": asdict(self.trim),
+        meta = {"version": 3, "src_path": self.src_path, "roi": asdict(self.roi), "trim": asdict(self.trim),
                 "fps": self.fps, "detection": asdict(self.detection), "kinematics": kp,
-                "params": {**asdict(self.params), "relax_coverages": list(self.params.relax_coverages)}}
+                "params": {**asdict(self.params), "relax_coverages": list(self.params.relax_coverages)},
+                "arena": self.arena.meta() if self.arena is not None else None}
         arrays = {"meta": np.array(json.dumps(meta)), "frames": self.candidates.frames,
                   "cand": cdf[["frame", "x", "y", "mass", "ring_cov"]].to_numpy(float), "anchors": a}
+        if self.arena is not None:
+            arrays.update(self.arena.to_arrays())
         sig = self.candidates.signature_rows()
         if sig is not None:
             arrays["sig"] = sig.astype(np.complex64)
@@ -691,7 +734,8 @@ class TrackingSession:
             cand = z["cand"]
             anchors_arr = z["anchors"]
             sig = z["sig"] if "sig" in z.files else None
-        if meta.get("version") not in (1, 2):
+            arena_arr = z["arena"] if "arena" in z.files else None
+        if meta.get("version") not in (1, 2, 3):
             raise ValueError("Versión de archivo de análisis no soportada.")
         cdf = pd.DataFrame(cand, columns=["frame", "x", "y", "mass", "ring_cov"])
         cdf["frame"] = cdf["frame"].astype(np.int64)
@@ -700,9 +744,13 @@ class TrackingSession:
         params = meta["params"]
         params["relax_coverages"] = tuple(params["relax_coverages"])
         kp = meta.get("kinematics")
+        if kp:
+            known = set(km.KinematicsParams.__dataclass_fields__)
+            kp = {k: v for k, v in kp.items() if k in known}
         return TrackingSession(
             src_path=meta["src_path"], roi=Roi(**meta["roi"]), trim=TrimRange(**meta["trim"]),
             fps=float(meta["fps"]), detection=det.DetectionParams(**meta["detection"]),
             candidates=CandidateSet.from_dataframe(cdf, frames, sig), params=TrackerParams(**params),
             anchors={(int(f), int(k)): (float(x), float(y)) for f, k, x, y in anchors_arr},
-            kin_params=km.KinematicsParams(**kp) if kp else None)
+            kin_params=km.KinematicsParams(**kp) if kp else None,
+            arena=arena_mod.ArenaTrack.from_saved(arena_arr, meta.get("arena")))

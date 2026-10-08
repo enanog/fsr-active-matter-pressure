@@ -6,9 +6,11 @@
 
 Para cada robot de la arena y en cada cuadro del video se mide la posición del centro, el vector
 velocidad, la orientación acumulada $\theta$ y la velocidad angular $\omega$, con la cantidad de robots
-$N$ fija. Las distancias se convierten a unidades SI con el diámetro real de los robots,
-$D = \SI{\DiametroRobotCM}{\centi\metre}$, y los tiempos con la frecuencia de captura
-$\fr$ (\cref{sec:escala}). Las figuras de ejemplo de esta sección provienen de un tramo de
+$N$ fija. Las posiciones se expresan respecto del centro del recinto y se convierten a unidades SI con
+su diámetro interior, $D_{\mathrm{int}} = \SI{\DiametroIntRecintoCM}{\centi\metre}$ (\cref{sec:referencia,sec:recinto});
+el diámetro real de los robots, $D = \SI{\DiametroRobotCM}{\centi\metre}$, fija los parámetros de
+detección y el radio de contacto con la pared. Los tiempos usan la frecuencia de captura $\fr$
+(\cref{sec:escala}). Las figuras de ejemplo de esta sección provienen de un tramo de
 \num{180}~cuadros de un ensayo con 22 robots (recorte de \num{700}\,$\times$\,\num{700}\,px),
 expresado con $\fr = 3$~cuadros/s (\SI{60}{\second} reales).
 
@@ -28,11 +30,11 @@ la etapa~B, que tarda segundos.
       flecha/.style={-stealth, thick, gray!70!black}]
     \node[paso]  (a1) {\textbf{Recorte}\\ tramo y ROI};
     \node[paso, right=of a1]  (a2) {\textbf{Calibración}\\ $r_{\mathrm{ext}}$, umbrales};
-    \node[paso, right=of a2]  (a3) {\textbf{Detección}\\ anillo, trackpy};
+    \node[paso, right=of a2]  (a3) {\textbf{Detección}\\ robots y recinto};
     \node[clave, right=of a3] (a4) {\textbf{Candidatos}\\ posición, firma};
     \node[paso, below=14mm of a1] (b1) {\textbf{Seguimiento}\\ $N$ fijo};
     \node[paso, right=of b1]  (b2) {\textbf{Huecos}\\ interpolación};
-    \node[paso, right=of b2]  (b3) {\textbf{Cinemática}\\ $\vec v$, $\theta$, $\omega$};
+    \node[paso, right=of b2]  (b3) {\textbf{Cinemática}\\ marco del recinto};
     \node[paso, right=of b3]  (b4) {\textbf{Vista del tramo}\\ sin re-analizar};
     \node[ext, below=8mm of b1] (c1) {Anclas manuales};
     \node[ext, below=8mm of b3] (c3) {Cambio de tramo};
@@ -53,46 +55,177 @@ la etapa~B, que tarda segundos.
   \label{fig:flujo}
 \end{figure}
 
-\subsection{Sistema de referencia y unidades}
+\subsection{Sistema de referencia y unidades}\label{sec:referencia}
 
-Las posiciones usan los ejes de la imagen: $x$ hacia la derecha, $y$ hacia abajo, con origen en la
-esquina superior izquierda del recorte analizado. Los ángulos (dirección de la velocidad, $\theta$ y
-$\omega$) son positivos en sentido antihorario visto en pantalla. La escala resulta de
+\paragraph{Origen en el centro del recinto.} Todas las exportaciones (CSV, resumen, informes) usan un
+sistema fijo al recinto, no a la imagen:
+\begin{itemize}
+  \item origen $(0,0)$ en el centro del recinto \emph{en cada cuadro} (el recinto se mueve un poco sobre
+        la placa y la cámara cambia levemente de aumento: \cref{sec:recinto});
+  \item $x$ hacia la derecha e $y$ hacia arriba, en la escena real vista desde arriba (con el video
+        espejado ya corregido);
+  \item ángulos (posición polar $\phi$, dirección de la velocidad, $\theta$ y $\omega$) positivos en
+        sentido antihorario.
+\end{itemize}
+Si $(X, Y)$ es el centro de un robot en píxeles del video ($Y$ hacia abajo), $(X_c(n), Y_c(n))$ el
+centro del recinto en el cuadro $n$ y $s(n)$ la escala de ese cuadro, la posición exportada es
 \begin{equation}
-  s = \frac{D}{2\,r_{\mathrm{ext}}}\quad\left[\si{\milli\metre\per px}\right],
+  x = s(n)\,\sigma_x\,\bigl[X - X_c(n)\bigr],\qquad
+  y = -\,s(n)\,\sigma_y\,\bigl[Y - Y_c(n)\bigr],
+  \label{eq:marco}
 \end{equation}
-donde $r_{\mathrm{ext}}$ es el radio exterior del robot en píxeles medido por la calibración; su
-incertidumbre (\SI{\pm 2}{\percent}) se propaga a todas las magnitudes en metros.
+con $\sigma_x = -1$ si el video está espejado respecto del eje vertical (\emph{horizontal}),
+$\sigma_y = -1$ si lo está respecto del horizontal (\emph{vertical}) y $+1$ en otro caso. De
+$(x,y)$ salen la distancia al centro $r = \sqrt{x^2+y^2}$, el ángulo polar $\phi = \operatorname{atan2}(y,x)$
+y la distancia del centro del robot a la pared, $d_{\mathrm{pared}} = R_{\mathrm{int}} - r$, con
+$R_{\mathrm{int}} = D_{\mathrm{int}}/2$. Un robot apoyado en la pared tiene idealmente
+$d_{\mathrm{pared}} = D/2$ (\cref{sec:perspectiva}).
+
+\paragraph{La superposición sigue en coordenadas de imagen.} El análisis (detección, seguimiento,
+ángulos) se hace sobre la imagen tal como está, para que lo dibujado coincida con el video. Solo al
+exportar se aplica la \cref{eq:marco}. Las columnas \texttt{x\_video\_px}, \texttt{y\_video\_px}
+conservan el centro en píxeles del archivo y \texttt{xc\_video\_px}, \texttt{yc\_video\_px} el centro del
+recinto de ese cuadro, de modo que la transformación siempre se puede rehacer.
 
 \paragraph{Video espejado.} Algunas cámaras graban la escena reflejada. Una reflexión invierte la
-quiralidad: un giro horario se ve antihorario y viceversa. La opción \emph{Video espejado} de la
-pestaña \emph{Seguimiento} corrige las exportaciones sin tocar el análisis, que siempre se hace sobre
-la imagen tal como está (así la superposición coincide con el video). Para una reflexión respecto del
-eje vertical de la imagen (\emph{horizontal}), con $W$ el ancho de la región analizada,
-\begin{equation}
-  x \to W - x,\qquad v_x \to -v_x,\qquad \theta \to -\theta,\qquad \omega \to -\omega ,
-\end{equation}
-y la dirección de la velocidad se recalcula; para una reflexión \emph{vertical} se cambian $y$ y $v_y$
-en lugar de $x$ y $v_x$. El CSV lleva entonces la columna \texttt{espejo}, y las columnas
-\texttt{x\_video\_px}, \texttt{y\_video\_px} quedan siempre en píxeles del archivo.
+quiralidad: un giro horario se ve antihorario. Con la opción \emph{Video espejado} de la pestaña
+\emph{Seguimiento} la \cref{eq:marco} refleja la posición respecto del centro del recinto, y $\theta$ y
+$\omega$ cambian de signo; las velocidades, al derivarse de $(x,y)$, quedan corregidas solas. El CSV lleva
+la columna \texttt{espejo}. Los videos de este proyecto están espejados respecto del eje vertical
+(\emph{horizontal}).
 
 \begin{table}[H]
   \centering
-  \caption{Magnitudes medidas.}
+  \caption{Magnitudes exportadas (sistema del recinto).}
+  \label{tab:magnitudes}
+  \small
   \begin{tabular}{@{}llll@{}}
     \toprule
     Magnitud & Símbolo & Unidad & Definición \\
     \midrule
     Tiempo real & $t$ & \si{\second} & $t = n/\fr$, con $n$ el número de cuadro \\
-    Posición & $x,\,y$ & \si{\metre} & centro del robot, ejes de imagen \\
-    Velocidad & $v_x,\,v_y$ & \si{\metre\per\second} & $\mathrm{d}x/\mathrm{d}t$, $\mathrm{d}y/\mathrm{d}t$ \\
-    Rapidez & $|\vec v|$ & \si{\metre\per\second} & $\sqrt{v_x^2+v_y^2}$ \\
-    Dirección & $\varphi$ & \si{\degree} & $\operatorname{atan2}(-v_y,\,v_x)$; \SI{0}{\degree} = derecha \\
+    Posición & $x,\,y$ & \si{\milli\metre} & \cref{eq:marco}: origen en el centro del recinto, $y$ hacia arriba \\
+    Posición polar & $r,\,\phi$ & \si{\milli\metre}, \si{\degree} & $r=\sqrt{x^2+y^2}$, $\phi=\operatorname{atan2}(y,x)$ \\
+    Distancia a la pared & $d_{\mathrm{pared}}$ & \si{\milli\metre} & $R_{\mathrm{int}} - r$ (centro del robot a la pared) \\
+    Velocidad & $v_x,\,v_y$ & \si{\milli\metre\per\second} & $\mathrm{d}x/\mathrm{d}t$, $\mathrm{d}y/\mathrm{d}t$ (Savitzky--Golay) \\
+    Rapidez & $|\vec v|$ & \si{\milli\metre\per\second} & $\sqrt{v_x^2+v_y^2}$ \\
+    Dirección & $\varphi$ & \si{\degree} & $\operatorname{atan2}(v_y,\,v_x)$; \SI{0}{\degree} = $+x$ \\
+    Componente radial & $v_r$ & \si{\milli\metre\per\second} & $(x v_x + y v_y)/r$; $>0$ = se aleja del centro \\
+    Componente tangencial & $v_t$ & \si{\milli\metre\per\second} & $(x v_y - y v_x)/r$; $>0$ = circula antihorario \\
     Orientación & $\theta$ & \si{\degree} & giro acumulado desde el primer cuadro del tramo \\
     Velocidad angular & $\omega$ & \si{\degree\per\second}, \si{\radian\per\second} & $\mathrm{d}\theta/\mathrm{d}t$ \\
     \bottomrule
   \end{tabular}
 \end{table}
+
+\subsection{El recinto: detección, marcado manual y escala}\label{sec:recinto}
+
+El recinto es un anillo de color (verde azulado) de diámetro interior
+$D_{\mathrm{int}} = \SI{\DiametroIntRecintoCM}{\centi\metre}$ y exterior
+$D_{\mathrm{ext}} = \SI{\DiametroExtRecintoCM}{\centi\metre}$ (valores editables en la aplicación).
+Cumple dos funciones: su centro es el origen de coordenadas y su radio en píxeles fija la escala
+espacial.
+
+\paragraph{1. Máscara del anillo.} La imagen se pasa a HSV. El anillo es la estructura saturada
+dominante: se toman los píxeles con saturación $S \geq \max(60, S_{\mathrm{Otsu}})$ y brillo
+$V \geq 30$, se busca el tono más frecuente entre ellos (histograma circular de $H$ suavizado en
+$\pm 12$) y se conservan solo los píxeles con ese tono $\pm 12$. Los LEDs rojos y las pilas amarillas
+tienen otro tono y quedan afuera; una apertura morfológica de $3\times3$ elimina píxeles sueltos
+(\cref{fig:recinto}a). Si no hay ninguna estructura saturada, se usa un círculo de Hough sobre la
+imagen en grises y la detección queda marcada como dudosa.
+
+\paragraph{2. Bordes por rayo.} Desde un centro provisorio (el de un círculo de Hough sobre la máscara,
+o el centro del recorte) se trazan 720 rayos (cada \SI{0.5}{\degree}) con paso de \SI{0.5}{px}. En cada
+rayo, el primer tramo de píxeles del anillo da el borde interior y su final el exterior. Se descartan
+los tramos demasiado largos (brazos de sujeción) y el borde exterior cuando el tramo toca el borde de
+la imagen. Cada borde se refina a precisión subpíxel en el perfil de saturación: es el punto donde
+$S$ cruza el valor medio entre el piso y el anillo, interpolado linealmente
+(\cref{fig:recinto}c).
+
+\paragraph{3. Ajuste de dos círculos concéntricos.} Con los puntos interiores $(x_i, y_i)$ y exteriores
+$(x_j, y_j)$ se resuelve por mínimos cuadrados lineales el sistema (ajuste algebraico de Kåsa)
+\begin{equation}
+  x_i^2 + y_i^2 = 2a\,x_i + 2b\,y_i + c_{\mathrm{int}},\qquad
+  x_j^2 + y_j^2 = 2a\,x_j + 2b\,y_j + c_{\mathrm{ext}},
+\end{equation}
+con centro común $(a,b)$ y radios $r_{\mathrm{int}} = \sqrt{c_{\mathrm{int}} + a^2 + b^2}$,
+$r_{\mathrm{ext}} = \sqrt{c_{\mathrm{ext}} + a^2 + b^2}$. Se itera descartando los puntos con residuo
+$|\rho - \mathrm{mediana}| > 2{,}5\,\mathrm{MAD}$ (robots que tapan el borde, brazos), y el centro
+provisorio se reemplaza por el ajustado hasta que se mueve menos de \SI{0.05}{px}. Indicadores de
+calidad: residuo cuadrático medio del borde interior, cobertura (fracción de rayos aceptados) y el
+cociente $r_{\mathrm{ext}}/r_{\mathrm{int}}$, que debe valer $D_{\mathrm{ext}}/D_{\mathrm{int}} =
+\num{1.0541}$ porque no depende de la escala. Se considera confiable con residuo $\leq\SI{3}{px}$,
+cobertura $\geq\SI{50}{\percent}$ y cociente dentro de $\pm\num{0.03}$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/metodo/f9_recinto.png}
+  \caption{Detección del recinto en un cuadro del ensayo 24/09. (a) Máscara del anillo (magenta),
+    bordes por rayo (puntos) y los dos círculos ajustados (blanco); cruz roja: centro. (b) Detalle: el
+    borde interior (azul) es el del canto superior del anillo; la franja gris clara de adentro es la cara
+    interna de la pared, que se ve por perspectiva. (c) Saturación a lo largo del rayo amarillo con los
+    dos bordes subpíxel.}
+  \label{fig:recinto}
+\end{figure}
+
+\paragraph{4. Seguimiento temporal.} En los videos del proyecto el recinto no está quieto: se desliza
+sobre la placa entre \num{1.5} y \SI{4}{\milli\metre} durante la primera media hora, y la cámara cambia
+su aumento en saltos de $\sim\SI{0.5}{\percent}$ (reenfoque). Por eso el recinto se mide cada
+\Cuadros{15} durante el mismo recorrido del video que hace el análisis (cuesta
+$\sim\SI{0.1}{\second}$ por medición). Cada medición parte del resultado anterior. Las muestras malas
+(residuo, cobertura o radio fuera de rango) se descartan, las demás se suavizan con una mediana móvil de
+5 muestras (que conserva los saltos de aumento) y se interpolan linealmente a todos los cuadros:
+así cada posición se refiere al centro y a la escala de su propio cuadro.
+
+\paragraph{5. Marcado manual.} Si la detección falla o es dudosa, el círculo se define a mano: con
+\emph{Marcar a mano} activado, cada clic sobre la imagen agrega un punto del borde interior del anillo,
+y con 3 o más puntos (mejor 6 a 8, repartidos en todo el contorno) \emph{Ajustar círculo} resuelve el
+mismo ajuste de Kåsa. Si además hay mediciones automáticas, el círculo manual (marcado en el cuadro
+$n_0$) puede seguir el movimiento detectado:
+\begin{equation}
+  \vec c(n) = \vec c_{\mathrm{manual}} + \vec c_{\mathrm{auto}}(n) - \vec c_{\mathrm{auto}}(n_0),\qquad
+  r(n) = r_{\mathrm{manual}}\,\frac{r_{\mathrm{auto}}(n)}{r_{\mathrm{auto}}(n_0)} .
+\end{equation}
+
+\paragraph{6. Escala espacial.} La aplicación ofrece tres fuentes (\emph{Escala desde}):
+\begin{itemize}
+  \item \textbf{Recinto} (por defecto): $s(n) = \dfrac{D_{\mathrm{int}}/2}{r_{\mathrm{int}}(n)}$
+        [\si{\milli\metre\per px}], recalculada en cada cuadro, de modo que sigue los cambios de
+        aumento de la cámara. Es la referencia más grande de la imagen ($\sim\SI{570}{px}$ de diámetro),
+        así que un error de \SI{1}{px} en el borde pesa solo \SI{0.2}{\percent}.
+  \item \textbf{Recinto con corrección de perspectiva}: $s(n)$ multiplicada por $\kappa$
+        (\cref{sec:perspectiva}).
+  \item \textbf{Diámetro del robot} (comportamiento anterior): $s = D/(2\,r_{\mathrm{ext}}^{\mathrm{robot}})$,
+        constante. Subestima el tamaño del robot en la imagen, porque $r_{\mathrm{ext}}^{\mathrm{robot}}$ es el
+        borde del \emph{anillo oscuro} que usa el detector ($\approx\SI{47}{px}$) y no el borde del cuerpo
+        ($\approx\SI{51}{px}$): sobreestima $s$ en un \num{8}--\SI{15}{\percent} según el diámetro cargado.
+\end{itemize}
+Sin recinto definido, el origen es el centro del recorte analizado y la escala sale del robot; los
+mensajes y el JSON de cada exportación lo indican.
+
+\paragraph{7. Perspectiva y radio de contacto.}\label{sec:perspectiva} La cámara está a una altura
+finita $H$: un punto a altura $z$ sobre la placa se ve ampliado en $H/(H-z)$ respecto de la placa. El
+canto del anillo (donde se mide $r_{\mathrm{int}}$) y la parte superior de los robots (donde se mide su
+centro) están a alturas distintas, por eso la franja gris de la \cref{fig:recinto}b (la cara interna de
+la pared vista en escorzo). La consecuencia medible es el \emph{radio de contacto}: el percentil
+\num{99.5} de $r$, es decir, la distancia al centro de los robots apoyados en la pared, debería ser
+$R_{\mathrm{int}} - D/2$. La aplicación calcula
+\begin{equation}
+  \kappa = \frac{R_{\mathrm{int}} - D/2}{q_{99.5}(r)},
+\end{equation}
+lo informa siempre (JSON y resumen) y solo lo aplica con \emph{Recinto + corrección de perspectiva}.
+En los ensayos del proyecto $\kappa \approx \num{0.975}$: sin corregir, las posiciones cerca de la pared
+y las velocidades quedan \SI{2.5}{\percent} altas. La corrección supone que los robots que más se
+alejan del centro tocan la pared con su diámetro completo y depende del $D$ cargado (con
+$D = \SI{35}{\milli\metre}$ en lugar de \SI{33}{\milli\metre}, $\kappa$ baja \SI{1.3}{\percent}); por
+eso no se aplica por defecto y se reporta como incertidumbre sistemática.
+
+\paragraph{8. Velocidades en el sistema del recinto.} $v_x$ y $v_y$ se obtienen derivando con
+Savitzky--Golay (\cref{sec:velocidad}) las posiciones $x(t)$, $y(t)$ ya expresadas en el sistema del
+recinto. Son velocidades \emph{respecto del recinto}: si el recinto se desliza, ese desplazamiento no
+aparece como movimiento de los robots (es del orden de \SI{0.003}{\milli\metre\per\second}, despreciable
+frente a la rapidez típica). Los saltos de aumento de la cámara, que en píxeles parecerían un
+desplazamiento brusco de todos los robots, se cancelan porque cada cuadro usa su propia $s(n)$.
 
 \subsection{Calibración automática del tamaño}
 
@@ -272,8 +405,9 @@ el ruido pero atenúa los cambios bruscos, como los choques. La ventana $w$ es u
 la captura es más lenta. En el código, \texttt{scipy.signal.savgol\_filter} con \texttt{deriv=1} y
 \texttt{delta}$\,=1/\fr$ devuelve directamente la derivada por segundo real; los huecos
 (\texttt{NaN}) se rellenan por interpolación solo para filtrar y se vuelven a marcar después
-(\cref{lst:derivada}). La escala espacial se aplica al final:
-$v\,[\si{\metre\per\second}] = v\,[\si{px\per\second}]\cdot s$.
+(\cref{lst:derivada}). Para la superposición se derivan las posiciones en píxeles de la imagen; para
+las exportaciones, las posiciones en \si{\milli\metre} del sistema del recinto (\cref{sec:recinto},
+punto 8), de modo que la escala de cada cuadro queda incluida.
 
 \begin{lstlisting}[caption={Derivada temporal suavizada (\texttt{core/kinematics.py}).}, label=lst:derivada]
 def _derivative(v, fps, p):
@@ -351,11 +485,24 @@ resuelven juntos por mínimos cuadrados ponderados por la similitud $q$:
 \begin{equation}
   \min_{\theta}\sum_{(i,L)} q_{i,L}\left(\theta_{i+L}-\theta_i-m_{i,L}\right)^2,\qquad \theta_0=0,
 \end{equation}
-con un error acumulado $\leq \SI{2}{\degree}$ en \num{3000}~cuadros. El sistema es ralo y de banda
-(cada ecuación vincula dos cuadros separados a lo sumo 16), por lo que se arma con
-\texttt{scipy.sparse.coo\_matrix} y se resuelve con las ecuaciones normales y \texttt{spsolve}, en
-tiempo proporcional a la cantidad de cuadros. Las comparaciones largas con similitud $q<0{,}8$ o
-que discrepan más de \SI{30}{\degree} de la cadena incremental se descartan. Finalmente
+El sistema es ralo (\texttt{scipy.sparse.coo\_matrix}) y se resuelve con las ecuaciones normales.
+Las comparaciones con similitud $q<0{,}8$ o que discrepan más de \SI{30}{\degree} de la cadena
+incremental se descartan.
+
+\paragraph{Enlaces de largo alcance.} Solo con enlaces cortos el ángulo deriva: cada paso entre
+cuadros sale levemente sesgado hacia 0 (el gradiente de iluminación no gira con el robot) y el error se
+suma. En los videos reales, $\theta$ discrepaba en \num{30}--\SI{44}{\degree} (mediana) de la comparación
+directa entre cuadros separados \SI{10}{\minute}. Por eso se agregan enlaces de 32, 64, 128\ldots\
+muestras hasta todo el registro (uno cada $L/128$ muestras), nivel por nivel: la rama $2\pi$ de cada
+enlace largo se elige con la solución de los niveles anteriores (tolerancia \SI{90}{\degree}), con
+similitud $q\geq 0{,}8$. Tres pasadas reeligen las ramas con la solución actualizada y una pasada robusta
+descarta los enlaces con residuo mayor que \SI{15}{\degree} (la cadena de paso 1 se conserva siempre).
+Con enlaces largos el sistema deja de ser de banda y se resuelve con gradiente conjugado
+(\texttt{scipy.sparse.linalg.cg}, precondicionador de Jacobi) arrancando de la solución anterior,
+unas diez veces más rápido que \texttt{spsolve}; cuesta $\sim\SI{3}{\second}$ por robot. Validado
+con bloques de cuadros retenidos: error a \SI{10}{\minute} de \SI{0.9}{\degree} (mediana) y
+\SI{3}{\degree} (percentil 90), contra \num{30}--\SI{44}{\degree} sin estos enlaces. La herramienta
+\texttt{tools/verificar\_giro.py} lo verifica sobre el video (\cref{sec:procedimiento}). Finalmente
 $\omega=\mathrm{d}\theta/\mathrm{d}t = \fr\,\mathrm{d}\theta/\mathrm{d}n$ con el mismo
 Savitzky--Golay (\cref{fig:rotacion}). La
 \cref{fig:desrotacion} verifica la medición: al girar cada imagen por $-\theta$, los LEDs y los puntos
@@ -393,14 +540,26 @@ del tramo. Las exportaciones y este informe usan siempre el tramo vigente (\cref
 \subsection{Incertidumbres y limitaciones}
 
 \begin{itemize}
-  \item Posición: fluctuación de 1--\SI{5}{px} entre cuadros; escala espacial: \SI{\pm 2}{\percent}.
+  \item Posición: fluctuación de 1--\SI{5}{px} entre cuadros (\num{0.3}--\SI{1.6}{\milli\metre}).
+  \item Escala espacial desde el recinto: el radio interior se mide con \SI{\pm 0.2}{\percent}
+        (residuo de 1--\SI{2}{px} sobre \num{720} rayos, más la mediana móvil) y el diámetro nominal
+        $D_{\mathrm{int}}$ tiene la tolerancia de fabricación del anillo. El cociente
+        $r_{\mathrm{ext}}/r_{\mathrm{int}}$ medido coincide con $D_{\mathrm{ext}}/D_{\mathrm{int}}$ con
+        \SI{0.05}{\percent}. Sistemático por perspectiva: \SI{2.5}{\percent} (posiciones y velocidades
+        altas si no se aplica $\kappa$, \cref{sec:perspectiva}).
+  \item Origen: el centro del recinto se mide con unos \SI{0.3}{px} (\SI{0.1}{\milli\metre}) por
+        muestra; entre muestras (\EnSeg{15}) se interpola, de modo que un movimiento brusco del recinto
+        se reparte en ese intervalo.
+  \item Escala desde el robot (opción anterior): sesgo de \SI{+8}{\percent} a \SI{+15}{\percent}
+        (borde del anillo oscuro en lugar del cuerpo); no recomendada.
   \item Escala temporal: un error relativo en $\fr$ pasa sin atenuar a $|\vec v|$ y a $\omega$,
         según la \cref{eq:incert_t}; con $\fr$ estimado de la configuración de la cámara o del registro del
         sensor es del orden de \SI{1}{\percent}, con la duración nominal del nombre puede superar el
         \SI{10}{\percent}.
   \item Velocidad: los cambios más cortos que la ventana de suavizado (\EnSeg{7}) se atenúan, y nada
         más rápido que $\Delta t = \EnSeg{1}$ se resuelve.
-  \item Orientación: \SI{\pm 0.4}{\degree} por comparación, $\leq \SI{2}{\degree}$ acumulado; en cuadros
+  \item Orientación: \SI{\pm 0.4}{\degree} por comparación; con los enlaces de largo alcance, el error
+        acumulado a \SI{10}{\minute} es de \SI{0.9}{\degree} (mediana) y \SI{3}{\degree} (percentil 90); en cuadros
         sin imagen del robot $\theta$ se interpola, y un giro mayor que media vuelta entre dos
         cuadros comparados no se detecta.
   \item Huecos: la interpolación lineal se aparta si el robot cambia de dirección; tras un hueco, un

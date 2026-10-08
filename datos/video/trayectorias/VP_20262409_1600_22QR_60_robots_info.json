@@ -1,0 +1,42 @@
+{
+  "video": "datos/video/recortados/VC_20262409_1600_22QR_60.MP4",
+  "roi": {
+    "x": 0,
+    "y": 0,
+    "w": 610,
+    "h": 610
+  },
+  "cuadros": [
+    0,
+    12068
+  ],
+  "cuadros_por_segundo_real": 3.0,
+  "convencion": "origen en el centro del recinto en cada cuadro; x a la derecha, y hacia arriba; escena real (espejado corregido); ángulos positivos antihorarios; theta = 0 en el primer cuadro del tramo",
+  "recinto": {
+    "metodo": "automático",
+    "d_int_mm": 185.0,
+    "d_ext_mm": 195.0,
+    "muestras": 403,
+    "muestras_validas": 403,
+    "paso_cuadros": 30,
+    "cx_px": 310.3305575922183,
+    "cy_px": 298.8238627243839,
+    "r_int_px": 286.0992059226426,
+    "mm_por_px": 0.32331442410577943,
+    "r_ext_sobre_r_int": 1.0544504498907372,
+    "esperado": 1.054054054054054,
+    "residuo_px": 0.9841833033406883,
+    "cobertura": 0.9083333333333333,
+    "desplazamiento_x_mm": 1.5844294091352389,
+    "desplazamiento_y_mm": 4.098654344706346,
+    "variacion_escala_pct": 0.9382094846774214
+  },
+  "origen": "recinto",
+  "fuente_escala": "recinto",
+  "mm_por_px_mediana": 0.3233111417595926,
+  "kappa_perspectiva_aplicado": 1.0,
+  "kappa_perspectiva_medido": 0.9774771593165679,
+  "r_contacto_sobre_r_int": 0.8405532689849068,
+  "diametro_robot_mm": 33.0,
+  "espejo": "horizontal"
+}

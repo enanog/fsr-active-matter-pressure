@@ -4,8 +4,10 @@ Usage (from the repository root):
     python software/analisis_video/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv" \
         [--mediciones datos/presion/crudos] [--cuadros-por-segundo 3]
 
-Input: the "una fila por robot y cuadro" CSVs exported by the app (one per test). The test code
-(AAAADDMM_HHMM_XXYY_TT) is taken from each file name. With --mediciones, the pressure log
+Input: the "una fila por robot y cuadro" CSVs exported by the app (one per test) and their side-car
+<csv>_info.json (enclosure, scale, robot diameter). The test code (AAAADDMM_HHMM_XXYY_TT) is taken
+from each file name. CSVs with x_mm / y_mm (VidFetch >= 2026-10-08) are already centred on the
+enclosure (x right, y up); older CSVs are centred here on the circle reached by the robot centres. With --mediciones, the pressure log
 R_<code>.csv of each test is aligned with the video by cross-correlation (exploratory).
 
 Output: informes/ensayos/generado/comparacion/ with comparacion.tex (tables + PGFPlots figures), the CSV
@@ -15,6 +17,7 @@ ocupacion.png. Then compile informes/ensayos/informe_ensayos.tex (twice).
 from __future__ import annotations
 
 import argparse
+import json
 import warnings
 import re
 import sys
@@ -32,13 +35,17 @@ LETTERS = "ABCDEFGH"
 OBSERVED = {"detectado", "detectado (umbral relajado)", "manual"}
 
 # Collective stop ("atasco"): 90th percentile of the robots' speed, median-filtered over 30 s,
-# below this threshold for at least FREEZE_MIN_S.
-FREEZE_P90_MM_S = 0.6
+# below this threshold for at least FREEZE_MIN_S. The criterion was set at 0.6 mm/s with the old robot-based
+# scale (0.372 mm/px); with the enclosure scale (0.323 mm/px) the same physical threshold is
+# 0.6 * 0.3233 / 0.372 = 0.52 mm/s, which keeps the same episodes (2026-10-08).
+FREEZE_P90_MM_S = 0.52
 FREEZE_SMOOTH_S = 30.0
 FREEZE_MIN_S = 20.0
 SERIES_BIN_S = 30.0
 SENSOR_BIN_S = 10.0
 MAX_LAG_S = (-60.0, 120.0)
+CONTACT_Q = 99.5        # percentile of r taken as the radius of robot centres touching the wall
+DEFAULT_D_MM = 33.0     # robot diameter when the side-car does not say it
 
 
 # --------------------------------------------------------------------------- helpers
@@ -82,17 +89,38 @@ def load(path: Path, fps_override: float | None) -> dict:
     fps_csv = float(r.median()) if len(r) else float("nan")
     fps = fps_override or fps_csv
     k_rate = fps / fps_csv if np.isfinite(fps_csv) else 1.0
-    if "x_m" in df.columns and df["x_m"].notna().any():
-        s_mm = float(np.nanmedian(df["x_m"] / df["x_px"].where(df["x_px"] > 1))) * 1000.0
-    else:
-        sys.exit(f"{path.name}: el CSV no trae escala (x_m); exportalo con el diámetro real cargado.")
     A = lambda c: pd.to_numeric(df[c], errors="coerce").to_numpy().reshape(F, N)
     m = CODE_RE.search(path.stem)
     code = m.group(1) if m else path.stem
-    return {"code": code, "label": label_from_code(code) if m else code, "F": F, "N": N, "fps": fps,
-            "s": s_mm, "x": A("x_px"), "y": A("y_px"), "status": df["status"].to_numpy().reshape(F, N),
-            "v": A("speed_px_s") * s_mm * k_rate, "vx": A("vx_px_s") * s_mm * k_rate,
-            "vy": A("vy_px_s") * s_mm * k_rate, "w": A("omega_deg_s") * k_rate, "th": A("theta_deg")}
+    info = {}
+    ip = path.with_name(path.stem + "_info.json")
+    if ip.exists():
+        try:
+            info = json.loads(ip.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"Aviso: no se pudo leer {ip.name}: {exc}")
+    rec = info.get("recinto") or {}
+    T = {"code": code, "label": label_from_code(code) if m else code, "F": F, "N": N, "fps": fps,
+         "status": df["status"].to_numpy().reshape(F, N), "w": A("omega_deg_s") * k_rate, "th": A("theta_deg"),
+         "D": float(info.get("diametro_robot_mm") or DEFAULT_D_MM), "rec": rec, "info": info}
+    if {"x_mm", "y_mm", "speed_mm_s"} <= set(df.columns):
+        # New export: mm, origin at the enclosure centre of each frame, y up, real scene.
+        T.update({"s": float(np.nanmedian(df["mm_per_px"])) if "mm_per_px" in df.columns else float("nan"),
+                  "x": A("x_mm"), "y": A("y_mm"), "v": A("speed_mm_s") * k_rate,
+                  "vx": A("vx_mm_s") * k_rate, "vy": A("vy_mm_s") * k_rate,
+                  "Rin": float(rec["d_int_mm"]) / 2 if rec.get("d_int_mm") else float("nan"), "legacy": False})
+        return T
+    # Legacy export: px relative to the crop corner, y down; centre fitted on the robots.
+    if "x_m" in df.columns and df["x_m"].notna().any():
+        s_mm = float(np.nanmedian(df["x_m"] / df["x_px"].where(df["x_px"] > 1))) * 1000.0
+    else:
+        sys.exit(f"{path.name}: el CSV no trae escala (x_m ni x_mm); exportalo con el diámetro real cargado.")
+    xp, yp = A("x_px"), A("y_px")
+    cx, cy, _ = arena(xp, yp)
+    T.update({"s": s_mm, "x": (xp - cx) * s_mm, "y": -(yp - cy) * s_mm, "v": A("speed_px_s") * s_mm * k_rate,
+              "vx": A("vx_px_s") * s_mm * k_rate, "vy": -A("vy_px_s") * s_mm * k_rate,
+              "Rin": float("nan"), "legacy": True})
+    return T
 
 
 def arena(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
@@ -106,13 +134,14 @@ def arena(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float]:
     return float(c[0]), float(c[1]), float(f(c))
 
 
-def msd(x: np.ndarray, y: np.ndarray, fps: float, s: float) -> pd.DataFrame:
+def msd(x: np.ndarray, y: np.ndarray, fps: float) -> pd.DataFrame:
+    """x, y in mm -> MSD in mm^2."""
     F = len(x)
     lags = np.unique(np.round(np.logspace(0, np.log10(min(F // 4, int(1200 * fps))), 40)).astype(int))
     out = []
     for L in lags:
         dx, dy = x[L:] - x[:-L], y[L:] - y[:-L]
-        out.append((L / fps, float(np.nanmean(dx ** 2 + dy ** 2)) * s * s))
+        out.append((L / fps, float(np.nanmean(dx ** 2 + dy ** 2))))
     return pd.DataFrame(out, columns=["tau", "msd"])
 
 
@@ -167,10 +196,14 @@ def analyse(T: dict, out: Path, k: str, sen: dict | None) -> dict:
     v, w, th, st = T["v"], T["w"], T["th"], T["status"]
     obs = np.isin(st, list(OBSERVED))
     dur = F / fps
-    cx, cy, Rc = arena(T["x"], T["y"])
-    R_arena_mm = (Rc + 0.5 * 35.0 / s) * s  # centre circle + robot radius (35 mm robots)
-    D_mm = 35.0
+    D_mm = T["D"]
+    rx, ry = T["x"], T["y"]                             # mm, origin at the enclosure centre, y up
+    r = np.hypot(rx, ry)
+    Rc = float(np.nanpercentile(r[obs], CONTACT_Q))     # radius of robot centres touching the wall [mm]
+    R_arena_mm = T["Rin"] if np.isfinite(T["Rin"]) else Rc + D_mm / 2
     phi = N * (D_mm / 2) ** 2 / R_arena_mm ** 2
+    kappa = (R_arena_mm - D_mm / 2) / Rc if np.isfinite(T["Rin"]) else float("nan")
+    wall = r >= Rc - D_mm / 2                           # wall layer: < half a diameter from contact
 
     # collective stops
     p90 = np.nanpercentile(v, 90, axis=1)
@@ -207,32 +240,47 @@ def analyse(T: dict, out: Path, k: str, sen: dict | None) -> dict:
     turns = th[-1] / 360.0
     wmean = np.nanmean(w, 0)
     order = np.argsort(wmean)
-    pd.DataFrame({"rank": np.arange(N), "id": order, "w": wmean[order], "vueltas": turns[order]}).to_csv(
+    pwall = 100 * np.nanmean(wall, 0)
+    pcw = 100 * np.nanmean(np.where(np.isfinite(w), w < 0, np.nan), 0)
+    pd.DataFrame({"rank": np.arange(N), "id": order, "w": wmean[order], "vueltas": turns[order],
+                  "pared": pwall[order], "horario": pcw[order]}).to_csv(
         out / f"giro_{k}.csv", index=False, float_format="%.4g")
+    ccw, cw = turns > 1, turns < -1                     # net counter-rotating / programmed (clockwise)
 
-    # collective rotation about the arena centre (CCW on screen positive: y axis flipped)
-    rx, ry = (T["x"] - cx) * s, -(T["y"] - cy) * s      # mm, y up
-    vx, vy = T["vx"], -T["vy"]                          # mm/s, y up
-    r = np.hypot(rx, ry)
-    moving = (v > 1.0) & (r > 0.3 * Rc * s)
+    # collective rotation about the enclosure centre (CCW positive)
+    vx, vy = T["vx"], T["vy"]                           # mm/s, y up
+    moving = (v > 1.0) & (r > 0.3 * Rc)
     sinang = (rx * vy - ry * vx) / np.maximum(r * np.hypot(vx, vy), 1e-12)
     phi_rot = np.nanmean(np.where(moving, sinang, np.nan), axis=1)
     Omega = np.degrees(np.nansum(rx * vy - ry * vx, 1) / np.nansum(r * r, 1))   # deg/s
 
     # mean square displacement (all frames) and radial density
-    m = msd(T["x"], T["y"], fps, s)
+    m = msd(T["x"], T["y"], fps)
     m.to_csv(out / f"msd_{k}.csv", index=False, float_format="%.5g")
     fit = m[(m["tau"] >= 1) & (m["tau"] <= 20)]
     alpha = float(np.polyfit(np.log(fit["tau"]), np.log(fit["msd"]), 1)[0]) if len(fit) > 2 else np.nan
     e = np.linspace(0, 1, 26)
-    h, _ = np.histogram((r / (Rc * s)).ravel()[np.isfinite(r.ravel())].clip(0, 1 - 1e-9), e)
+    h, _ = np.histogram((r / Rc).ravel()[np.isfinite(r.ravel())].clip(0, 1 - 1e-9), e)
     area = np.pi * (e[1:] ** 2 - e[:-1] ** 2)
     dens = h / area / (h.sum() / np.pi)
     pd.DataFrame({"r": (e[:-1] + e[1:]) / 2, "n": dens}).to_csv(out / f"radial_{k}.csv", index=False, float_format="%.4g")
 
     res = {
         "Cod": T["code"].replace("_", r"\_"), "Lab": T["label"], "N": N, "F": F, "Fps": fps, "Dur": dur / 60,
-        "Esc": s, "Rar": R_arena_mm / 10, "Phi": phi,
+        "Esc": s, "Rar": R_arena_mm / 10, "Phi": phi, "Rc": Rc, "RcRel": Rc / R_arena_mm,
+        "Kap": kappa, "Dmm": D_mm,
+        "MovX": float(T["rec"].get("desplazamiento_x_mm", np.nan)),
+        "MovY": float(T["rec"].get("desplazamiento_y_mm", np.nan)),
+        "Zoom": float(T["rec"].get("variacion_escala_pct", np.nan)),
+        "RatioR": float(T["rec"].get("r_ext_sobre_r_int", np.nan)),
+        "ResR": float(T["rec"].get("residuo_px", np.nan)),
+        "Pwall": 100 * float(np.nanmean(wall[obs])),
+        "PwallCcw": float(np.median(pwall[ccw])) if ccw.any() else np.nan,
+        "PwallCw": float(np.median(pwall[cw])) if cw.any() else np.nan,
+        "PcwCcw": float(np.median(pcw[ccw])) if ccw.any() else np.nan,
+        "WabsCcw": float(np.median(np.abs(wmean[ccw]))) if ccw.any() else np.nan,
+        "WabsCw": float(np.median(np.abs(wmean[cw]))) if cw.any() else np.nan,
+        "Vtan": float(np.nanmedian(np.where(moving, (rx * vy - ry * vx) / np.maximum(r, 1e-9), np.nan))),
         "Obs": 100 * obs.mean(), "Rel": int((st == "detectado (umbral relajado)").sum()),
         "Int": int((st == "interpolado").sum()), "Man": int((st == "manual").sum()),
         "Pre": int(np.isin(st, ["predicho (revisar)", "perdido"]).sum()),
@@ -278,7 +326,7 @@ def analyse(T: dict, out: Path, k: str, sen: dict | None) -> dict:
                     "HasSen": 1})
     else:
         res["HasSen"] = 0
-    T["arena"] = (cx, cy, Rc)
+    T["arena"] = (0.0, 0.0, Rc, R_arena_mm)
     return res
 
 
@@ -289,15 +337,15 @@ def occupancy_png(tests: list[dict], out: Path) -> None:
     fig, axs = plt.subplots(1, len(tests), figsize=(3.3 * len(tests), 3.4), constrained_layout=True)
     axs = np.atleast_1d(axs)
     for ax, T in zip(axs, tests):
-        cx, cy, Rc = T["arena"]
-        s = T["s"] / 10.0  # cm/px
-        x, y = (T["x"] - cx).ravel() * s, (T["y"] - cy).ravel() * s
+        _, _, Rc, Rin = T["arena"]
+        x, y = T["x"].ravel() / 10.0, T["y"].ravel() / 10.0        # cm, origin at the centre, y up
         ok = np.isfinite(x) & np.isfinite(y)
-        lim = Rc * s * 1.05
+        lim = Rin / 10.0 * 1.03
         h, xe, ye = np.histogram2d(x[ok], y[ok], bins=90, range=[[-lim, lim], [-lim, lim]], density=True)
-        im = ax.imshow(h.T, origin="upper", extent=[-lim, lim, lim, -lim], cmap="viridis",
+        im = ax.imshow(h.T, origin="lower", extent=[-lim, lim, -lim, lim], cmap="viridis",
                        vmax=np.percentile(h[h > 0], 99))
-        ax.add_patch(plt.Circle((0, 0), Rc * s, fill=False, color="w", lw=0.8, ls="--"))
+        ax.add_patch(plt.Circle((0, 0), Rc / 10.0, fill=False, color="w", lw=0.8, ls="--"))
+        ax.add_patch(plt.Circle((0, 0), Rin / 10.0, fill=False, color="#ffb000", lw=1.0))
         ax.set_title(T["label"], fontsize=10)
         ax.set_xlabel("x [cm]", fontsize=9)
         ax.tick_params(labelsize=8)
@@ -348,8 +396,13 @@ def write_tex(tests: list[dict], R: list[dict], out: Path, rel: str) -> None:
           r"    \toprule", f"    & {head} \\\\", r"    \midrule",
           f"    \\multicolumn{{{len(ks) + 1}}}{{@{{}}l}}{{\\textit{{Ensayo}}}} \\\\",
           row("Robots $N$", "N"), row("Cuadros", "F"), row("Duración real", "Dur", r"\minute"),
-          row("Escala $s$", "Esc", r"\milli\metre\per px"), row("Radio útil de la arena", "Rar", r"\centi\metre"),
+          row("Escala $s$ (mediana)", "Esc", r"\milli\metre\per px"),
+          row("Radio interior del recinto $R_{\\mathrm{int}}$", "Rar", r"\centi\metre"),
+          row("Radio de contacto $R_{\\mathrm{c}}$", "Rc", r"\milli\metre"),
           row("Fracción de área $\\phi$", "Phi"),
+          row("Desplazamiento del recinto en $x$", "MovX", r"\milli\metre"),
+          row("Desplazamiento del recinto en $y$", "MovY", r"\milli\metre"),
+          row("Variación de escala (zoom)", "Zoom", r"\percent"),
           r"    \midrule", f"    \\multicolumn{{{len(ks) + 1}}}{{@{{}}l}}{{\\textit{{Seguimiento}}}} \\\\",
           row("Posiciones observadas", "Obs", r"\percent"), row("Puntos con umbral relajado", "Rel"),
           row("Puntos interpolados", "Int"), row("Anclas manuales", "Man"), row("Puntos predichos o perdidos", "Pre"),
@@ -366,6 +419,7 @@ def write_tex(tests: list[dict], R: list[dict], out: Path, rel: str) -> None:
           row("Robots con giro neto $>+1$ vuelta", "Nccw"), row("Robots con giro neto $<-1$ vuelta", "Ncw"),
           row("Mayor giro neto de un robot", "Vmax", "vueltas"),
           row("Rotación colectiva $\\overline{\\Phi}$", "Prot"),
+          row("Tiempo en la capa de la pared", "Pwall", r"\percent"),
           r"    \midrule", f"    \\multicolumn{{{len(ks) + 1}}}{{@{{}}l}}{{\\textit{{Atascos}}}} \\\\",
           row("Episodios", "NAt"), row("Tiempo total", "TAt", r"\minute"),
           row("Fracción del ensayo", "PAt", r"\percent"), row("Episodio más largo", "AtMax", r"\second"),
@@ -429,8 +483,10 @@ def write_tex(tests: list[dict], R: list[dict], out: Path, rel: str) -> None:
 
     F_rad = [r"\begin{figure}[H]", r"  \centering",
              r"  \includegraphics[width=\linewidth]{" + rel + r"/ocupacion.png}",
-             r"  \caption{Densidad de ocupación de los centros de los robots durante todo cada ensayo. Línea "
-             r"punteada: círculo que pueden alcanzar los centros (radio útil menos el radio del robot).}",
+             r"  \caption{Densidad de ocupación de los centros de los robots durante todo cada ensayo, con origen "
+             r"en el centro del recinto de cada cuadro ($y$ hacia arriba, escena real). Círculo naranja: pared "
+             r"interior ($R_{\mathrm{int}}$); punteado blanco: radio de contacto $R_{\mathrm{c}}$ (percentil "
+             r"99,5 de $r$, centros de los robots apoyados en la pared).}",
              r"  \label{fig:cmp_ocupacion}", r"\end{figure}", r"\begin{figure}[H]", r"  \centering"]
     F_rad += axis(f"width=0.62\\linewidth, height=5cm, xmin=0, xmax=1, ymin=0, "
                   f"xlabel={{$r/R_{{\\mathrm{{c}}}}$}}, ylabel={{densidad relativa}}, {common}, legend pos=north west",

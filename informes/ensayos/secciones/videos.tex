@@ -8,10 +8,12 @@
 Se analizaron tres ensayos con 22 robots en la misma arena circular y el mismo modo de movimiento
 (\texttt{QR}), filmados con una cámara DJI fija sobre la arena, mirando hacia abajo (\cref{tab:ensayos}). Se identifican por fecha y
 hora de inicio; en tablas y gráficos se usan las etiquetas \Cmp{Lab}{A}, \Cmp{Lab}{B} y \Cmp{Lab}{C}.
-La arena tiene un radio útil de unos \SI{\Cmp{Rar}{A}}{\centi\metre}, de modo que los robots
+El recinto tiene un diámetro interior de \SI{\DiametroIntRecintoCM}{\centi\metre}
+($R_{\mathrm{int}} = \SI{\Cmp{Rar}{A}}{\centi\metre}$), de modo que los robots
 (\SI{\DiametroRobotCM}{\centi\metre} de diámetro) cubren una fracción de área
-$\phi = N(D/2)^2/R^2 \approx \num{\Cmp{Phi}{A}}$: es un sistema denso, en el que cada robot está casi
-siempre en contacto con sus vecinos.
+$\phi = N(D/2)^2/R_{\mathrm{int}}^2 = \num{\Cmp{Phi}{A}}$: es un sistema denso, en el que cada robot está
+casi siempre en contacto con sus vecinos. (Hasta el 07/10 se informaba $\phi \approx 0{,}58$, calculado con
+una escala errónea y un radio deducido de las trayectorias; ver \cref{sec:recinto_ens}.)
 
 \begin{table}[H]
   \centering
@@ -47,7 +49,9 @@ y modo, y duración \emph{nominal} en minutos (la medida difiere, ver \cref{sec:
     \nolinkurl{datos/video/originales/VR_<codigo>.MP4} & original de la cámara, \num{3840}\,$\times$\,\num{2160}\,px, H.264, \SI{29.97}{cuadros\per\second} \\
     \nolinkurl{datos/video/recortados/VC_<codigo>.MP4} & recorte a la arena (unos \num{610}\,$\times$\,\num{610}\,px); empieza al terminar el pulso LED de sincronización (\cref{sec:escala_ens}) \\
     \nolinkurl{datos/video/sesiones/VA_<codigo>_analisis.npz} & sesión de análisis de VidFetch (candidatos, firmas, anclas, parámetros) \\
-    \nolinkurl{datos/video/trayectorias/VP_<codigo>_robots.csv} & datos exportados: una fila por robot y cuadro \\
+    \nolinkurl{datos/video/trayectorias/VP_<codigo>_robots.csv} & datos exportados: una fila por robot y cuadro (origen en el centro del recinto) \\
+    \nolinkurl{datos/video/trayectorias/VP_<codigo>_robots_info.json} & recinto, escala y convenciones de ese CSV \\
+    \nolinkurl{datos/video/trayectorias/VP_<codigo>_robots_resumen.csv} & una fila por robot (rapidez, giro, capa de la pared\ldots) \\
     \nolinkurl{datos/presion/crudos/R_<codigo>.csv} & registro del sensor de presión (FSR), \SI{20}{\hertz}, con columna \texttt{LED} de sincronización \\
     \bottomrule
   \end{tabular}
@@ -70,7 +74,9 @@ iluminación. El método está descripto en el informe de la aplicación.
     \midrule
     Radio exterior del robot $r_{\mathrm{ext}}$ [px] & \num{47.0} & \num{47.0} & \num{47.1} \\
     Radio del disco $r_{\mathrm{int}}$ [px] & \num{35.2} & \num{35.3} & \num{35.3} \\
-    Escala espacial $s = D/(2r_{\mathrm{ext}})$ [\si{\milli\metre\per px}] & \num{0.3723} & \num{0.3723} & \num{0.3715} \\
+    Escala espacial (recinto, mediana) [\si{\milli\metre\per px}] & \num{\Cmp{Esc}{A}} & \num{\Cmp{Esc}{B}} & \num{\Cmp{Esc}{C}} \\
+    Diámetros del recinto / del robot & \multicolumn{3}{c}{\SI{185}{} y \SI{195}{\milli\metre} / \SI{33}{\milli\metre}} \\
+    Medición del recinto & \multicolumn{3}{c}{cada \Cuadros{30}, mediana móvil de 5 muestras} \\
     Gris máximo del anillo / del píxel oscuro & 106 / 68 & 111 / 71 & 104 / 68 \\
     Cobertura mínima del anillo & \multicolumn{3}{c}{\num{0.82} (relajada: \num{0.70} y \num{0.55})} \\
     Radio de búsqueda [px] & \multicolumn{3}{c}{\num{29.4} ($0{,}625\,r_{\mathrm{ext}}$)} \\
@@ -80,6 +86,85 @@ iluminación. El método está descripto en el informe de la aplicación.
     \bottomrule
   \end{tabular}
 \end{table}
+
+\subsection{El recinto: origen, escala y movimiento}\label{sec:recinto_ens}
+
+Todas las posiciones de este informe tienen origen en el centro del recinto, $x$ hacia la derecha e
+$y$ hacia arriba (escena real), y están en milímetros con la escala que da el diámetro interior del
+recinto, $D_{\mathrm{int}} = \SI{185}{\milli\metre}$ (método en el informe de la aplicación). El recinto
+se midió cada \num{30}~cuadros (\SI{10}{\second}) en los tres videos (\cref{tab:recinto}).
+
+\begin{table}[H]
+  \centering
+  \caption{Recinto medido en cada ensayo. Escala y radios: medianas sobre el ensayo.}
+  \label{tab:recinto}
+  \small
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    & \Cmp{Lab}{A} & \Cmp{Lab}{B} & \Cmp{Lab}{C} \\
+    \midrule
+    Radio interior en la imagen [px] & \num{286.1} & \num{285.4} & \num{286.4} \\
+    Escala $s = (D_{\mathrm{int}}/2)/r_{\mathrm{int}}$ [\si{\milli\metre\per px}] & \num{\Cmp{Esc}{A}} & \num{\Cmp{Esc}{B}} & \num{\Cmp{Esc}{C}} \\
+    $r_{\mathrm{ext}}/r_{\mathrm{int}}$ medido (esperado \num{1.0541}) & \num{1.0545} & \num{1.0547} & \num{1.0547} \\
+    Residuo del borde interior [px] & \num{\Cmp{ResR}{A}} & \num{\Cmp{ResR}{B}} & \num{\Cmp{ResR}{C}} \\
+    Desplazamiento del recinto en $x$ / $y$ [\si{\milli\metre}] & \Cmp{MovX}{A} / \Cmp{MovY}{A} & \Cmp{MovX}{B} / \Cmp{MovY}{B} & \Cmp{MovX}{C} / \Cmp{MovY}{C} \\
+    Variación de escala (zoom de la cámara) [\si{\percent}] & \num{\Cmp{Zoom}{A}} & \num{\Cmp{Zoom}{B}} & \num{\Cmp{Zoom}{C}} \\
+    Radio de contacto $R_{\mathrm{c}} = q_{99.5}(r)$ [\si{\milli\metre}] & \num{\Cmp{Rc}{A}} & \num{\Cmp{Rc}{B}} & \num{\Cmp{Rc}{C}} \\
+    Factor de perspectiva $\kappa = (R_{\mathrm{int}} - D/2)/R_{\mathrm{c}}$ & \num{\Cmp{Kap}{A}} & \num{\Cmp{Kap}{B}} & \num{\Cmp{Kap}{C}} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{El recinto se mueve y la cámara cambia de aumento.} El centro del recinto no está fijo en la
+imagen (\cref{fig:recinto_mov}). En los tres ensayos sigue el mismo patrón: durante los primeros
+\SI{15}{\minute} baja unos \SI{2}{\milli\metre} y entre los minutos 15 y 30 vuelve, con oscilaciones de
+$\pm\SI{1}{\milli\metre}$ en $x$ al comienzo; después queda quieto dentro de $\pm\SI{0.5}{\milli\metre}$.
+La placa de fondo, en cambio, no se mueve (correlación de fase de las esquinas del cuadro: corrimiento
+constante menor que \SI{1}{px}), así que es el anillo el que se desliza sobre la placa, probablemente
+empujado por los robots y la vibración. Además, el radio aparente salta \SI{0.5}{\percent} de golpe
+(24/09 en el minuto 18, 25/09 15:00 en el minuto 13; 25/09 12:30 empieza ya en el valor alto). En ese
+salto la placa de fondo también se agranda \SI{0.47}{\percent}, de modo que es un cambio de aumento de
+la cámara (reenfoque) y no del anillo. Las dos cosas se corrigen midiendo el recinto a lo largo del
+video: cada posición se refiere al centro y a la escala de su propio cuadro. Con un único centro fijo,
+las posiciones tendrían errores de hasta \SI{4}{\milli\metre} y las capas de la \cref{fig:cmp_ocupacion}
+saldrían borroneadas.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{figuras/recinto_movimiento.png}
+  \caption{Centro del recinto (respecto de su mediana, escena real) y radio aparente a lo largo de cada
+    ensayo, después de la mediana móvil de 5 muestras. Los saltos del radio coinciden con un agrandamiento
+    igual de la placa de fondo: son cambios de aumento de la cámara.}
+  \label{fig:recinto_mov}
+\end{figure}
+
+\paragraph{La escala es consistente por tres caminos independientes.}
+\begin{enumerate}
+  \item El cociente de los radios exterior e interior del anillo, que no depende de la escala, coincide
+        con $D_{\mathrm{ext}}/D_{\mathrm{int}} = 195/185$ con \SI{0.05}{\percent} (\cref{tab:recinto}).
+  \item El cuerpo de los robots (borde de la placa, con LEDs y componentes) mide \SI{101}{px} de
+        diámetro en la imagen (mediana sobre \num{4870} rayos sin vecinos en 21 cuadros de \Cmp{Lab}{A};
+        rango intercuartil \num{99}--\SI{107}{px}): con $s = \SI{0.323}{\milli\metre\per px}$ son
+        \SI{32.7}{\milli\metre}, el diámetro real.
+  \item La capa de la pared y la capa media están a \SI{75.2}{} y \SI{42.8}{\milli\metre} del centro en los
+        tres ensayos: separadas \SI{32.5}{\milli\metre}, prácticamente un diámetro de robot, como
+        corresponde a discos densos apoyados unos en otros.
+\end{enumerate}
+La escala usada hasta el 07/10 ($s = D/(2\,r_{\mathrm{ext}}) = \SI{0.372}{\milli\metre\per px}$, con
+$D = \SI{35}{\milli\metre}$ y el radio del anillo oscuro que usa el detector, $r_{\mathrm{ext}} = \SI{47}{px}$)
+no cumple ninguna de las tres: haría que el recinto midiera \SI{213}{\milli\metre} de diámetro y que las
+capas estuvieran separadas \SI{37.4}{\milli\metre}, más que un robot. El anillo oscuro es más chico que
+el cuerpo del robot. Por eso \textbf{todas las longitudes y velocidades de este informe son
+\SI{13}{\percent} menores que en la versión anterior} (factor $0{,}3233/0{,}372 = \num{0.869}$); los
+ángulos, $\omega$, los tiempos y los estados de seguimiento no cambian.
+
+\paragraph{Perspectiva.} Los robots apoyados en la pared tienen su centro a $R_{\mathrm{c}} \approx
+\SI{78}{\milli\metre}$ del centro, mientras que con $D = \SI{33}{\milli\metre}$ deberían estar a
+$R_{\mathrm{int}} - D/2 = \SI{76}{\milli\metre}$. La diferencia (\SI{2.5}{\percent}) es de perspectiva: la
+cámara mide el centro del robot en su parte superior y el radio del recinto en el canto del anillo, a
+alturas distintas. Se deja sin corregir ($\kappa$ no se aplica) y se toma como incertidumbre sistemática
+de las posiciones y velocidades; la aplicación permite aplicarla (\emph{Escala desde: recinto + corrección
+de perspectiva}).
 
 \subsection{Escala de tiempo y sincronización con el sensor}\label{sec:escala_ens}
 

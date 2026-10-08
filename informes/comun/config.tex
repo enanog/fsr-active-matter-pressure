@@ -10,9 +10,14 @@
 \newcommand{\Institucion}{ITBA}
 \newcommand{\FechaInforme}{\today}
 
-% Real robot diameter: the px -> m scale of every video comes from it
-% (same value as "Diámetro real" in the app; 35 mm by default).
-\newcommand{\DiametroRobotCM}{3.5}
+% Real robot diameter (same value as "Diámetro real" in the app; 33 mm, consistent with the image
+% measured with the enclosure scale). It sets the wall-contact radius and the area fraction, not the scale.
+\newcommand{\DiametroRobotCM}{3.3}
+
+% Enclosure (recinto): inner and outer diameter of the wall ring. The px -> mm scale of every frame
+% comes from the inner diameter (same values as "Diámetro interior/exterior" in the app).
+\newcommand{\DiametroIntRecintoCM}{18.5}
+\newcommand{\DiametroExtRecintoCM}{19.5}
 
 % Time scale of the time-lapse videos: frames that correspond to 1 s of real time
 % (same value as "Escala de tiempo" in the app; 3 by default).

@@ -5,7 +5,9 @@ Usage (from the repository root):
         --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
     (add --cuadros-por-segundo 3 to re-express a CSV exported with another time scale)
 
-Input: the "una fila por robot y cuadro" CSV exported by the app (pestaña Seguimiento).
+Input: the "una fila por robot y cuadro" CSV exported by the app (pestaña Seguimiento) and, if present,
+its side-car <csv>_info.json (enclosure, scale). Positions are taken relative to the enclosure centre
+(x right, y up, mm) when the CSV has x_mm / y_mm (VidFetch >= 2026-10-08); older CSVs still work.
 Output: informes/ensayos/generado/<nombre>/ with datos.tex, resultados.tex, CSV series for PGFPlots,
 an optional annotated frame (captura.png), and a notas.tex for manual remarks (never overwritten).
 informes/ensayos/generado/lista_ensayos.tex is rebuilt so informe_ensayos.tex includes every processed video.
@@ -15,6 +17,7 @@ ffmpeg, when the video is not at hand). Then compile informes/ensayos/informe_en
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import re
 import sys
@@ -64,14 +67,17 @@ def load_long_csv(path: Path) -> pd.DataFrame:
         df = pd.read_csv(path)
     except Exception as exc:
         sys.exit(f"No se pudo leer el CSV: {exc}")
-    required = {"frame", "t_s", "particle", "x_px", "y_px", "status"}
+    required = {"frame", "t_s", "particle", "status"}
     missing = required - set(df.columns)
+    if not ({"x_mm", "y_mm"} <= set(df.columns) or {"x_px", "y_px"} <= set(df.columns)):
+        missing |= {"x_mm", "y_mm"}
     if missing:
         hint = (" Parece el formato 'una fila por cuadro'; exportá con 'una fila por robot y cuadro'."
                 if any(c.startswith("r00_") for c in df.columns) else "")
         sys.exit(f"Faltan columnas {sorted(missing)} en {path.name}.{hint}")
     df = df.sort_values(["particle", "frame"]).reset_index(drop=True)
-    for c in ("x_px", "y_px", "vx_px_s", "vy_px_s", "speed_px_s", "theta_deg", "omega_deg_s"):
+    for c in ("x_px", "y_px", "vx_px_s", "vy_px_s", "speed_px_s", "theta_deg", "omega_deg_s",
+              "x_mm", "y_mm", "speed_mm_s", "vx_mm_s", "vy_mm_s", "mm_per_px", "xc_video_px", "yc_video_px"):
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
     if "theta_deg" in df.columns:
@@ -81,7 +87,17 @@ def load_long_csv(path: Path) -> pd.DataFrame:
 
 
 RATE_COLUMNS = ("vx_px_s", "vy_px_s", "speed_px_s", "omega_deg_s", "omega_rad_s",
-                "vx_m_s", "vy_m_s", "speed_m_s")
+                "vx_m_s", "vy_m_s", "speed_m_s", "vx_mm_s", "vy_mm_s", "speed_mm_s", "v_rad_mm_s", "v_tan_mm_s")
+
+
+def load_info(csv_path: Path) -> dict:
+    """Side-car written by VidFetch next to each export (empty dict if absent or unreadable)."""
+    p = csv_path.with_name(csv_path.stem + "_info.json")
+    try:
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    except (OSError, ValueError) as exc:
+        print(f"Aviso: no se pudo leer {p.name}: {exc}")
+        return {}
 
 
 def csv_frame_rate(df: pd.DataFrame) -> float:
@@ -109,8 +125,20 @@ def rescale_time(df: pd.DataFrame, new_fps: float) -> tuple[pd.DataFrame, float]
     return df, old
 
 
-def scale_m_per_px(df: pd.DataFrame, diam_mm: float, diam_px: float | None) -> tuple[float | None, str]:
+def scale_m_per_px(df: pd.DataFrame, diam_mm: float, diam_px: float | None,
+                   info: dict | None = None) -> tuple[float | None, str]:
     """Metres per pixel and a description of where it came from."""
+    if "mm_per_px" in df.columns and df["mm_per_px"].notna().any() and not diam_px:
+        info = info or {}
+        rec = info.get("recinto") or {}
+        src = info.get("fuente_escala", "recinto")
+        if src in ("recinto", "perspectiva") and rec.get("d_int_mm"):
+            txt = (f"recinto: diámetro interior de {rec['d_int_mm']:g} mm sobre su radio en px de cada cuadro"
+                   + (f", con corrección de perspectiva κ = {info.get('kappa_perspectiva_aplicado', 1):.4f}"
+                      if src == "perspectiva" else ""))
+        else:
+            txt = f"exportada por la app ({src})"
+        return float(df["mm_per_px"].median()) / 1000.0, txt
     if diam_px:
         return diam_mm / 1000.0 / diam_px, f"diámetro de {diam_mm:g} mm sobre {diam_px:g} px (indicado)"
     if "x_m" in df.columns:
@@ -138,7 +166,7 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 
 
 def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float, out: Path,
-                    fps: float = 30.0) -> bool:
+                    fps: float = 30.0, r_in_mm: float | None = None) -> bool:
     """`video` is either the analysed video or an image of that exact frame."""
     try:
         import cv2
@@ -165,15 +193,35 @@ def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float,
     # CSV un-mirrored to the real scene: undo it to draw on the (mirrored) image.
     mir = str(df["espejo"].iloc[0]) if "espejo" in df.columns else "no"
     sx, sy, sr = {"horizontal": (-1, 1, -1), "vertical": (1, -1, -1)}.get(mir, (1, 1, 1))
+    centred = "x_mm" in df.columns          # new format: v in the real scene with y UP
     has_video_xy = {"x_video_px", "y_video_px"} <= set(df.columns)
     xs = rows["x_video_px"] if has_video_xy else rows["x_px"]
     ys = rows["y_video_px"] if has_video_xy else rows["y_px"]
-    # Crop around the robots (the app's ROI is not stored in the CSV).
+    circle = None
+    if centred and r_in_mm and {"xc_video_px", "yc_video_px", "mm_per_px"} <= set(rows.columns) and len(rows):
+        r0 = rows.iloc[0]
+        circle = (float(r0["xc_video_px"]), float(r0["yc_video_px"]), r_in_mm / float(r0["mm_per_px"]))
+    # Crop around the robots and the enclosure (the app's ROI is not stored in the CSV).
     m = int(2.5 * radius_px)
-    x0, y0 = max(0, int(np.nanmin(xs)) - m), max(0, int(np.nanmin(ys)) - m)
-    x1, y1 = min(img.shape[1], int(np.nanmax(xs)) + m), min(img.shape[0], int(np.nanmax(ys)) + m)
+    x0, y0 = int(np.nanmin(xs)) - m, int(np.nanmin(ys)) - m
+    x1, y1 = int(np.nanmax(xs)) + m, int(np.nanmax(ys)) + m
+    if circle is not None:
+        R = 1.07 * circle[2]
+        x0, y0 = min(x0, int(circle[0] - R)), min(y0, int(circle[1] - R))
+        x1, y1 = max(x1, int(circle[0] + R)), max(y1, int(circle[1] + R))
+    x0, y0, x1, y1 = max(0, x0), max(0, y0), min(img.shape[1], x1), min(img.shape[0], y1)
     crop = img[y0:y1, x0:x1].copy()
     th = max(2, int(round(min(crop.shape[:2]) / 400)))
+    if circle is not None:
+        cc = (int(round(circle[0] - x0)), int(round(circle[1] - y0)))
+        cv2.circle(crop, cc, int(round(circle[2])), (0, 0, 0), th + 2, cv2.LINE_AA)
+        cv2.circle(crop, cc, int(round(circle[2])), (0, 255, 255), th, cv2.LINE_AA)
+        L = int(0.22 * circle[2])
+        for d in (((sx * L, 0)), ((0, -sy * L))):      # real +x and real +y drawn on the image
+            tip = (cc[0] + int(d[0]), cc[1] + int(d[1]))
+            cv2.arrowedLine(crop, cc, tip, (0, 0, 0), th + 2, cv2.LINE_AA, tipLength=0.15)
+            cv2.arrowedLine(crop, cc, tip, (255, 255, 255), th, cv2.LINE_AA, tipLength=0.15)
+        cv2.drawMarker(crop, cc, (0, 0, 255), cv2.MARKER_CROSS, 16, th + 1, cv2.LINE_AA)
     r = int(round(radius_px))
     for (_, row), x, y in zip(rows.iterrows(), xs, ys):
         if not (np.isfinite(x) and np.isfinite(y)):
@@ -188,7 +236,10 @@ def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float,
             cv2.line(crop, c, tip, (0, 0, 0), th + 2, cv2.LINE_AA)
             cv2.line(crop, c, tip, (255, 255, 255), th, cv2.LINE_AA)
         if {"vx_px_s", "vy_px_s"} <= set(row.index) and np.isfinite(row["vx_px_s"]):
-            v = np.array([sx * row["vx_px_s"], sy * row["vy_px_s"]]) * (7.5 / fps)  # 7.5-frame displacement
+            if centred:   # real scene, y up -> image
+                v = np.array([sx * row["vx_px_s"], -sy * row["vy_px_s"]]) * (7.5 / fps)
+            else:         # legacy CSV: image axes with x (or y) un-mirrored
+                v = np.array([sx * row["vx_px_s"], sy * row["vy_px_s"]]) * (7.5 / fps)
             n = float(np.hypot(*v))
             if n > 1:
                 v *= min(1.0, 2.5 * r / n)
@@ -214,7 +265,7 @@ def main() -> None:
     ap.add_argument("--frame", type=int, help="cuadro de la captura (por defecto, el del medio)")
     ap.add_argument("--imagen", type=Path, help="imagen de ese cuadro ya extraída (en lugar de --video); "
                                                  "requiere --frame")
-    ap.add_argument("--diametro-mm", type=float, default=35.0, help="diámetro real del robot [mm] (def. 35)")
+    ap.add_argument("--diametro-mm", type=float, help="diámetro real del robot [mm] (def.: el del _info.json, o 33)")
     ap.add_argument("--diametro-px", type=float, help="diámetro del robot en px (si el CSV no trae escala)")
     ap.add_argument("--informe-dir", type=Path, default=DEFAULT_REPORT,
                     help="carpeta del informe de ensayos (por defecto informes/ensayos)")
@@ -224,6 +275,12 @@ def main() -> None:
     a = ap.parse_args()
 
     df = load_long_csv(a.csv)
+    info = load_info(a.csv)
+    rec = info.get("recinto") or {}
+    if a.diametro_mm is None:
+        a.diametro_mm = float(info.get("diametro_robot_mm") or 33.0)
+    centred = {"x_mm", "y_mm"} <= set(df.columns)
+    r_in_mm = float(rec["d_int_mm"]) / 2 if (centred and rec.get("d_int_mm")) else None
     rescaled_from = None
     if a.cuadros_por_segundo:
         if a.cuadros_por_segundo <= 0:
@@ -245,16 +302,19 @@ def main() -> None:
     # Long recordings (time-lapse of ~1 h): plot time in minutes.
     t_div, t_unit_tex = (60.0, "\\minute") if duration > 600 else (1.0, "\\second")
 
-    s, scale_src = scale_m_per_px(df, a.diametro_mm, a.diametro_px)
+    s, scale_src = scale_m_per_px(df, a.diametro_mm, a.diametro_px, info)
     # Readable SI submultiples: positions in cm, speeds in mm/s (px when there is no scale).
     unit_l, unit_v = ("cm", "mm/s") if s else ("px", "px/s")
     kl, kv = (s * 100.0, s * 1000.0) if s else (1.0, 1.0)
     diam_px = (a.diametro_mm / 1000.0 / s) if s else (a.diametro_px or float("nan"))
 
     obs = df["status"].isin(OBSERVED)
-    has_v = "speed_px_s" in df.columns
+    has_v = "speed_px_s" in df.columns or "speed_mm_s" in df.columns
     has_rot = "theta_deg" in df.columns and "rot_status" in df.columns and df["theta_deg"].notna().any()
-    speed = df["speed_px_s"] * kv if has_v else pd.Series(np.nan, index=df.index)
+    if centred and "speed_mm_s" in df.columns:
+        speed = df["speed_mm_s"]
+    else:
+        speed = df["speed_px_s"] * kv if has_v else pd.Series(np.nan, index=df.index)
     sp_obs = speed[obs & speed.notna()]
 
     # ---- time series (all robots per frame)
@@ -277,8 +337,12 @@ def main() -> None:
             out / "hist_v.csv", index=False, float_format="%.6g")
 
     # ---- trajectories and theta, wide + downsampled
-    piv_x = df.pivot(index="frame", columns="particle", values="x_px") * kl
-    piv_y = df.pivot(index="frame", columns="particle", values="y_px") * kl
+    if centred:   # mm, origin at the enclosure centre, y up -> cm
+        piv_x = df.pivot(index="frame", columns="particle", values="x_mm") / 10.0
+        piv_y = df.pivot(index="frame", columns="particle", values="y_mm") / 10.0
+    else:
+        piv_x = df.pivot(index="frame", columns="particle", values="x_px") * kl
+        piv_y = df.pivot(index="frame", columns="particle", values="y_px") * kl
     step = max(1, math.ceil(len(piv_x) / MAX_TRAJ_POINTS))
     traj = pd.DataFrame({"t": per_frame["t"]})
     for p in piv_x.columns:
@@ -303,11 +367,17 @@ def main() -> None:
     # ---- per-robot summary
     rows = []
     for p, gr in df.groupby("particle"):
-        x, y = gr["x_px"].to_numpy() * kl, gr["y_px"].to_numpy() * kl
+        if centred:
+            x, y = gr["x_mm"].to_numpy() / 10.0, gr["y_mm"].to_numpy() / 10.0
+        else:
+            x, y = gr["x_px"].to_numpy() * kl, gr["y_px"].to_numpy() * kl
         ok = np.isfinite(x) & np.isfinite(y)
         path = float(np.nansum(np.hypot(np.diff(x), np.diff(y))))
         net = float(np.hypot(x[ok][-1] - x[ok][0], y[ok][-1] - y[ok][0])) if ok.sum() > 1 else np.nan
-        sp = gr["speed_px_s"].to_numpy() * kv if has_v else np.array([np.nan])
+        if centred and "speed_mm_s" in gr.columns:
+            sp = gr["speed_mm_s"].to_numpy()
+        else:
+            sp = gr["speed_px_s"].to_numpy() * kv if has_v else np.array([np.nan])
         row = {"id": int(p), "obs": 100.0 * gr["status"].isin(OBSERVED).mean(),
                "vmed": float(np.nanmean(sp)), "vmax": float(np.nanmax(sp)) if np.isfinite(sp).any() else np.nan,
                "rec": path, "net": net}
@@ -336,10 +406,18 @@ def main() -> None:
         density_ratio = float(np.nanpercentile(sp_obs, 95) / max(np.nanmedian(sp_obs), 1e-12))
 
     # ---- datos.tex (macros consumed by resultados.tex)
+    mm_u, pct_u = "\\milli\\metre", "\\percent"   # no backslash inside f-string expressions (py<3.12)
+    recinto_txt = "no definido"
+    if r_in_mm:
+        recinto_txt = (f"$D_{{\\mathrm{{int}}}}$ = {qty(2 * r_in_mm, mm_u)}; se desplazó "
+                       f"{qty(rec.get('desplazamiento_x_mm', float('nan')), mm_u, 2)} en $x$ y "
+                       f"{qty(rec.get('desplazamiento_y_mm', float('nan')), mm_u, 2)} en $y$; "
+                       f"variación de escala (zoom de la cámara): {qty(rec.get('variacion_escala_pct', float('nan')), pct_u, 2)}")
     dt_q = qty(1.0 / fps, "\\second") if np.isfinite(fps) else "---"   # no backslash inside f-string (py<3.12)
     macros = {
         "VTitulo": tex_escape(title), "VArchivo": tex_escape(a.csv.name),
-        "VVideo": tex_escape(a.video.name) if a.video else "---",
+        "VVideo": (tex_escape(a.video.name) if a.video else
+                   tex_escape(f"VC_{name}.MP4") + " (captura de una imagen extraída)" if a.imagen else "---"),
         "VFrameIni": str(int(frames[0])), "VFrameFin": str(int(frames[-1])), "VCuadros": str(len(frames)),
         "VFps": num(fps, 4), "VDuracion": num(duration, 3), "VN": str(n_rob),
         "VUnidadL": unit_l, "VUnidadV": unit_v,
@@ -360,6 +438,9 @@ def main() -> None:
         "VVmediana": num(float(np.nanmedian(sp_obs)) if len(sp_obs) else float("nan")),
         "VVpNoventaycinco": num(float(np.nanpercentile(sp_obs, 95)) if len(sp_obs) else float("nan")),
         "VRecMedio": num(float(summ["rec"].mean())), "VNetoMedio": num(float(summ["net"].mean())),
+        "VOrigen": ("centro del recinto en cada cuadro ($x$ a la derecha, $y$ hacia arriba)" if r_in_mm
+                    else ("centro del recorte" if centred else "esquina del recorte ($y$ hacia abajo)")),
+        "VRecinto": recinto_txt,
     }
     lines = ["% Generated by generar_informe.py -- do not edit; re-run the script instead."]
     lines += [f"\\def\\{k_}{{{v}}}" for k_, v in macros.items()]
@@ -419,6 +500,8 @@ def main() -> None:
     Robots seguidos ($N$) & \num{\VN} \\
     Diámetro del robot & \VDiamQ \\
     Escala & \VEscalaQ\newline{\footnotesize\VEscalaFuente} \\
+    Origen de coordenadas & \VOrigen \\
+    Recinto & \VRecinto \\
     Posiciones observadas & \SI{\VPctObs}{\percent} \\
     Cuadros con error / con advertencia & \num{\VNErr} / \num{\VNAdv} \\
     \bottomrule
@@ -468,15 +551,19 @@ def main() -> None:
     tex.append(r"""\begin{figure}[H]
   \centering
   \begin{tikzpicture}
-    \begin{axis}[width=0.72\linewidth, axis equal image, y dir=reverse, xlabel={$x$ [\si{""" + lu + r"""}]},
+    \begin{axis}[width=0.72\linewidth, axis equal image,""" + ("" if centred else " y dir=reverse,") + r""" xlabel={$x$ [\si{""" + lu + r"""}]},
         ylabel={$y$ [\si{""" + lu + r"""}]}, grid=major, grid style={gray!20}, cycle list name=robots,
         tick label style={font=\footnotesize}]
       \pgfplotsinvokeforeach{0,...,""" + str(N1) + r"""}{%
-        \addplot+ [thin, no markers] table [x=x#1, y=y#1, col sep=comma] {""" + rel + r"""/tray.csv};}
+        \addplot+ [thin, no markers] table [x=x#1, y=y#1, col sep=comma] {""" + rel + r"""/tray.csv};}""" + (
+        r"""
+      \draw [gray, thick] (axis cs:0,0) circle [radius=""" + f"{r_in_mm / 10.0:.4g}" + r"""];
+      \addplot [only marks, mark=+, mark size=3pt, black] coordinates {(0,0)};""" if r_in_mm else "") + r"""
     \end{axis}
   \end{tikzpicture}
   \caption{Trayectorias de los """ + str(n_rob) + r""" robots (""" + ("escena real, video espejado corregido" if "espejo" in df.columns
-                   else "como en el video") + r"""; $y$ hacia abajo)"""
+                   else "como en el video") + (r"""; origen en el centro del recinto, $y$ hacia arriba; círculo gris: pared interior"""
+                   if r_in_mm else r"""; $y$ hacia abajo""") + r""")"""
     + (f", primeros {TRAJ_WINDOW_S / 60:g} minutos reales" if traj_window else "") + r""".}
 \end{figure}
 """)
@@ -535,7 +622,8 @@ def main() -> None:
             print(f"El cuadro {f} no está en el CSV; se usa el del medio.")
             f = int(frames[len(frames) // 2])
         radius = (diam_px / 2) if np.isfinite(diam_px) else 20.0
-        if annotated_frame(src_img, df, f, radius, out / "captura.png", fps if np.isfinite(fps) else 30.0):
+        if annotated_frame(src_img, df, f, radius, out / "captura.png", fps if np.isfinite(fps) else 30.0,
+                           r_in_mm):
             print(f"Captura anotada: cuadro {f}")
 
     # ---- rebuild the list of videos

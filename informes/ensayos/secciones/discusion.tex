@@ -3,26 +3,29 @@
 % ============================================================================
 \subsection{Lo observado}\label{sec:observado}
 
-\paragraph{Los tres ensayos son reproducibles.} Con la misma cantidad de robots, la misma arena y el
+\paragraph{Los tres ensayos son reproducibles.} Con la misma cantidad de robots, el mismo recinto y el
 mismo modo, las tres salidas dan estadísticas muy parecidas (\cref{tab:comparacion}): rapidez mediana
 de \num{\Cmp{Vmed}{A}} a \SI{\Cmp{Vmed}{C}}{\milli\metre\per\second}, media de
 \num{\Cmp{Vmean}{A}} a \SI{\Cmp{Vmean}{C}}{\milli\metre\per\second} y percentil 95 entre
 \num{\Cmp{Vp95}{B}} y \SI{\Cmp{Vp95}{A}}{\milli\metre\per\second}; las distribuciones de rapidez y de
 $\omega$ prácticamente se superponen (\cref{fig:cmp_hist}). La diferencia más grande entre ensayos no
-está en cómo se mueven los robots cuando se mueven, sino en cuánto tiempo pasan atascados.
+está en cómo se mueven los robots cuando se mueven, sino en cuánto tiempo pasan atascados. (Todas las
+longitudes y velocidades son \SI{13}{\percent} menores que en la versión anterior de este informe por
+la corrección de la escala, \cref{sec:recinto_ens}; los cocientes, ángulos y tiempos no cambian.)
 
 \paragraph{El movimiento es intermitente.} El percentil 95 de la rapidez es de cinco a seis veces la
 mediana: la mayor parte del tiempo los robots apenas se desplazan (empujados por sus vecinos) y el
-desplazamiento ocurre en episodios cortos de \num{3} a \SI{8}{\milli\metre\per\second}. A escalas de
+desplazamiento ocurre en episodios cortos de \num{2.5} a \SI{7}{\milli\metre\per\second}. A escalas de
 1 a \SI{20}{\second}, el desplazamiento cuadrático medio crece como $\tau^{\alpha}$ con
 $\alpha \approx \num{\Cmp{Alfa}{C}}$--$\num{\Cmp{Alfa}{A}}$, entre difusivo ($\alpha=1$) y balístico
 ($\alpha=2$): los robots mantienen la dirección durante algunos segundos. A tiempos largos el MSD se
-satura (\cref{fig:cmp_giro}), porque el confinamiento limita el desplazamiento a la escala de la arena.
+satura (\cref{fig:cmp_giro}), porque el confinamiento limita el desplazamiento a la escala del recinto.
+El exponente no depende de la escala espacial.
 
 \paragraph{Sentido de giro y corrección del espejado.} Los videos están grabados espejados respecto del
 eje vertical de la imagen, por lo que un giro horario real se ve antihorario. Todos los datos de este
 informe están corregidos (opción \emph{Video espejado: horizontal} de VidFetch): ángulos y posiciones
-corresponden a la arena vista desde arriba, con giros positivos en sentido antihorario.
+corresponden al recinto visto desde arriba, con giros positivos en sentido antihorario.
 
 \paragraph{La rotación propia domina.} Todos los robots giran sobre sí mismos de forma persistente:
 la $|\omega|$ mediana es de \num{\Cmp{Wmed}{A}} a \SI{\Cmp{Wmed}{B}}{\degree\per\second} y el robot
@@ -32,46 +35,67 @@ para girar a la derecha (sentido horario), y eso es lo que hace la mayoría: en 
 \Cmp{Ncw}{A} robots giraron en neto en sentido horario y el giro medio con signo es negativo, de
 \num{\Cmp{Wmean}{B}} a \SI{\Cmp{Wmean}{C}}{\degree\per\second}.
 
-\paragraph{Contrarrotación de los robots de la pared.} Los otros \Cmp{Nccw}{A} robots terminan con un
-giro neto antihorario, contrario al programado (\cref{fig:cmp_giro}, izquierda). No son simplemente
-robots que fallan: giran despacio ($|\overline{\omega}| \approx \SI{2}{\degree\per\second}$, contra
-\num{5}--\SI{6}{\degree\per\second} de los que giran a la derecha), alternan ambos sentidos (giran a la
-derecha el \num{40}--\SI{47}{\percent} del tiempo) y pasan más tiempo contra la pared
-(\num{58}--\SI{68}{\percent} del tiempo con $r/R_{\mathrm{c}} > 0{,}85$, contra \num{47}--\SI{52}{\percent}).
-Esto es lo que se espera de un disco que rueda por el interior de la pared: si avanza en sentido
-horario alrededor del centro de la arena apoyado en ella, el rozamiento en el punto de contacto lo hace
-girar en sentido antihorario sobre sí mismo, y ese arrastre puede superar al giro propio del motor.
-La coincidencia 14/8 en los tres ensayos sugiere además que la tendencia depende de cada robot (por
-ejemplo, de la fuerza de su motor); para confirmarlo haría falta identificar a cada robot entre videos,
-cosa que el seguimiento no hace.
+\paragraph{Contrarrotación.} Los otros \Cmp{Nccw}{A} robots terminan con un giro neto antihorario,
+contrario al programado (\cref{fig:cmp_giro}, izquierda). No son robots que no giran: alternan ambos
+sentidos (giran a la derecha el \num{\Cmp{PcwCcw}{C}}--\SI{\Cmp{PcwCcw}{A}}{\percent} del tiempo) y
+su giro medio es lento: $|\overline{\omega}|$ mediana de \num{\Cmp{WabsCcw}{A}}, \num{\Cmp{WabsCcw}{B}} y
+\SI{\Cmp{WabsCcw}{C}}{\degree\per\second}, contra \num{\Cmp{WabsCw}{A}}, \num{\Cmp{WabsCw}{B}} y
+\SI{\Cmp{WabsCw}{C}}{\degree\per\second} de los que giran a la derecha. Una explicación posible es que
+ruedan por el interior de la pared: un disco que avanza en sentido horario alrededor del centro apoyado
+en ella gira en sentido antihorario sobre sí mismo por el rozamiento en el contacto, y ese arrastre puede
+superar al giro del motor. Con las posiciones referidas al centro real del recinto, los datos apoyan esa
+idea en dos ensayos y no en el tercero. Tiempo en la capa de la pared ($r \geq R_{\mathrm{c}} - D/2$,
+mediana por robot): \num{\Cmp{PwallCcw}{A}} contra \SI{\Cmp{PwallCw}{A}}{\percent} en \Cmp{Lab}{A} y
+\num{\Cmp{PwallCcw}{C}} contra \SI{\Cmp{PwallCw}{C}}{\percent} en \Cmp{Lab}{C} (los que contrarrotan
+pasan más tiempo contra la pared), pero \num{\Cmp{PwallCcw}{B}} contra \SI{\Cmp{PwallCw}{B}}{\percent} en
+\Cmp{Lab}{B} (sin diferencia). La versión anterior de este informe, con el centro fijo y la escala del
+robot, daba la diferencia en los tres. El resultado no cambia si la capa se define como
+$r/R_{\mathrm{c}} > 0{,}85$. La coincidencia 14/8 en los tres ensayos sugiere más bien que la tendencia
+depende de cada robot (por ejemplo, de la fuerza de su motor); para confirmarlo hace falta identificar a
+cada robot entre videos, cosa que el seguimiento no hace.
 
 \paragraph{Hay una circulación colectiva débil.} El parámetro
 $\Phi = \langle \hat r_i \times \hat v_i \rangle$ (seno del ángulo entre la posición respecto del
-centro de la arena y la velocidad, promediado sobre los robots que se mueven a más de
+centro del recinto y la velocidad, promediado sobre los robots que se mueven a más de
 \SI{1}{\milli\metre\per\second}) vale \num{\Cmp{Prot}{A}}, \num{\Cmp{Prot}{B}} y \num{\Cmp{Prot}{C}}:
 valdría $-1$ si todos circularan en sentido horario alrededor del centro, $+1$ en sentido antihorario
-y 0 si no hubiera sentido preferido. El grupo circula lentamente en sentido horario, el mismo sentido
-del giro programado, con una velocidad angular colectiva de unos \SI{0.2}{\degree\per\second} (una
-vuelta cada \SI{30}{\minute}).
+y 0 si no hubiera sentido preferido. La componente tangencial mediana de la velocidad de esos robots es
+de \num{\Cmp{Vtan}{A}}, \num{\Cmp{Vtan}{B}} y \SI{\Cmp{Vtan}{C}}{\milli\metre\per\second}. El grupo
+circula lentamente en sentido horario, el mismo sentido del giro programado, con una velocidad angular
+colectiva de unos \SI{0.2}{\degree\per\second} (una vuelta cada \SI{30}{\minute}).
 
 \paragraph{Los robots se ordenan en capas.} Los mapas de ocupación (\cref{fig:cmp_ocupacion}) y la
-densidad radial (\cref{fig:cmp_radial}) muestran tres anillos concéntricos en $r/R_{\mathrm{c}} \approx
-0{,}14$, $0{,}55$ y $0{,}95$, separados por aproximadamente un diámetro de robot. La capa exterior,
-apoyada en la pared, es la más poblada; entre la capa media y la exterior la densidad cae a
-\num{0.15}--\num{0.4} veces el valor uniforme. Es el ordenamiento esperado de discos densos en un recinto circular ($\phi \approx 0{,}58$):
-los robots se reacomodan dentro de cada capa y pasan poco tiempo entre capas.
+densidad radial (\cref{fig:cmp_radial}) muestran la misma estructura en los tres ensayos, con las capas
+en las mismas posiciones al milímetro:
+\begin{itemize}
+  \item \textbf{Capa de la pared}, centrada en $r = \SI{75.2}{\milli\metre}$, la más poblada:
+        \num{12.5} robots en promedio (de 12 a 13). En esa circunferencia entran a lo sumo
+        $2\pi\cdot 75{,}2/33 \approx 14$ robots: está llena al \SI{87}{\percent}.
+  \item \textbf{Capa media}, en $r = \SI{42.8}{\milli\metre}$: \num{7.3} robots (de 7 a 8, sobre un máximo de
+        8). Está \SI{32.5}{\milli\metre} hacia adentro de la anterior, un diámetro de robot.
+  \item \textbf{Centro}: \num{2.2} robots en promedio dentro de $r < \SI{30}{\milli\metre}$, con picos de
+        densidad en $r \approx \SI{11}{\milli\metre}$ y, más débil, en $r \approx \SI{24}{\milli\metre}$.
+\end{itemize}
+Entre la capa media y la de la pared la densidad cae a \num{0.1}--\num{0.5} veces el valor uniforme: los
+robots se reacomodan dentro de cada capa y pasan poco tiempo entre capas. Es el ordenamiento esperado
+de discos densos en un recinto circular ($\phi = \num{\Cmp{Phi}{A}}$). Medir respecto del centro de cada
+cuadro afina las capas: con un centro fijo, el deslizamiento del recinto (hasta \SI{4}{\milli\metre})
+las ensancharía.
 
 \paragraph{Atascos.} Los tres ensayos tienen intervalos en los que todo el grupo se detiene
 (\cref{fig:cmp_serie,fig:atascos}): la rapidez de casi todos los robots cae al nivel del ruido de posición
-(mediana $\approx\SI{0.2}{\milli\metre\per\second}$) y la rotación propia también se frena, de
-$|\omega| \approx \SI{4}{\degree\per\second}$ a menos de \SI{1.5}{\degree\per\second}. No es una pausa de los
-robots: siguen encendidos (los LEDs se ven en el video) y el movimiento se reanuda solo. \Cmp{Lab}{A} es
-el ensayo más afectado: \Cmp{NAt}{A} atascos que suman \SI{\Cmp{TAt}{A}}{\minute}
-(\SI{\Cmp{PAt}{A}}{\percent} del ensayo), uno de \SI{\Cmp{AtMax}{A}}{\second} entre los minutos 45 y 51,
-y otro que dura desde el minuto 62 hasta el final. \Cmp{Lab}{B} tuvo un único atasco de
-\SI{\Cmp{AtMax}{B}}{\second} y \Cmp{Lab}{C}, \Cmp{NAt}{C} cortos (\SI{\Cmp{TAt}{C}}{\minute} en total).
-Fuera de los atascos, la rapidez mediana de los tres ensayos es casi igual
-(\num{\Cmp{VmedAct}{B}}--\SI{\Cmp{VmedAct}{C}}{\milli\metre\per\second}).
+(mediana de \num{0.16} a \SI{0.22}{\milli\metre\per\second}) y la rotación propia también se frena: la
+$|\omega|$ mediana pasa de \num{3.8}--\SI{4.4}{\degree\per\second} fuera de los atascos a
+\num{0.25}--\SI{1.0}{\degree\per\second} dentro. No es una pausa de los robots: siguen encendidos (los
+LEDs se ven en el video) y el movimiento se reanuda solo. El criterio (percentil 90 de la rapidez,
+suavizado en \SI{30}{\second}, menor que \SI{\CmpUmbralAtasco}{\milli\metre\per\second} durante al menos
+\SI{20}{\second}) es el mismo de la versión anterior expresado en la escala corregida
+($0{,}6 \times 0{,}869$), y encuentra los mismos episodios. \Cmp{Lab}{A} es el ensayo más afectado:
+\Cmp{NAt}{A} atascos que suman \SI{\Cmp{TAt}{A}}{\minute} (\SI{\Cmp{PAt}{A}}{\percent} del ensayo), uno
+de \SI{\Cmp{AtMax}{A}}{\second} entre los minutos 45 y 51, y otro que dura desde el minuto 62 hasta el
+final. \Cmp{Lab}{B} tuvo un único atasco de \SI{\Cmp{AtMax}{B}}{\second} y \Cmp{Lab}{C}, \Cmp{NAt}{C}
+cortos (\SI{\Cmp{TAt}{C}}{\minute} en total). Fuera de los atascos, la rapidez mediana de los tres
+ensayos es casi igual (\num{\Cmp{VmedAct}{B}}--\SI{\Cmp{VmedAct}{C}}{\milli\metre\per\second}).
 
 \begin{figure}[H]
   \centering

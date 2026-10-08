@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QFileDialog, QMainWindow, QMessageBox, QProgressDialog, QTabWidget)
 
+from core import arena as ar
 from core.analysis import detect_video, save_tracks_csv
 from core.detection import TRACKPY_ERROR, link_tracks
 from core.calibration import (Calibration, calibrate_frames, calibrate_video, derive_tracker_values,
@@ -34,12 +35,13 @@ CSV_LAYOUTS = {"CSV – una fila por robot y cuadro (*.csv)": "long",
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Editor de video")
+        self.setWindowTitle("VidFetch")
         self.resize(1280, 780)
         self.state = ProjectState(self)
         self._worker: Optional[TaskWorker] = None
         self._last_dir = os.path.expanduser("~")
         self._retrack_pending = False
+        self._arena_pending = False
 
         self.tab_original = OriginalTab(self.state)
         self.tab_edit = EditTab(self.state)
@@ -77,6 +79,10 @@ class MainWindow(QMainWindow):
         tt.loadRequested.connect(self.load_session)
         tt.kinematicsRequested.connect(self.recompute_kinematics)
         tt.summaryCsvRequested.connect(self.export_summary_csv)
+        tt.arenaDetectRequested.connect(self.detect_arena)
+        tt.arenaChanged.connect(self.recompute_kinematics)
+        tt.robotCsvRequested.connect(self.export_robot_csv)
+        tt.allRobotsCsvRequested.connect(self.export_all_robots)
         self.state.timeScaleChanged.connect(self._on_time_scale)
         self.statusBar().showMessage("Listo")
 
@@ -96,7 +102,7 @@ class MainWindow(QMainWindow):
         self._last_dir = os.path.dirname(path)
         self.state.load(info)
         self._apply_time_scale_to_players()
-        self.setWindowTitle(f"Editor de video — {os.path.basename(path)}")
+        self.setWindowTitle(f"VidFetch — {os.path.basename(path)}")
         self.statusBar().showMessage(f"Cargado: {path}")
         if TRACKPY_ERROR is None:
             if max(info.width, info.height) <= AUTO_CALIBRATE_MAX_SIDE:
@@ -233,10 +239,14 @@ class MainWindow(QMainWindow):
             self.tabs.setCurrentWidget(self.tab_tracking)
             self._warn_issues(session, cal)
 
-        self._run_task("Analizando video (calibración + detección + seguimiento)…", _analyze_task, done,
+        tt = self.tab_tracking
+        d_in, d_out = tt.diameters()
+        self._run_task("Analizando video (calibración + detección + seguimiento + recinto)…", _analyze_task, done,
                        src=info.path, trim=self.state.trim, roi=self.state.roi, processor=proc,
-                       tparams=tparams, autocal=self.tab_tracking.chk_autocal.isChecked(),
-                       kin_params=self.tab_tracking.kinematics_params(), time_fps=self.state.time_fps)
+                       tparams=tparams, autocal=tt.chk_autocal.isChecked(),
+                       kin_params=tt.kinematics_params(), time_fps=self.state.time_fps,
+                       arena_step=ar.DEFAULT_STEP if tt.chk_arena_auto.isChecked() else 0,
+                       d_in=d_in, d_out=d_out, manual=tt.arena)
 
     def retrack(self) -> None:
         session = self.tab_tracking.session
@@ -256,7 +266,8 @@ class MainWindow(QMainWindow):
 
         self._run_task("Recalculando seguimiento…", _track_task, done,
                        cands=session.candidates, params=session.params, anchors=dict(session.anchors),
-                       fps=session.fps, kin_params=session.kin_params, r_out=det.r_out)
+                       fps=session.fps, kin_params=session.kin_params, r_out=det.r_out,
+                       arena=session.arena, crop=_crop(session))
 
     def recompute_kinematics(self) -> None:
         session = self.tab_tracking.session
@@ -274,11 +285,48 @@ class MainWindow(QMainWindow):
 
         self._run_task("Calculando velocidades y rotación…", _kin_task, done,
                        result=session.result, sig=session.candidates.sig, fps=session.fps,
-                       kin_params=session.kin_params, r_out=session.detection.r_out)
+                       kin_params=session.kin_params, r_out=session.detection.r_out,
+                       arena=session.arena, crop=_crop(session))
+
+    # --- enclosure ---
+    def detect_arena(self) -> None:
+        """Measure the enclosure over the analysed range (or the current trim/ROI before analysing)."""
+        if self.state.info is None:
+            return
+        if self._worker is not None:
+            self._arena_pending = True
+            return
+        self._stop_all_players()
+        s = self.tab_tracking.session
+        trim = TrimRange(int(s.result.frames[0]), int(s.result.frames[-1])) if (s and s.result is not None) \
+            else self.state.trim
+        roi = s.roi if s is not None else self.state.roi
+        src = s.src_path if s is not None else self.state.info.path
+        d_in, d_out = self.tab_tracking.diameters()
+
+        def done(track):
+            self.tab_tracking.set_arena(track)
+            st = track.static() if track is not None else None
+            if track is None or not track.defined:
+                QMessageBox.warning(self, "Recinto", "No se pudo detectar el recinto. Marcalo a mano: botón "
+                                    "'Marcar a mano' y al menos 3 clics sobre el borde interior del anillo.")
+            elif st is not None and not st.reliable and track.manual is None:
+                QMessageBox.warning(self, "Recinto", "Detección dudosa:\n" + st.describe() +
+                                    "\n\nRevisá el círculo amarillo sobre el video; si no coincide con el borde "
+                                    "interior del anillo, marcalo a mano.")
+            self.statusBar().showMessage("Recinto: " + (track.describe().replace("<br>", " · ") if track else "—"))
+            self.recompute_kinematics()
+
+        self._run_task("Detectando el recinto…", ar.track_video, done, src_path=src, trim=trim, roi=roi,
+                       step=ar.DEFAULT_STEP, d_in_mm=d_in, d_out_mm=d_out)
 
     def _warn_issues(self, session: TrackingSession, cal: Optional[Calibration] = None) -> None:
         sm = session.result.summary()
         head = (f"Calibración: {describe(cal)}\n\n") if cal is not None else ""
+        if session.arena is not None and session.arena.defined:
+            head += "Recinto: " + session.arena.describe().replace("<br>", "\n") + "\n\n"
+        elif cal is not None:
+            head += "⚠ No se detectó el recinto: marcalo a mano en 'Recinto' (origen y escala).\n\n"
         n = session.params.n_objects
         if cal is not None and cal.n_estimate is not None and cal.n_estimate != n:
             head += f"⚠ La calibración estima ≈ {cal.n_estimate} robots por cuadro y N = {n}.\n\n"
@@ -315,6 +363,7 @@ class MainWindow(QMainWindow):
             df = s.to_dataframe(v)
             out = km.wide_table(df) if wide else df
             out.to_csv(path, index=False, float_format="%.6g")
+            info_path = _write_info(path, s, v)
         except (OSError, ValueError) as exc:
             QMessageBox.critical(self, "Error al guardar", str(exc))
             return
@@ -324,11 +373,50 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self, "CSV guardado",
             f"{os.path.basename(path)}\n{v.result.n_objects} robots · cuadros {f[0]}–{f[-1]} · "
-            f"{len(out)} filas × {out.shape[1]} columnas\nFormato: {layout}\n\n"
-            "Ejes: x a la derecha, y hacia abajo. vel_dir_deg, theta_deg y ω: antihorario. "
-            + ("Video espejado corregido: x, y, v, θ y ω están en la escena real (columna 'espejo'). "
-               if "espejo" in out.columns else "")
-            + "'status' indica si cada posición fue detectada o estimada.")
+            f"{len(out)} filas × {out.shape[1]} columnas\nFormato: {layout}\n\n" + _axes_note(v.kin, out)
+            + f"\n\nDatos del recinto y la escala: {os.path.basename(info_path)}")
+
+    def export_robot_csv(self, k: int) -> None:
+        """Every column of the tracking table for ONE robot (one row per frame)."""
+        s, v = self.tab_tracking.session, self.tab_tracking.current_view()
+        if s is None or v is None or self._worker is not None:
+            return
+        path = self._ask_save_path(f"Guardar robot #{k}", f"robot{k:02d}", {"CSV (*.csv)": ".csv"})
+        if not path:
+            return
+        try:
+            out = s.robot_dataframe(k, v)
+            out.to_csv(path, index=False, float_format="%.6g")
+            info_path = _write_info(path, s, v)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, "Error al guardar", str(exc))
+            return
+        QMessageBox.information(self, "Robot exportado",
+                                f"{os.path.basename(path)}\nRobot #{k} · {len(out)} cuadros × {out.shape[1]} columnas\n\n"
+                                + _axes_note(v.kin, out) + f"\n\nDatos del recinto: {os.path.basename(info_path)}")
+
+    def export_all_robots(self) -> None:
+        """One CSV per robot in a folder (<video>_robot00.csv, …)."""
+        s, v = self.tab_tracking.session, self.tab_tracking.current_view()
+        if s is None or v is None or self._worker is not None:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Carpeta para los CSV por robot", self._last_dir)
+        if not folder:
+            return
+        self._last_dir = folder
+        base = os.path.splitext(os.path.basename(s.src_path))[0]
+        try:
+            df = s.to_dataframe(v)
+            n = v.result.n_objects
+            width = max(2, len(str(n - 1)))
+            for k in range(n):
+                km.robot_table(df, k).to_csv(os.path.join(folder, f"{base}_robot{k:0{width}d}.csv"),
+                                             index=False, float_format="%.6g")
+            _write_info(os.path.join(folder, f"{base}_robots.csv"), s, v)
+        except (OSError, ValueError) as exc:
+            QMessageBox.critical(self, "Error al guardar", str(exc))
+            return
+        QMessageBox.information(self, "Robots exportados", f"{n} archivos en\n{folder}")
 
     def export_summary_csv(self) -> None:
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
@@ -339,6 +427,7 @@ class MainWindow(QMainWindow):
             return
         try:
             s.summary_dataframe(v).to_csv(path, index=False, float_format="%.6g")
+            _write_info(path, s, v)
         except OSError as exc:
             QMessageBox.critical(self, "Error al guardar", str(exc))
             return
@@ -359,7 +448,8 @@ class MainWindow(QMainWindow):
             lambda res: QMessageBox.information(
                 self, "Exportación completa", f"Se guardaron {res[1]} cuadros en:\n{res[0]}"),
             src=s.src_path, dst=path, trim=TrimRange(int(frames[0]), int(frames[-1])), roi=s.roi,
-            processor=None, annotate=s.annotator(v, tt.chk_vel.isChecked(), tt.chk_rot.isChecked()),
+            processor=None, annotate=s.annotator(v, tt.chk_vel.isChecked(), tt.chk_rot.isChecked(),
+                                    tt.chk_show_arena.isChecked()),
         )
 
     def save_session(self) -> None:
@@ -406,9 +496,14 @@ class MainWindow(QMainWindow):
         def done(res):
             s.result, s.kin = res
             self.tab_process.det_panel.apply_params(s.detection)
+            self.tab_tracking.arena = None
             self.tab_tracking.set_session(s)
             self.tabs.setCurrentWidget(self.tab_tracking)
             self._warn_issues(s)
+            if s.arena is None or not s.arena.defined:
+                # Sessions saved before the enclosure existed: measure it now (reads the video once).
+                self.statusBar().showMessage("La sesión no tiene recinto: detectándolo…")
+                self._arena_pending = True
 
         if s.kin_params is None:
             s.kin_params = self.tab_tracking.kinematics_params()
@@ -418,7 +513,7 @@ class MainWindow(QMainWindow):
                                     "Velocidades disponibles; para θ y ω volvé a analizar el video.")
         self._run_task("Recalculando seguimiento…", _track_task, done,
                        cands=s.candidates, params=s.params, anchors=dict(s.anchors), fps=s.fps,
-                       kin_params=s.kin_params, r_out=s.detection.r_out)
+                       kin_params=s.kin_params, r_out=s.detection.r_out, arena=s.arena, crop=_crop(s))
 
     def _run_task(self, text: str, func, on_success, **kwargs) -> None:
         self._worker = TaskWorker(func, self, **kwargs)
@@ -444,6 +539,9 @@ class MainWindow(QMainWindow):
         if self._retrack_pending:
             self._retrack_pending = False
             self.retrack()
+        elif self._arena_pending:
+            self._arena_pending = False
+            self.detect_arena()
 
     # --- helpers ---
     def _all_tabs(self):
@@ -472,8 +570,33 @@ def _export_task(src, dst, trim, roi, processor, progress, should_cancel, annota
     return (dst, n), cancelled
 
 
+def _crop(session) -> tuple[float, float, float, float]:
+    return (session.roi.x, session.roi.y, session.roi.w, session.roi.h)
+
+
+def _axes_note(kin, out) -> str:
+    if kin is not None and kin.origin == "recinto":
+        txt = ("Origen (0, 0) en el centro del recinto de cada cuadro; x a la derecha, y hacia arriba; "
+               f"escala desde: {kin.scale_source} ({kin.mm_per_px:.4f} mm/px mediana). ")
+    else:
+        txt = "Recinto sin definir: origen en el centro del recorte; x a la derecha, y hacia arriba. "
+    txt += "vel_dir_deg, phi_deg, θ y ω: antihorarios. "
+    if "espejo" in out.columns:
+        txt += "Video espejado corregido (columna 'espejo'). "
+    return txt + "'status' indica si cada posición fue detectada o estimada."
+
+
+def _write_info(csv_path: str, session, view) -> str:
+    """JSON side-car with the enclosure, scale and conventions of an export."""
+    import json
+    info_path = os.path.splitext(csv_path)[0] + "_info.json"
+    with open(info_path, "w", encoding="utf-8") as fh:
+        json.dump(session.export_info(view), fh, ensure_ascii=False, indent=2, default=float)
+    return info_path
+
+
 def _analyze_task(src, trim, roi, processor, tparams, autocal, progress, should_cancel, kin_params=None,
-                  time_fps=None):
+                  time_fps=None, arena_step=0, d_in=ar.D_IN_MM, d_out=ar.D_OUT_MM, manual=None):
     cal = None
     if autocal:
         frames = sample_frames(src, trim, roi, processor.pipeline if processor.pipeline else None, 5)
@@ -483,29 +606,35 @@ def _analyze_task(src, trim, roi, processor, tparams, autocal, progress, should_
         progress(5)
         if should_cancel():
             return None, True
-    cands, fps, cancelled = extract_candidates(
-        src, trim, roi, processor, progress=lambda v: progress(5 + int(v * 0.90)), should_cancel=should_cancel)
+    cands, fps, cancelled, arena = extract_candidates(
+        src, trim, roi, processor, progress=lambda v: progress(5 + int(v * 0.90)), should_cancel=should_cancel,
+        arena_step=arena_step, d_in_mm=d_in, d_out_mm=d_out)
     if cancelled:
         return None, True
     if len(cands) == 0:
         raise IOError("No se pudo leer ningún cuadro del tramo seleccionado.")
     # Time base = frames per REAL second (time-lapse aware), not the container's playback fps.
+    if manual is not None and manual.manual is not None:      # keep a circle marked by hand
+        arena = arena if arena is not None else ar.ArenaTrack.empty(d_in, d_out)
+        arena.manual, arena.manual_frame = manual.manual, manual.manual_frame
+        arena.manual_points, arena.follow_motion = manual.manual_points, manual.follow_motion
     session = TrackingSession(src, roi, trim, time_fps or fps, processor.detection, cands, tparams,
-                              kin_params=kin_params)
+                              kin_params=kin_params, arena=arena)
     res = session.run(progress=lambda v: progress(95 + v // 20), should_cancel=should_cancel)
     return (None, True) if res is None else ((session, cal), False)
 
 
-def _track_task(cands, params, anchors, progress, should_cancel, fps=30.0, kin_params=None, r_out=1.0):
+def _track_task(cands, params, anchors, progress, should_cancel, fps=30.0, kin_params=None, r_out=1.0,
+                arena=None, crop=None):
     res = track(cands, params, anchors, progress=progress, should_cancel=should_cancel)
     if res is None:
         return None, True
-    kin = km.compute(res, cands.sig, fps, kin_params or km.KinematicsParams(), r_out)
+    kin = km.compute(res, cands.sig, fps, kin_params or km.KinematicsParams(), r_out, arena, crop)
     return (res, kin), False
 
 
-def _kin_task(result, sig, fps, kin_params, r_out, progress, should_cancel):
-    return km.compute(result, sig, fps, kin_params, r_out), False
+def _kin_task(result, sig, fps, kin_params, r_out, progress, should_cancel, arena=None, crop=None):
+    return km.compute(result, sig, fps, kin_params, r_out, arena, crop), False
 
 
 def _detect_task(src, dst, trim, roi, processor, link, progress, should_cancel, fps=None):
