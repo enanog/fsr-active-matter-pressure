@@ -1,0 +1,36 @@
+% ============================================================================
+% Tests report: conclusions.
+% ============================================================================
+\section{Conclusiones}\label{sec:conclusiones}
+
+\begin{itemize}
+  \item Los tres ensayos (22 robots, modo \texttt{QR}, $\phi \approx 0{,}58$) se siguieron completos:
+        \SI{100}{\percent} de posiciones observadas, menos del \SI{0.13}{\percent} con umbral relajado y
+        tres anclas manuales en total.
+  \item La escala de tiempo $\fr = 3$~cuadros/s queda verificada por la configuración de la cámara, la
+        duración del registro y la correlación con el sensor (máxima entre \num{2.9975} y \num{3.0025}).
+        El inicio de cada video recortado coincide con el fin del pulso LED, que sirve de sincronización.
+  \item El comportamiento es reproducible: rapidez mediana \num{0.58}--\SI{0.70}{\milli\metre\per\second},
+        percentil 95 \num{3.5}--\SI{3.6}{\milli\metre\per\second}, $|\omega|$ mediana
+        \num{3.0}--\SI{3.8}{\degree\per\second} y desplazamiento cuadrático medio superdifusivo
+        ($\alpha \approx 1{,}3$) en los tres.
+  \item Corregido el espejado del video, 14 de 22 robots giran en neto a la derecha (horario), como
+        indica el modo \texttt{QR}, y el grupo circula débilmente en ese mismo sentido. Los otros 8
+        contrarrotan despacio y pasan más tiempo contra la pared, como un disco que rueda por el interior
+        del recinto.
+  \item El grupo se ordena en tres capas concéntricas separadas por aproximadamente un diámetro.
+  \item Los atascos colectivos son la principal diferencia entre ensayos (\SI{17}{\percent},
+        \SI{3}{\percent} y \SI{6}{\percent} del tiempo). En dos de los tres ensayos coinciden con la
+        máxima fuerza registrada por el sensor de presión: en \Cmp{Lab}{A}, el atasco de
+        \SI{382}{\second} coincide con el episodio de saturación del sensor.
+\end{itemize}
+
+\paragraph{Próximos pasos.}
+\begin{itemize}
+  \item Marcar en el video la posición del sensor y relacionar la fuerza con los robots en contacto
+        con él.
+  \item Repetir con los otros modos (\texttt{R}, \texttt{QZ}) y con distinta cantidad de robots, para ver
+        cómo cambian los atascos con $\phi$.
+  \item Identificar a cada robot entre videos (por ejemplo, con marcas de color) para saber si los que
+        contrarrotan son siempre los mismos o los que quedan contra la pared.
+\end{itemize}

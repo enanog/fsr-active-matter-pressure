@@ -1,0 +1,117 @@
+% ============================================================================
+% Application report: what it is, how it is organised, files it reads/writes.
+% ============================================================================
+\section{Qué es y para qué sirve}\label{sec:app}
+
+VidFetch es una aplicación de escritorio en Python que mide, a partir de un video filmado desde
+arriba, el movimiento de $N$ robots circulares dentro de una arena. Para cada robot y cada cuadro
+entrega la posición del centro, el vector velocidad, la orientación acumulada $\theta$ y la
+velocidad angular $\omega$, en unidades SI y en tiempo real aunque el video esté acelerado.
+
+Usos previstos:
+\begin{itemize}
+  \item \textbf{Preparar el video}: recortar el tramo útil y el rectángulo de la arena, y guardar el
+        recorte (archivos \texttt{VC\_}).
+  \item \textbf{Probar la detección} sobre cuadros sueltos y ajustar parámetros a mano o con la
+        calibración automática.
+  \item \textbf{Seguir} $N$ robots fijos durante todo el ensayo, revisar los cuadros dudosos y
+        corregir centros a mano.
+  \item \textbf{Exportar} los datos (CSV), un resumen por robot, el video anotado y la sesión de
+        análisis para retomarla sin volver a procesar.
+  \item \textbf{Generar los informes} de ensayos a partir de los CSV (\cref{sec:procedimiento}).
+\end{itemize}
+
+\subsection{Requisitos y ejecución}
+
+Requiere Python~3.10 o superior y las bibliotecas de \texttt{requirements.txt}
+(\cref{sec:librerias}). Desde la carpeta \texttt{software/vidfetch} del repositorio:
+\begin{verbatim}
+pip install -r requirements.txt
+python main.py
+\end{verbatim}
+Las tareas largas (análisis, exportaciones) corren en un hilo aparte, con barra de progreso y botón
+de cancelar, de modo que la ventana no se congela.
+
+\subsection{Organización del código}
+
+El código separa la lógica de cálculo (\texttt{core/}, sin dependencias de la interfaz) de la
+interfaz gráfica (\texttt{gui/}). Así, todo el cálculo puede usarse desde un script, y la interfaz
+solo llama a funciones de \texttt{core/} (\cref{tab:archivos}).
+
+\begin{table}[H]
+  \centering
+  \caption{Archivos del programa y su función (rutas relativas a \texttt{software/vidfetch}).}
+  \label{tab:archivos}
+  \small
+  \begin{tabular}{@{}lrp{9.2cm}@{}}
+    \toprule
+    Archivo & Líneas & Función \\
+    \midrule
+    \texttt{main.py} & 18 & punto de entrada: crea la aplicación Qt y la ventana principal \\
+    \texttt{core/models.py} & 47 & \texttt{Roi} (rectángulo) y \texttt{TrimRange} (tramo de cuadros) \\
+    \texttt{core/video\_io.py} & 169 & lectura de video con acceso aleatorio, exportación de video recortado o anotado \\
+    \texttt{core/processing.py} & 94 & operaciones de imagen encadenables (grises, brillo/contraste, desenfoque, umbral, Canny) \\
+    \texttt{core/detection.py} & 182 & detección de robots: filtro de anillo, \texttt{trackpy.locate}, cobertura del anillo \\
+    \texttt{core/calibration.py} & 230 & estimación automática del radio del robot y de todos los umbrales \\
+    \texttt{core/analysis.py} & 116 & recorrido del video cuadro a cuadro y tabla de candidatos \\
+    \texttt{core/tracking.py} & 708 & seguimiento con $N$ fijo, anclas manuales, huecos, sesión \texttt{.npz}, dibujo \\
+    \texttt{core/rotation.py} & 139 & firmas polares y orientación acumulada $\theta$ \\
+    \texttt{core/kinematics.py} & 250 & velocidad, $\omega$, escala SI y tablas de exportación \\
+    \midrule
+    \texttt{gui/main\_window.py} & 522 & ventana, menús, diálogos de archivo y tareas en segundo plano \\
+    \texttt{gui/state.py} & 71 & estado compartido: video, tramo, rectángulo, escala de tiempo \\
+    \texttt{gui/tabs.py} & 501 & pestañas \emph{Original}, \emph{Recortar} y \emph{Procesar} \\
+    \texttt{gui/tracking\_tab.py} & 498 & pestaña \emph{Seguimiento} \\
+    \texttt{gui/player.py}, \texttt{frame\_view.py} & 362 & reproductor y visor con zoom y edición del rectángulo \\
+    \texttt{gui/export\_worker.py} & 35 & hilo de trabajo (\texttt{QThread}) para tareas largas \\
+    \midrule
+    \multicolumn{3}{@{}l}{\textit{En \texttt{software/analisis\_video/}:}} \\
+    \texttt{generar\_informe.py} & 548 & sección de resultados de un ensayo a partir de su CSV \\
+    \texttt{comparar\_ensayos.py} & 530 & comparación entre ensayos y contraste con el sensor de presión \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{La interfaz}
+
+La ventana tiene cuatro pestañas que comparten el mismo video, tramo y rectángulo, guardados en
+un único objeto de estado (\texttt{gui/state.py}): lo que se define en una se refleja en las demás.
+\begin{enumerate}
+  \item \textbf{Original}: reproduce el video y fija la escala de tiempo (\cref{sec:escala}). La
+        etiqueta del reproductor muestra el cuadro y el tiempo real.
+  \item \textbf{Recortar}: tramo temporal (cuadro de inicio y fin) y rectángulo de análisis, que se
+        dibuja o se mueve sobre la imagen; permite forzar un cuadrado de lado fijo y guardar el recorte.
+  \item \textbf{Procesar}: aplica operaciones de imagen y prueba la detección cuadro a cuadro
+        (parámetros, botón \emph{Calibrar tamaño automáticamente}). Exporta posiciones sueltas o
+        vinculadas con \texttt{trackpy.link} y el video procesado.
+  \item \textbf{Seguimiento}: análisis completo con $N$ fijo, lista de cuadros con problemas,
+        corrección manual del centro, parámetros de cinemática (ventana de suavizado, diámetro real,
+        corrección de video espejado),
+        superposición de velocidad y orientación, y exportaciones.
+\end{enumerate}
+
+\subsection{Archivos que lee y escribe}
+
+\begin{table}[H]
+  \centering
+  \caption{Formatos de archivo.}
+  \label{tab:formatos}
+  \small
+  \begin{tabular}{@{}p{3.3cm}lp{8.6cm}@{}}
+    \toprule
+    Extensión & Sentido & Contenido \\
+    \midrule
+    \texttt{.mp4 .avi .mov .mkv .m4v .wmv} & entrada & video a analizar (cualquier formato que lea OpenCV/FFmpeg) \\
+    \texttt{.mp4} (\texttt{mp4v}), \texttt{.avi} (MJPG) & salida & video recortado, procesado o con el seguimiento dibujado \\
+    \texttt{.csv} & salida & posiciones de la pestaña \emph{Procesar}; seguimiento completo en formato largo o ancho;
+                            resumen por robot (columnas en la \cref{tab:columnas}) \\
+    \texttt{.npz} & entrada y salida & sesión de análisis: candidatos, firmas de rotación, anclas manuales y
+                                       parámetros (NumPy comprimido, sin \texttt{pickle}) \\
+    \texttt{.tex}, \texttt{.csv}, \texttt{.png} & salida & secciones de informe generadas por los scripts de \texttt{software/analisis\_video/} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+La sesión \texttt{.npz} se guarda con \texttt{numpy.savez\_compressed} y se carga con
+\texttt{allow\_pickle=False}: contiene solo arreglos numéricos y un texto JSON con los parámetros,
+por lo que abrir un archivo ajeno no ejecuta código.

@@ -1,0 +1,132 @@
+% ============================================================================
+% Tests report: the three filmed tests, files, analysis settings and time base.
+% ============================================================================
+\section{Ensayos y datos}\label{sec:videos}
+
+\subsection{Los ensayos}
+
+Se analizaron tres ensayos con 22 robots en la misma arena circular y el mismo modo de movimiento
+(\texttt{QR}), filmados con una cámara DJI fija sobre la arena, mirando hacia abajo (\cref{tab:ensayos}). Se identifican por fecha y
+hora de inicio; en tablas y gráficos se usan las etiquetas \Cmp{Lab}{A}, \Cmp{Lab}{B} y \Cmp{Lab}{C}.
+La arena tiene un radio útil de unos \SI{\Cmp{Rar}{A}}{\centi\metre}, de modo que los robots
+(\SI{\DiametroRobotCM}{\centi\metre} de diámetro) cubren una fracción de área
+$\phi = N(D/2)^2/R^2 \approx \num{\Cmp{Phi}{A}}$: es un sistema denso, en el que cada robot está casi
+siempre en contacto con sus vecinos.
+
+\begin{table}[H]
+  \centering
+  \caption{Ensayos analizados. Duración real con $\fr = \num{\CuadrosPorSegundo}$~cuadros/s.}
+  \label{tab:ensayos}
+  \small
+  \begin{tabular}{@{}llrrr@{}}
+    \toprule
+    Etiqueta & Código & Cuadros (\texttt{VC}) & Duración real & Recorte [px] \\
+    \midrule
+    \Cmp{Lab}{A} & \texttt{20262409\_1600\_22QR\_60} & \num{12069} & \SI{67.0}{\minute} & $610\times610$ \\
+    \Cmp{Lab}{B} & \texttt{20262509\_1230\_22QR\_60} & \num{9881}  & \SI{54.9}{\minute} & $610\times614$ \\
+    \Cmp{Lab}{C} & \texttt{20262509\_1500\_22QR\_60} & \num{11012} & \SI{61.2}{\minute} & $604\times614$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Archivos}
+
+Cada ensayo tiene, con el mismo \texttt{<código>}, los archivos de la \cref{tab:archivos_ens}. El
+código es: fecha (año, día, mes: \texttt{20262409} = 24/09/2026), hora de inicio, cantidad de robots
+y modo, y duración \emph{nominal} en minutos (la medida difiere, ver \cref{sec:escala_ens}).
+
+\begin{table}[H]
+  \centering
+  \caption{Archivos de cada ensayo.}
+  \label{tab:archivos_ens}
+  \small
+  \begin{tabular}{@{}p{6.0cm}p{8.6cm}@{}}
+    \toprule
+    Archivo & Contenido \\
+    \midrule
+    \nolinkurl{datos/video/originales/VR_<codigo>.MP4} & original de la cámara, \num{3840}\,$\times$\,\num{2160}\,px, H.264, \SI{29.97}{cuadros\per\second} \\
+    \nolinkurl{datos/video/recortados/VC_<codigo>.MP4} & recorte a la arena (unos \num{610}\,$\times$\,\num{610}\,px); empieza al terminar el pulso LED de sincronización (\cref{sec:escala_ens}) \\
+    \nolinkurl{datos/video/sesiones/VA_<codigo>_analisis.npz} & sesión de análisis de VidFetch (candidatos, firmas, anclas, parámetros) \\
+    \nolinkurl{datos/video/trayectorias/VP_<codigo>_robots.csv} & datos exportados: una fila por robot y cuadro \\
+    \nolinkurl{datos/presion/crudos/R_<codigo>.csv} & registro del sensor de presión (FSR), \SI{20}{\hertz}, con columna \texttt{LED} de sincronización \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Configuración del análisis}
+
+Los tres videos se analizaron con VidFetch con la calibración automática, que dio parámetros casi
+idénticos (\cref{tab:config}), lo que confirma que la cámara estuvo a la misma altura y con la misma
+iluminación. El método está descripto en el informe de la aplicación.
+
+\begin{table}[H]
+  \centering
+  \caption{Parámetros usados (guardados en cada sesión \texttt{VA\_*.npz}).}
+  \label{tab:config}
+  \small
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Parámetro & \Cmp{Lab}{A} & \Cmp{Lab}{B} & \Cmp{Lab}{C} \\
+    \midrule
+    Radio exterior del robot $r_{\mathrm{ext}}$ [px] & \num{47.0} & \num{47.0} & \num{47.1} \\
+    Radio del disco $r_{\mathrm{int}}$ [px] & \num{35.2} & \num{35.3} & \num{35.3} \\
+    Escala espacial $s = D/(2r_{\mathrm{ext}})$ [\si{\milli\metre\per px}] & \num{0.3723} & \num{0.3723} & \num{0.3715} \\
+    Gris máximo del anillo / del píxel oscuro & 106 / 68 & 111 / 71 & 104 / 68 \\
+    Cobertura mínima del anillo & \multicolumn{3}{c}{\num{0.82} (relajada: \num{0.70} y \num{0.55})} \\
+    Radio de búsqueda [px] & \multicolumn{3}{c}{\num{29.4} ($0{,}625\,r_{\mathrm{ext}}$)} \\
+    Ventana de Savitzky--Golay & \multicolumn{3}{c}{\Cuadros{5}, polinomio de grado 2} \\
+    Escala de tiempo $\fr$ & \multicolumn{3}{c}{\num{3} cuadros por segundo real} \\
+    Video espejado & \multicolumn{3}{c}{sí, respecto del eje vertical (corregido en las exportaciones)} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Escala de tiempo y sincronización con el sensor}\label{sec:escala_ens}
+
+Los videos son \emph{time-lapse}: cada cuadro se toma cada $1/\fr$ segundos reales y el archivo se
+reproduce a \SI{29.97}{cuadros\per\second}, unas 10 veces más rápido. Todos los tiempos, velocidades
+y velocidades angulares de este informe están en tiempo real con $\fr = 3$~cuadros/s. El valor se
+verificó de tres maneras independientes:
+\begin{enumerate}
+  \item \textbf{Configuración de la cámara}: un \emph{time-lapse} $\times 10$ a \SI{29.97}{cuadros\per\second}
+        da $\fr = \num{2.997}$.
+  \item \textbf{Duración del registro del sensor}, grabado en simultáneo con su propio reloj
+        (\cref{tab:videos}).
+  \item \textbf{Correlación con el sensor}: al barrer $\fr$ entre \num{2.985} y \num{3.015}, la correlación
+        entre la movilidad de los robots y la señal del sensor es máxima entre \num{2.9975} y \num{3.0025}
+        en los tres ensayos (\cref{sec:presion}).
+\end{enumerate}
+La duración nominal del nombre (\SI{60}{\minute}) \emph{no} sirve para calcular $\fr$: daría valores
+entre \num{2.75} y \num{3.36}, con errores de hasta \SI{12}{\percent} en todas las velocidades.
+
+\begin{table}[H]
+  \centering
+  \caption{Cuadros de los originales (\texttt{VR}) y frecuencia de captura deducida de tres maneras.
+    Duración del sensor: $t_{\text{último}} - t_{\text{primero}}$ de \texttt{R\_<código>.csv}; como el
+    registro empieza antes que el video, el $\fr$ que da es una cota inferior.}
+  \label{tab:videos}
+  \small
+  \begin{tabular}{@{}lrrrrrr@{}}
+    \toprule
+    & & \multicolumn{2}{c}{$T$ con $\fr = \num{2.997}$} & \multicolumn{2}{c}{Sensor de presión} & Nominal \\
+    \cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(l){7-7}
+    Ensayo & Cuadros & video [\si{\second}] & real [\si{\minute}] & $T$ [\si{\second}] & $\fr$ & $\fr$ (\SI{60}{\minute}) \\
+    \midrule
+    \Cmp{Lab}{A} & \num{12105} & \num{403.9} & \num{67.3} & \num{4055.1} & \num{2.985} & \num{3.36} \\
+    \Cmp{Lab}{B} & \num{9907}  & \num{330.6} & \num{55.1} & \num{3368.4} & \num{2.941} & \num{2.75} \\
+    \Cmp{Lab}{C} & \num{11038} & \num{368.3} & \num{61.4} & \num{3699.5} & \num{2.984} & \num{3.07} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Sincronización.} El registrador del sensor enciende un LED durante \SI{5}{\second} al
+comenzar (columna \texttt{LED}). En los tres ensayos, el primer cuadro del video recortado
+(\texttt{VC}) coincide con el \emph{fin} de ese pulso: la correlación cruzada entre video y sensor,
+calculada sin usar el LED, da el mismo desfasaje con diferencias de \SI{\Cmp{LagLed}{A}}{\second},
+\SI{\Cmp{LagLed}{B}}{\second} y \SI{\Cmp{LagLed}{C}}{\second}, menores que dos cuadros. Por lo tanto,
+el tiempo del sensor se pasa al del video con
+\begin{equation}
+  t_{\mathrm{video}} = t_{\mathrm{sensor}} - t_{\mathrm{LED,fin}},
+\end{equation}
+con $t_{\mathrm{LED,fin}}$ = \SI{\Cmp{LedFin}{A}}{\second}, \SI{\Cmp{LedFin}{B}}{\second} y
+\SI{\Cmp{LedFin}{C}}{\second} desde el inicio de cada registro.

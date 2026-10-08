@@ -1,0 +1,119 @@
+% ============================================================================
+% How to analyse a video and add it to this report; meaning of every export.
+% ============================================================================
+\section{Procedimiento y exportaciones}\label{sec:procedimiento}
+
+\subsection{Analizar un video}
+
+\begin{enumerate}
+  \item \textbf{Abrir} el \texttt{VC\_<código>.MP4} (menú \emph{Archivo}, pestaña \emph{1 · Original}).
+  \item \textbf{Escala de tiempo.} En la misma pestaña, dejar marcada \emph{Video acelerado
+        (time-lapse)} y fijar $\fr$ (\cref{sec:escala}). Si se conoce la duración real medida,
+        usar \emph{Calcular desde la duración real\ldots}.
+  \item \textbf{Recorte} (opcional, pestaña \emph{2 · Recortar}): tramo temporal y rectángulo a analizar.
+        Los \texttt{VC} ya están recortados a la arena, así que normalmente no hace falta.
+  \item \textbf{Seguimiento} (pestaña \emph{4 · Seguimiento}): indicar $N$, verificar el diámetro real
+        (\SI{35}{\milli\metre}), indicar si el video está espejado y pulsar \emph{Analizar video}. La calibración del tamaño es automática
+        (casilla \emph{Calibrar tamaño automáticamente al analizar}).
+  \item \textbf{Revisar} los cuadros de la lista \emph{Cuadros con problemas} (botones \emph{Anterior} y
+        \emph{Siguiente}) y, si hace falta, elegir el robot y hacer clic sobre su centro real (ancla). El
+        seguimiento se rehace en segundos, sin volver a leer el video.
+  \item \textbf{Guardar} el análisis (\emph{Guardar análisis\ldots}, archivo \texttt{.npz}) y exportar el
+        CSV con \emph{Exportar CSV (todos los robots)\ldots}, formato \emph{una fila por robot y cuadro}.
+\end{enumerate}
+
+\subsection{Generar el informe de ensayos}
+
+Dos scripts de \nolinkurl{software/analisis_video/} arman el informe de resultados
+(\nolinkurl{informes/ensayos/informe_ensayos.tex}) a partir de los CSV exportados. Se ejecutan desde
+la raíz del repositorio; en Windows la línea se continúa con \verb|^| y en Linux o macOS con
+\verb|\|. Por defecto escriben en \nolinkurl{informes/ensayos/generado/} y leen el registro de
+presión de \nolinkurl{datos/presion/crudos/}.
+
+\paragraph{Una sección por ensayo.} \texttt{generar\_informe.py} crea
+\nolinkurl{generado/<nombre>/} con la tabla de datos, la captura anotada, los gráficos y un
+párrafo automático, y actualiza \nolinkurl{generado/lista_ensayos.tex}:
+\begin{verbatim}
+python software/analisis_video/generar_informe.py ^
+       datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
+       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+       --nombre 20262409_1600_22QR_60
+\end{verbatim}
+Opciones:
+\begin{itemize}
+  \item \texttt{-{}-cuadros-por-segundo F}: reexpresa el CSV con $\fr = F$. Recalcula $t = n/F$ y
+        multiplica velocidades y velocidades angulares por $F/\fr^{\mathrm{CSV}}$, donde
+        $\fr^{\mathrm{CSV}}$ se deduce de las columnas \texttt{frame} y \texttt{t\_s}. Corrige un CSV
+        exportado con otra escala sin repetir el análisis.
+  \item \texttt{-{}-imagen archivo.png -{}-frame n}: usa una imagen ya extraída del cuadro $n$ para la
+        captura anotada, en lugar de leer el video (útil si el video no está en la misma máquina).
+  \item \texttt{-{}-titulo}, \texttt{-{}-diametro-mm}, \texttt{-{}-diametro-px} (si el CSV no trae escala).
+\end{itemize}
+Si la duración real supera \SI{10}{\minute}, los ejes de tiempo van en minutos y las trayectorias se
+grafican solo para los primeros \SI{5}{\minute}. Las observaciones propias van en
+\nolinkurl{generado/<nombre>/notas.tex}, que el script nunca sobrescribe. Si el CSV se exportó con
+la corrección de video espejado (columna \texttt{espejo}), la captura se dibuja igual sobre la
+imagen original.
+
+\paragraph{Comparación entre ensayos.} \texttt{comparar\_ensayos.py} recibe todos los CSV y genera
+\nolinkurl{generado/comparacion/}: tabla comparativa, series temporales con los atascos
+marcados, distribuciones, rotación por robot, desplazamiento cuadrático medio, mapas de ocupación y,
+si encuentra los registros del sensor, la alineación con el registro del sensor de presión
+(\texttt{R\_<código>.csv}) mediante el pulso LED de sincronización y la correlación cruzada:
+\begin{verbatim}
+python software/analisis_video/comparar_ensayos.py ^
+       "datos/video/trayectorias/VP_*_robots.csv"
+\end{verbatim}
+Después se compila \texttt{informes/ensayos/informe\_ensayos.tex} dos veces (\texttt{pdflatex} o
+\texttt{latexmk -pdf}). Este informe (\texttt{informe\_aplicacion.tex}) no depende de los datos.
+
+\subsection{Archivos exportados}
+
+\paragraph{CSV de seguimiento (una fila por robot y cuadro).} Es el archivo de datos del ensayo y la
+entrada del informe. Tiempos, velocidades y velocidades angulares están en tiempo real, con la
+escala $\fr$ vigente al exportar (\cref{tab:columnas}).
+
+\begin{table}[H]
+  \centering
+  \caption{Columnas del CSV de seguimiento.}
+  \label{tab:columnas}
+  \small
+  \begin{tabular}{@{}llp{8.6cm}@{}}
+    \toprule
+    Columna & Unidad & Contenido \\
+    \midrule
+    \texttt{frame} & --- & número de cuadro $n$ en el archivo de video \\
+    \texttt{t\_s} & \si{\second} & tiempo real $n/\fr$ \\
+    \texttt{particle} & --- & identificador del robot ($0\ldots N-1$), fijo durante todo el ensayo \\
+    \texttt{x\_px}, \texttt{y\_px} & px & centro, relativo al rectángulo analizado ($y$ hacia abajo) \\
+    \texttt{status} & --- & estado de la posición (\cref{tab:estados}); \texttt{status\_code}, su código numérico \\
+    \texttt{vx\_px\_s}, \texttt{vy\_px\_s} & \si{px\per\second} & componentes de la velocidad \\
+    \texttt{speed\_px\_s} & \si{px\per\second} & rapidez $|\vec v|$ \\
+    \texttt{vel\_dir\_deg} & \si{\degree} & dirección $\varphi$ de $\vec v$, antihoraria, \SI{0}{\degree} = derecha \\
+    \texttt{theta\_deg} & \si{\degree} & orientación acumulada $\theta$, cero en el primer cuadro del tramo \\
+    \texttt{omega\_deg\_s}, \texttt{omega\_rad\_s} & \si{\degree\per\second}, \si{\radian\per\second} & velocidad angular $\omega$ \\
+    \texttt{rot\_status} & --- & \emph{medida}, \emph{interpolada} o \emph{no disponible} \\
+    \texttt{x\_m}, \texttt{y\_m} & \si{\metre} & posición en SI (si se cargó el diámetro real) \\
+    \texttt{vx\_m\_s}, \texttt{vy\_m\_s}, \texttt{speed\_m\_s} & \si{\metre\per\second} & velocidad en SI \\
+    \texttt{mass}, \texttt{ring\_cov} & --- & intensidad de la detección y cobertura del anillo \\
+    \texttt{x\_video\_px}, \texttt{y\_video\_px} & px & centro en coordenadas del video completo (sin corregir espejado) \\
+    \texttt{espejo} & --- & solo si se corrigió el espejado: \texttt{horizontal} o \texttt{vertical} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{CSV de seguimiento (una fila por cuadro).} Mismos datos en formato ancho: una fila por
+cuadro y, por cada robot $k$, las columnas anteriores con el prefijo \texttt{r}$k$\texttt{\_}
+(\texttt{r00\_x\_px}, \texttt{r00\_y\_px}, \ldots). Cómodo para planillas; el informe usa el formato largo.
+
+\paragraph{Resumen por robot.} Una fila por robot: duración (s reales), porcentaje de posiciones
+observadas y de rotación medida, rapidez media y máxima, recorrido total, desplazamiento neto, giro
+total y $\omega$ media y media en valor absoluto, en píxeles y en SI.
+
+\paragraph{Video con seguimiento.} El tramo analizado con la superposición de la aplicación
+(\cref{fig:superposicion}): círculo coloreado por estado, número de robot, flecha de velocidad
+(desplazamiento en \num{7.5}~cuadros) y aguja de orientación. Se reproduce a $\fa$, igual que el original.
+
+\paragraph{Sesión de análisis (\texttt{.npz}).} Guarda candidatos, firmas de rotación, anclas
+manuales y resultado del seguimiento, para retomar el trabajo sin volver a leer el video. Al
+cargarla se aplica la escala de tiempo vigente en la aplicación.

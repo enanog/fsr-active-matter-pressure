@@ -1,0 +1,45 @@
+% ============================================================================
+% Tests report: tracking quality.
+% ============================================================================
+\section{Calidad del seguimiento}\label{sec:calidad}
+
+Los tres ensayos se siguieron completos, con los 22 robots en todos los cuadros: no quedó ninguna
+posición predicha ni perdida, y el \SI{99.9}{\percent} de los puntos se detectó con el umbral
+estricto (\cref{tab:calidad}). Los errores se corrigieron a mano con anclas; las advertencias se
+revisaron visualmente y, por ser pocas y breves, se dejaron como están. Parte de ellas se debe a un
+obstáculo que cruza la escena durante un intervalo corto del ensayo, que no afecta al resto de la
+medición.
+
+\begin{table}[H]
+  \centering
+  \caption{Estados de las posiciones. Un \emph{episodio} es un grupo de cuadros seguidos (separados por
+    menos de \Cuadros{3}) con al menos un robot no detectado con el umbral estricto.}
+  \label{tab:calidad}
+  \small
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    & \Cmp{Lab}{A} & \Cmp{Lab}{B} & \Cmp{Lab}{C} \\
+    \midrule
+    Puntos (robots $\times$ cuadros) & \num{265518} & \num{217382} & \num{242264} \\
+    Detectados con umbral estricto & \num{265298} & \num{217149} & \num{241966} \\
+    Detectados con umbral relajado & \num{\Cmp{Rel}{A}} & \num{\Cmp{Rel}{B}} & \num{\Cmp{Rel}{C}} \\
+    Interpolados & \num{\Cmp{Int}{A}} & \num{\Cmp{Int}{B}} & \num{\Cmp{Int}{C}} \\
+    Anclas manuales & \num{\Cmp{Man}{A}} & \num{\Cmp{Man}{B}} & \num{\Cmp{Man}{C}} \\
+    Predichos o perdidos & \num{\Cmp{Pre}{A}} & \num{\Cmp{Pre}{B}} & \num{\Cmp{Pre}{C}} \\
+    \midrule
+    Episodios con advertencias & 46 & 32 & 16 \\
+    Cuadros afectados & \SI{1.81}{\percent} & \SI{2.22}{\percent} & \SI{2.69}{\percent} \\
+    Episodio más largo & \SI{16}{\second} & \SI{11}{\second} & \SI{52}{\second} \\
+    Robots involucrados & 11 & 7 & 5 \\
+    Rotación medida (no interpolada) & \SI{100}{\percent} & \SI{99.99}{\percent} & \SI{100}{\percent} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Las tres anclas manuales están en los últimos cuadros de \Cmp{Lab}{B} (robot 17, cuadros 9874 y
+9875) y de \Cmp{Lab}{C} (robot 19, cuadro 11007). El episodio más largo, en \Cmp{Lab}{C} entre
+\SI{19.2}{\minute} y \SI{20.1}{\minute}, es un único robot (el 20) detectado con umbral relajado,
+con coberturas del anillo de \num{0.73} a \num{0.78}: su anillo se veía parcialmente tapado, pero la
+posición es correcta. Como todos los puntos quedan con su estado en la columna \texttt{status},
+pueden excluirse en cualquier análisis sensible; con menos del \SI{0.13}{\percent} de puntos
+afectados, incluirlos no cambia ningún resultado de este informe.

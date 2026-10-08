@@ -1,17 +1,51 @@
-# Altium Designer - Carpetas generadas y temporales
+# ---------------------------------------------------------------------------
+# Altium Designer: carpetas generadas y temporales
+# ---------------------------------------------------------------------------
 **/History/
 **/__Previews/
 **/Project Logs*/
 **/Project Outputs*/
-
-# Archivos temporales y de vista previa de Altium
 *.PcbDocPreview
 *.SchDocPreview
 *.CompileLog
 *.htm
 *.SchDoc.Zip
 
-# Videos: demasiado pesados para GitHub (>2 GB c/u), se transfieren por pendrive.
-# Se versiona solo el indice Videos/README.md para que la carpeta exista en el repo.
-Videos/*
-!Videos/README.md
+# ---------------------------------------------------------------------------
+# Datos de video: los videos (0,6 a 4 GB) superan el límite de GitHub (100 MB por
+# archivo) y se transfieren por pendrive; de sus carpetas solo se versiona .gitkeep.
+# Sí se versionan las sesiones de análisis (sesiones/*.npz) y las trayectorias
+# exportadas (trayectorias/*.csv), todas por debajo de 100 MB.
+# ---------------------------------------------------------------------------
+datos/video/originales/*
+datos/video/recortados/*
+datos/video/seguimiento/*
+!datos/video/*/.gitkeep
+datos/video/**/*.[mM][pP]4
+Videos/
+
+# ---------------------------------------------------------------------------
+# LaTeX: archivos intermedios (los PDF finales sí se versionan)
+# ---------------------------------------------------------------------------
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.bak_*
+.*.tmp
+
+# ---------------------------------------------------------------------------
+# Python y LTspice
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+*.raw
+*.op.raw

@@ -1,0 +1,88 @@
+% ----------------------------------------------------------------------------
+% Preamble: packages, language, units, colours and PGFPlots styles.
+% ----------------------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\IfFileExists{lmodern.sty}{\usepackage{lmodern}}{}
+\usepackage[a4paper, margin=2.3cm]{geometry}
+
+% Spanish when available (TeX Live full / MiKTeX); otherwise English babel + Spanish names.
+\IfFileExists{spanish.ldf}{%
+  \usepackage[spanish, es-noshorthands, es-tabla]{babel}%
+}{%
+  \usepackage[english]{babel}%
+  \addto\captionsenglish{%
+    \renewcommand{\figurename}{Figura}\renewcommand{\tablename}{Tabla}%
+    \renewcommand{\contentsname}{Índice}\renewcommand{\refname}{Referencias}%
+  }%
+}
+
+\emergencystretch=2em   % avoid overfull lines with long \texttt file names
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{caption}
+\captionsetup{font=small, labelfont=bf}
+\usepackage{xcolor}
+
+\usepackage{siunitx}
+% Numbers arrive already rounded by generar_informe.py: no re-rounding (integers stay integers).
+\sisetup{output-decimal-marker = {,}, group-separator = {\,}, group-minimum-digits = 5,
+         round-mode = none, per-mode = symbol}
+\DeclareSIUnit{\px}{px}
+
+\usepackage{tikz}
+\usetikzlibrary{positioning, fit, backgrounds, calc}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.17}
+\usepgfplotslibrary{fillbetween}
+\pgfkeys{/pgf/number format/.cd, use comma, 1000 sep={\,}}
+
+% Time-scale helpers: every frame <-> real-time equivalence in the text is computed from
+% \CuadrosPorSegundo (config.tex), so changing that single value updates the whole report.
+\newcommand{\FileFps}{29.97}   % playback rate of the DJI files [frames/s]
+\newcommand{\CalcNum}[2][3]{\pgfmathsetmacro\calcres{#2}\num[round-mode=figures, round-precision=#1]{\calcres}}
+\newcommand{\CalcQty}[3][2]{\pgfmathsetmacro\calcres{#2}\SI[round-mode=figures, round-precision=#1]{\calcres}{#3}}
+\newcommand{\EnSeg}[1]{\CalcQty{#1/\CuadrosPorSegundo}{\second}}          % n frames -> real seconds
+\newcommand{\Cuadros}[1]{\num{#1}~cuadros (\EnSeg{#1})}                    % "n cuadros (x s)"
+\newcommand{\fr}{f_{\mathrm{r}}}
+\newcommand{\fa}{f_{\mathrm{a}}}
+
+\definecolor{azul}{RGB}{42,111,219}
+\definecolor{rojo}{RGB}{211,51,51}
+\definecolor{verde}{RGB}{34,160,60}
+\definecolor{naranja}{RGB}{240,140,0}
+
+% Cycle of 12 distinguishable colours for per-robot curves (repeats beyond 12 robots).
+\pgfplotscreateplotcyclelist{robots}{
+  {color=azul}, {color=rojo}, {color=verde}, {color=naranja}, {color=violet}, {color=teal},
+  {color=brown}, {color=magenta}, {color=olive}, {color=cyan!70!black}, {color=gray}, {color=black}}
+
+% Code listings (application report). Comments in the code are in English.
+\usepackage{listings}
+\definecolor{codefondo}{RGB}{246,247,249}
+\definecolor{codecom}{RGB}{110,120,130}
+\definecolor{codekw}{RGB}{42,111,219}
+\definecolor{codestr}{RGB}{170,80,20}
+\lstdefinestyle{py}{language=Python, basicstyle=\ttfamily\footnotesize, keywordstyle=\color{codekw}\bfseries,
+  commentstyle=\color{codecom}\itshape, stringstyle=\color{codestr}, backgroundcolor=\color{codefondo},
+  frame=single, rulecolor=\color{gray!40}, framesep=4pt, xleftmargin=6pt, xrightmargin=6pt,
+  numbers=left, numberstyle=\tiny\color{gray}, numbersep=6pt, breaklines=true, showstringspaces=false,
+  columns=fullflexible, keepspaces=true, upquote=true, tabsize=4, captionpos=b,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1 {θ}{{$\theta$}}1 {ω}{{$\omega$}}1}
+\lstset{style=py}
+\renewcommand{\lstlistingname}{Código}
+\renewcommand{\lstlistlistingname}{Índice de códigos}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+% Spanish reference names regardless of the babel language actually loaded.
+\crefname{figure}{fig.}{figs.}\Crefname{figure}{Figura}{Figuras}
+\crefname{table}{tabla}{tablas}\Crefname{table}{Tabla}{Tablas}
+\crefname{section}{sección}{secciones}\Crefname{section}{Sección}{Secciones}
+\crefname{subsection}{sección}{secciones}\Crefname{subsection}{Sección}{Secciones}
+\crefname{lstlisting}{código}{códigos}\Crefname{lstlisting}{Código}{Códigos}\crefname{listing}{código}{códigos}\Crefname{listing}{Código}{Códigos}
+\crefname{equation}{ec.}{ecs.}\Crefname{equation}{Ecuación}{Ecuaciones}
+\creflabelformat{equation}{(#2#1#3)}

@@ -1,0 +1,35 @@
+% ============================================================================
+% Tests report: exploratory link between video and pressure sensor.
+% ============================================================================
+\section{Contraste con el sensor de presión}\label{sec:presion}
+
+Cada ensayo se registró también con el sensor de fuerza (FSR) del proyecto. Se usa su conductancia
+$G = 1/R_{\mathrm{FSR}}$, que crece con la fuerza aplicada, y se la alinea con el video mediante el
+pulso LED de sincronización (\cref{sec:escala_ens}). Este contraste es exploratorio: se compara la
+\emph{movilidad} medida en el video (percentil 90 de la rapidez de los 22 robots) con la señal del
+sensor, sin un modelo de cómo se transmite la fuerza hasta él.
+
+\IfFileExists{generado/comparacion/presion.tex}{\input{generado/comparacion/presion.tex}}{}
+
+\paragraph{Resultado.} En \Cmp{Lab}{A} la relación es directa: los dos atascos largos coinciden con
+los intervalos de máxima conductancia (\cref{fig:cmp_presion}). Durante los atascos la mediana de $G$
+es de \SI{\Cmp{Gin}{A}}{\micro\siemens}, contra \SI{\Cmp{Gout}{A}}{\micro\siemens} fuera de ellos, y el
+\SI{\Cmp{SatIn}{A}}{\percent} de las muestras está saturado (el ADC llega a su máximo, $R_{\mathrm{FSR}}
+= \SI{1141.5}{\ohm}$ con la resistencia de realimentación de \SI{5}{\kilo\ohm} que se usaba ese día). El
+episodio de saturación de \SI{382}{\second} documentado en el análisis del sensor coincide con el
+atasco de \SI{\Cmp{AtMax}{A}}{\second} entre los minutos 45 y 51 del video: la saturación empieza
+unos \SI{13}{\second} después de que el grupo se detiene y termina junto con el atasco (dentro de él,
+el \SI{96}{\percent} de las muestras está saturado). En los otros dos atascos de \Cmp{Lab}{A} el sensor
+no satura, pero su conductancia mediana (\num{87} y \SI{250}{\micro\siemens}) sigue siendo miles de
+veces mayor que fuera de los atascos. En \Cmp{Lab}{C} el atasco
+principal (minutos 19 a 21) también coincide con un pico de conductancia, con $G$ \Cmp{Grat}{C} veces
+mayor en los atascos que fuera de ellos. En \Cmp{Lab}{B}, en cambio, el único atasco no se ve en el
+sensor (cociente \num{\Cmp{Grat}{B}}).
+
+\paragraph{Interpretación.} Un atasco es un estado bloqueado: los robots siguen empujando, pero la red
+de contactos no les deja lugar para moverse ni girar. Si el sensor queda dentro de esa red de
+contactos, recibe una fuerza sostenida y alta; si el bloqueo se forma lejos del sensor, este no lo
+registra, como en \Cmp{Lab}{B}. Los picos de $G$ fuera de los atascos (\cref{fig:cmp_presion})
+corresponden a contactos transitorios que no llegan a detener a todo el grupo. Para afirmar más que
+esta coincidencia haría falta conocer la posición del sensor en la arena y medir qué robots lo
+tocan en cada momento, cosa que el video permite si se marca la ubicación del sensor.

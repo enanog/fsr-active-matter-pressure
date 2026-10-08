@@ -10,6 +10,175 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-10-08 — Versionado de sesiones y trayectorias de video
+- `.gitignore`: se ignoran solo los videos (`originales/`, `recortados/`, `seguimiento/`, `*.mp4`) y `Videos/`; `.gitkeep` conserva esas carpetas.
+- Se versionan `datos/video/sesiones/*.npz` (54–64 MB) y `trayectorias/*.csv` (≤ 56 MB): < 100 MB (límite duro de GitHub); > 50 MB da solo advertencia. Sin Git LFS (no instalado).
+- `VP_20262409_1600_22QR_60_robots.csv` había sido sobrescrito con el resumen por robot (22 filas): renombrado a `_resumen.csv` y trayectoria completa regenerada desde `VA_…npz` con `TrackingSession.load → run → to_dataframe` (265 518 filas × 25 col.); giro total y rapidez media coinciden con el resumen (|Δv| < 1e-5 px/s).
+
+## 2026-10-08 — Material didáctico: detección + v + ω
+
+- `informes/aplicacion/deteccion_cinematica.xlsx`: rehace con fórmulas (43k, 0 errores en LibreOffice) la detección, v y ω
+  del robot 3, ensayo `20262409_1600`, cuadros 6034/6035 (5998–6092 para v y ω). Hojas: Parametros (nombres definidos),
+  Img_analisis (gris ×0,511), Filtro_anillo (máscaras 51×51, R en un punto), Mapa_R (μ, R y centroide iterado ≈ trackpy),
+  Img_completa/Img_6035, Cobertura (360 rayos × r 37–44, vecino más cercano = cv2.warpPolar flag 0), Firma_6034/6035,
+  Giro (c(Δ) cada 0,1°, selector firmas calculadas/app), Velocidad, Rotacion. Builder: no versionado (scratch de la sesión).
+- Verificado: R = 24 robot / 14 hueco; cobertura 0,856 / 0,672 (= Python sobre el mismo cuadro); vx y ω SG = app
+  (dif < 1e-3 px/s, < 0,01 °/s); giro con firmas de la app = rel_angle −4,07° exacto.
+- Los cuadros redecodificados (OpenCV Linux) difieren levemente de los que vio la app en Windows: CSV ring_cov 0,847 vs
+  0,856, firmas ±0,09, giro 3,9° vs 4,07°. No es error de método.
+- Centroide simple sobre R converge a ~1,4 px del de trackpy (trackpy filtra pasa-banda antes).
+- Doc Claude «Detección de robots y cálculo de velocidad y velocidad angular» (artifact 16388c95…) explica lo mismo con
+  figuras `informes/aplicacion/figuras/metodo/f1–f8` y un diagrama del recorrido.
+
+## 2026-10-08 — FSRScope: app de análisis de presión con video sincronizado
+
+**Reemplaza** `software/analisis_presion/procesar_presion_ventanas.py` (borrado; la planilla pasó a
+`software/fsrscope/docs/`). Ubicación `software/fsrscope/` (`main.py` GUI, `procesar_lote.py` CLI,
+`core/` sin GUI, `gui/` PySide6 + **pyqtgraph** — elegido sobre matplotlib por redibujar series de
+80k puntos a ~30 Hz con cursor/ventana móvil; export PNG/SVG/CSV por clic derecho).
+
+- `core/`: `paths` (repo, códigos, R_/VC_/VR_/VP_), `settings` (dataclasses + JSON por ensayo en
+  `datos/presion/config/<código>.json`), `log_io` (todos los formatos de log; unidades de tiempo
+  auto; filas basura con tiempo absurdo descartadas por mediana móvil; filas SYNC fuera; t0 = primera
+  fila con tiempo, misma referencia que el LED), `signal` (K, remuestreo, saturación ADC≥FS o
+  CLIPSAT==N, máscara recorte/exclusiones/saturadas/t_now), `stats` (asimetría y curtosis insesgadas
+  vs ΔT, supervivencia, histogramas), `robots` (VP_ → mediana/p90 |v|, posiciones), `video`
+  (grab para saltos ≤24 cuadros, seek si no; verificado exacto contra lectura secuencial en VC real),
+  `export` (columnas elegibles/ordenables; default = formato histórico), `session` (TrialData).
+- **Calibración automática por archivo:** K = mediana(G/ADC) que logueó el firmware → R_FB equivalente.
+  Detectado: 24/08 = 12 kΩ, 27/08 = K 0.6299 (≈6.8 kΩ con V_EXC actual, raro), 24/09 = 5 kΩ,
+  25/09 = 1 kΩ. Modo manual disponible.
+- ΔG con máscara: NaN si algún extremo cae fuera del recorte o en tramo excluido.
+- Sincronía: t_sensor = desfase + cuadro/f_r; desfase auto = fin del LED (20.70 / 48.15 / 14.40 s),
+  f_r = 3. VC dura 11–27 s menos que el registro tras el desfase (normal: el registro sigue).
+- En vivo: gráficos de tiempo hasta el cursor con ventana móvil; estadística acumulada hasta t
+  (hilo aparte, 1 Hz al reproducir) sobre la del ensayo completo en gris.
+- Config se autoguarda solo si cambió (al cambiar de ensayo/cerrar) y siempre al exportar.
+- Verificado: P_ nuevos = P_ existentes para 24/09 y 25/09 (G dif < 1.3e-4 µS, asimetría < 2e-5).
+
+**Hallazgo:** los `P_` de **agosto** (24/08 ×3, 27/08) en `datos/presion/procesados/` se generaron con
+R_FB = 5 kΩ (K 0.8563) pero el firmware de esas corridas usaba 12 kΩ (K 0.3568) → **G ×2.4 alta**
+(×1.36 en 27/08). Asimetría/curtosis no cambian (invariantes de escala); sí cambian ejes de G,
+histogramas y supervivencia (figuras del póster). No se regeneraron.
+
+**Pendientes:**
+- Decidir si regenerar los P_ de agosto (`procesar_lote.py 202608`) y rehacer figuras de LabPlotter.
+- Instalar `pyqtgraph` en la PC (`pip install -r software/fsrscope/requirements.txt`) y probar la GUI
+  con los VC reales (solo se probó offscreen con video sintético).
+- R_20260824_1400_00_07 (0 robots, sin modo) no entra en la lista: abrir con «Abrir registro…».
+
+## 2026-10-08 — Reorganización del repositorio (estructura vigente)
+
+Estructura por tipo de dato (ver `README.md` de la raíz). Rutas viejas → nuevas (las secciones
+más abajo usan las viejas):
+
+| Antes | Ahora |
+|---|---|
+| `Placa/` | `hardware/pcb/` |
+| `Codigo/fsr_*/` (Arduino) | `hardware/firmware/fsr_*/` |
+| `Simulacion/` | `hardware/simulacion/` |
+| `Codigo/VidFetch/` (app) | `software/vidfetch/` |
+| `Codigo/VidFetch/informe/*.py` | `software/analisis_video/` (`generar_informe.py`, `comparar_ensayos.py`) |
+| `Codigo/Analisis/` | `software/analisis_presion/` → reemplazado por `software/fsrscope/` |
+| `Mediciones/R_*.csv` | `datos/presion/crudos/` |
+| `Mediciones/Procesado/P_*.csv` | `datos/presion/procesados/` |
+| `Mediciones/` vacío / sala vacía / `Procesado/20260827_1534_26_30.csv` | `datos/presion/referencia/` |
+| `Videos/VR_*`, `VC_*` | `datos/video/originales/`, `datos/video/recortados/` |
+| `Videos/Datos/VA_*`, `VP_*` | `datos/video/sesiones/`, `datos/video/trayectorias/` |
+| `Codigo/VidFetch/informe/` (LaTeX) | `informes/{comun,aplicacion,ensayos}/` |
+| `Poster/` | `difusion/poster_rafa2026/` (sin .aux/.log/.synctex) |
+
+- `.gitignore`: `datos/video/**` (salvo README), intermedios de LaTeX, `__pycache__`, `*.raw`.
+- Informe de ensayos: texto a mano en `informes/ensayos/secciones/`, generado en
+  `informes/ensayos/generado/` (`<código>/`, `comparacion/`, `lista_ensayos.tex`). Scripts con
+  rutas por defecto relativas al repo (`--informe-dir` = `informes/ensayos`, `--mediciones` =
+  `datos/presion/crudos`). Correr desde la raíz.
+- LabPlotter (`difusion/poster_rafa2026/figures/*.json`): solo se actualizó la ruta de
+  `Medicion Vacio.csv`; las referencias a `Medicion 25/26/27 Robots 30 Min.csv` ya estaban rotas
+  antes (esos archivos se renombraron a `P_…` en septiembre).
+
+## 2026-10-08 — Video espejado y análisis de los 3 ensayos
+
+**Video espejado:** los videos de la cámara fija (DJI, cenital) están espejados respecto del eje vertical (confirmado por el
+usuario: en modo `QR` todos los robots están programados para girar a la derecha). Nueva opción de
+VidFetch `KinematicsParams.mirror` = `no` | `horizontal` | `vertical` (combo *Video espejado* en
+*Seguimiento*, se guarda en la sesión). El análisis sigue en coordenadas de imagen (superposición
+correcta); solo las exportaciones se pasan a la escena real: `x → W − x`, `vx → −vx`, `θ, ω → −θ, −ω`,
+dirección recalculada; columna `espejo` en el CSV; `x_video_px`/`y_video_px` quedan en imagen.
+`generar_informe.py` des-espeja para dibujar la captura. **Para estos videos: horizontal.**
+
+**Datos:** las 3 sesiones `VA_*.npz` se recargaron, el seguimiento reprodujo exactamente los CSV del
+usuario (dif. relativa < 1e-4, estados idénticos) y se re-exportaron con espejado horizontal
+(`datos/video/trayectorias/VP_*_robots.csv`); las sesiones guardan `mirror` y la nueva ruta del video.
+Anclas manuales 0/2/1 (al final); advertencias < 0,13 % de puntos (un obstáculo cruza la escena).
+Ventana Savitzky–Golay 5 cuadros; r_ext = 47 px → s = 0,372 mm/px.
+
+**Resultados clave (verificados con un cálculo independiente):**
+- Reproducible: |v| mediana 0,58/0,64/0,70 mm/s, p95 ≈ 3,5–3,6; |ω| mediana 3,0–3,8 °/s; MSD α ≈ 1,3;
+  φ ≈ 0,58; tres capas concéntricas en r/R_c ≈ 0,14 / 0,55 / 0,95.
+- Giro (corregido): 14 de 22 robots giran neto a la derecha (horario, como programado) en los 3
+  ensayos; ω media con signo −2,5 a −3,3 °/s; circulación colectiva horaria débil (Φ ≈ −0,2).
+- Los 8 que contrarrotan: |ω̄| ≈ 2 °/s (vs 5–6), giran a la derecha 40–47 % del tiempo y pasan
+  58–68 % del tiempo contra la pared (vs 47–52 %) → hipótesis: ruedan por el interior de la pared
+  (orbitar horario apoyado en la pared ⇒ giro propio antihorario).
+- Atascos (p90 |v| suavizado 30 s < 0,6 mm/s ≥ 20 s): 24/09 3 (17 %, uno de 382 s en min 45–51);
+  25/09 12:30 1 (106 s); 25/09 15:00 4 (3,8 min).
+- Sincronía: el VC empieza al FIN del pulso LED de 5 s del registrador; t_video = t_sensor −
+  t_LED,fin (20,7 / 48,15 / 14,4 s); correlación cruzada lo confirma (±0,5 s) y da f_r = 3,000 ± 0,003.
+- Sensor: 24/09 G mediana 876 µS en atascos vs 0,011 fuera; la saturación de 382 s coincide con el
+  atasco de min 45–51 (empieza ~13 s después). 25/09 15:00 ×23; 25/09 12:30 sin relación.
+
+**Pendientes:**
+- Identificar robots entre videos (marcas) para confirmar si los que contrarrotan son siempre los
+  mismos o los de la pared.
+- Ubicación del FSR en la arena.
+- `D:\Documentos\Personal\video_editor` quedó desactualizado (la copia vigente es `software/vidfetch`).
+
+## 2026-10-07 — VidFetch (seguimiento de robots en video) y escala de tiempo de los time-lapse
+
+**Ubicación:** `Codigo/VidFetch/` (app PySide6: `main.py`, `core/` lógica, `gui/` interfaz;
+copia espejo en `D:\Documentos\Personal\video_editor`). Informe LaTeX genérico en
+`Codigo/VidFetch/informe/`.
+
+**Qué hace la app:** abre un video, recorta tiempo/rectángulo, detecta los robots (filtro de anillo
++ `trackpy.locate` + validación por cobertura del anillo), sigue `N` robots fijos (asignación
+húngara + predicción, anclas manuales, interpolación de huecos), y calcula por robot `v` (módulo y
+dirección), orientación acumulada `θ` (firmas polares de Fourier, θ=0 en el primer cuadro del
+tramo) y `ω`. Exporta un único CSV con todos los robots (formato largo o ancho), un resumen por
+robot, video anotado y la sesión `.npz`. Diámetro real del robot: **35 mm** (escala px→m).
+
+**Videos (`Videos/`):** `VR_<código>.MP4` = original DJI 4K; `VC_<código>.MP4` = recorte a la
+arena (~610×610 px) que es lo que se analiza. `<código>` = el mismo de `Mediciones/R_<código>.csv`.
+
+**Escala de tiempo (time-lapse):** los videos se graban a `f_r` ≈ 3 cuadros por segundo real y se
+reproducen a `f_a` = 29.97 fps (×10). Todo el análisis trabaja en cuadros; `t = n/f_r`,
+`v ∝ f_r`, `ω ∝ f_r`. Posiciones y `θ` no dependen de `f_r`.
+- App: pestaña Original → grupo "Escala de tiempo" (casilla time-lapse + "N cuadros = 1 s real",
+  default 3; botón "Calcular desde la duración real…"). Cambiarla recalcula solo la cinemática.
+- Informe: `\CuadrosPorSegundo{3}` en `informe/config.tex`; `generar_informe.py --cuadros-por-segundo F`
+  reescala un CSV exportado con otra escala sin re-analizar.
+- **Verificación de `f_r` con el registro del sensor** (duración `R_<código>.csv` vs cuadros `VR`):
+  `20262409_1600`: 12105 cuadros / 4055.1 s = 2.985; `20262509_1230`: 9907 / 3368.4 s = 2.941;
+  `20262509_1500`: 11038 / 3699.5 s = 2.984 → consistente con time-lapse ×10 (`f_r` = 2.997).
+- **El `_60` del nombre es nominal:** duraciones reales ≈ 67.3 / 55.1 / 61.4 min. Usar 60 min daría
+  `f_r` = 3.36 / 2.75 / 3.07 (errores de −8 % a +12 % en v y ω). No usarlo para calibrar.
+
+**Informe LaTeX:** `main.tex` incluye `secciones/videos.tex` (videos, base de tiempo, tablas de
+`f_r`), `secciones/metodologia.tex`, `secciones/procedimiento.tex` (paso a paso + columnas del CSV)
+y `videos/lista_videos.tex` (generado). Para agregar un ensayo:
+`python informe/generar_informe.py <export.csv> --video <VC_...MP4> --nombre <código>` y compilar
+`main.tex` dos veces. (Reemplazado el 2026-10-08 por dos informes en `informes/`.)
+
+**Pendientes / conocidos:**
+- Correr los análisis de los 3 `VC_` con `f_r` = 3 (o 2.997) y generar sus secciones.
+- CSV o `.npz` exportados antes de 2026-10-07 tienen tiempos a 29.97 fps (v y ω ×10): reescalar con
+  `--cuadros-por-segundo 3` o volver a exportar.
+- Tracker: tras un hueco largo, un candidato con umbral relajado puede ser falso positivo cerca de
+  una predicción errónea (visto en un robot, ~90 px de error en 8 puntos). Para estadística, filtrar
+  `status == detectado`.
+- `Videos/README.md` está desactualizado (lista `DJI_0196…`).
+- El código de fecha de los archivos es año-día-mes (`20262409` = 24/09), no `AAAAMMDD`.
+
 ## 2026-09-24 — Saturación del ADC en `R_20262409_1600_23QR_60.csv` y ajuste de `R_FEEDBACK`
 
 **Modelo del front-end (transimpedancia):** `V_out = V_EXC * R_FEEDBACK / R_FSR`

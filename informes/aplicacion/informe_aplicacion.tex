@@ -1,0 +1,37 @@
+% ============================================================================
+% Report 1 of 2: the VidFetch application (use, design, libraries, code).
+% Independent of the data: compile with pdflatex/latexmk (twice).
+% The results of the filmed tests are in informe_ensayos.tex.
+% ============================================================================
+\documentclass[11pt, a4paper]{article}
+\input{../comun/preambulo.tex}
+\input{../comun/config.tex}
+
+\title{\TituloAplicacion\\[2pt]\large \SubtituloAplicacion}
+\author{\Autores \\ \small \Institucion}
+\date{\FechaInforme}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent VidFetch mide la posición, la velocidad, la orientación y la velocidad angular de $N$ robots
+circulares filmados desde arriba. Detecta cada robot con un filtro adaptado a su forma (disco claro
+rodeado de un anillo oscuro) y \texttt{trackpy.locate}, lo sigue con $N$ fijo mediante asignación
+óptima y predicción, deriva la velocidad con un filtro de Savitzky--Golay y obtiene el giro comparando
+firmas polares en el dominio de Fourier. Este informe explica para qué sirve, cómo está organizado,
+qué bibliotecas usa y qué hace cada parte del código. Los resultados de los ensayos están en un
+informe aparte.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+\input{secciones/introduccion.tex}
+\input{secciones/librerias.tex}
+\input{secciones/escala.tex}
+\input{secciones/metodologia.tex}
+\input{secciones/procedimiento.tex}
+
+\end{document}

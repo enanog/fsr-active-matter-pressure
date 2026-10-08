@@ -1,0 +1,115 @@
+% ============================================================================
+% Time base of time-lapse videos (generic). Values from \CuadrosPorSegundo (config.tex).
+% ============================================================================
+\section{Escala de tiempo: videos acelerados}\label{sec:escala}
+
+\paragraph{Dos frecuencias distintas.} Hay que distinguir
+\begin{itemize}
+  \item $\fa$: frecuencia de \emph{reproducción} del archivo (\SI{\FileFps}{cuadros\per\second}). Solo
+        define a qué velocidad se ve el video; no tiene significado físico.
+  \item $\fr$: frecuencia de \emph{captura} en tiempo real, es decir, cuántos cuadros corresponden a
+        \SI{1}{\second} del ensayo. Es la única que entra en los cálculos.
+\end{itemize}
+Con el cuadro $n$ contado desde el inicio del archivo, el tiempo real y el factor de aceleración son
+\begin{equation}
+  t_n = \frac{n}{\fr},\qquad \Delta t = \frac{1}{\fr},\qquad A = \frac{\fa}{\fr}.
+  \label{eq:tiempo}
+\end{equation}
+En este informe $\fr = \num{\CuadrosPorSegundo}$~cuadros/s, valor definido en
+\texttt{config.tex} (\verb|\CuadrosPorSegundo|): entre dos cuadros consecutivos pasan
+$\Delta t = \EnSeg{1}$ reales y el video se reproduce $A = \CalcNum{\FileFps/\CuadrosPorSegundo}$ veces
+más rápido que el ensayo. Todos los tiempos de este documento (gráficos, tablas y equivalencias
+entre cuadros y segundos) se calculan con ese valor.
+
+\paragraph{Qué depende de $\fr$ y qué no.} El análisis completo trabaja en cuadros: detecta,
+sigue y mide ángulos cuadro por cuadro, y en ningún momento usa el tiempo. Recién al final se pasa
+a unidades físicas. Si $s$ es la escala espacial [\si{\milli\metre\per px}] y $\mathrm{d}/\mathrm{d}n$
+la derivada respecto del número de cuadro,
+\begin{equation}
+  \vec v = s\,\fr\,\frac{\mathrm{d}\vec r_{\mathrm{px}}}{\mathrm{d}n},\qquad
+  \omega = \fr\,\frac{\mathrm{d}\theta}{\mathrm{d}n}.
+  \label{eq:escala_v}
+\end{equation}
+Por lo tanto:
+\begin{itemize}
+  \item posiciones, trayectorias, desplazamientos, ángulos $\theta$ y estados de seguimiento
+        \textbf{no} dependen de $\fr$;
+  \item tiempos, velocidades y velocidades angulares son proporcionales a $1/\fr$ o a $\fr$:
+        un error de $\fr$ se traslada en la misma proporción a $|\vec v|$ y a $\omega$;
+  \item cambiar $\fr$ \textbf{no} obliga a repetir el análisis: en la aplicación, la cinemática se
+        recalcula en segundos; en el informe, \texttt{generar\_informe.py} reescala el CSV
+        (\cref{sec:procedimiento}).
+\end{itemize}
+La incertidumbre relativa de las velocidades combina la de la escala espacial y la de la temporal:
+\begin{equation}
+  \frac{\delta v}{v} = \sqrt{\left(\frac{\delta s}{s}\right)^2 + \left(\frac{\delta \fr}{\fr}\right)^2},
+  \qquad
+  \frac{\delta \omega}{\omega} = \frac{\delta \fr}{\fr}.
+  \label{eq:incert_t}
+\end{equation}
+
+\paragraph{Cómo se determina $\fr$.} Los archivos de la cámara no guardan la marca de tiempo de cada
+cuadro (la pista de subtítulos DJI solo trae datos de exposición, uno por segundo), así que
+$\fr$ no se puede leer del video. Hay tres formas de obtenerlo, de mejor a peor:
+\begin{enumerate}
+  \item \textbf{Configuración de la cámara.} En un \emph{time-lapse} $\times 10$, cada segundo de
+        video (\num{\FileFps}~cuadros) cubre \SI{10}{\second} reales, es decir
+        $\fr = \fa/10 = \num{2.997}$~cuadros/s.
+  \item \textbf{Duración real medida.} $\fr = N_{\mathrm{cuadros}}/T_{\mathrm{real}}$, con
+        $T_{\mathrm{real}}$ cronometrado (o tomado del registro del sensor de presión, que tiene su
+        propio reloj y se graba en simultáneo).
+  \item \textbf{Duración nominal del nombre} (\texttt{\_60}). No conviene: es la duración prevista, no
+        la medida, y en los ensayos del proyecto difiere hasta \SI{12}{\percent} de la real (ver el informe de
+        resultados de los ensayos).
+\end{enumerate}
+
+\paragraph{Consecuencias del \emph{time-lapse}.} Muestrear a $\fr$ en lugar de a \SI{30}{\hertz}
+cambia lo que se puede medir:
+\begin{itemize}
+  \item \textbf{Resolución temporal.} Un fenómeno más rápido que la frecuencia de Nyquist,
+        $\fr/2 = \CalcQty{\CuadrosPorSegundo/2}{\hertz}$, no se puede resolver: un choque
+        que dura menos de $\Delta t = \EnSeg{1}$ aparece, a lo sumo, como un salto entre dos cuadros.
+  \item \textbf{Desplazamiento por cuadro.} Entre cuadros consecutivos los robots se mueven
+        $\fa/\fr$ veces más que en un video en tiempo real. El seguimiento acepta, como máximo, un
+        apartamiento de $0{,}625\,r_{\mathrm{ext}}$ por cuadro respecto de la posición predicha,
+        lo que equivale a un cambio de velocidad de
+        $0{,}625\,(D/2)\,\fr \approx \CalcQty{0.625*\DiametroRobotCM*5*\CuadrosPorSegundo}{\milli\metre\per\second}$
+        entre dos cuadros; en los ensayos medidos la rapidez típica es de pocos
+        \si{\milli\metre\per\second}, muy por debajo de ese límite.
+  \item \textbf{Rotación por cuadro.} El giro entre dos cuadros que se comparan debe ser menor que
+        media vuelta para no confundir su sentido: $|\omega| < \SI{180}{\degree}\cdot\fr =
+        \CalcQty[3]{180*\CuadrosPorSegundo}{\degree\per\second}$.
+  \item \textbf{Parámetros en cuadros.} Las ventanas y tolerancias del método están definidas en
+        cuadros, no en segundos, porque el detector y el seguidor trabajan cuadro a cuadro; su
+        duración real depende de $\fr$ (\cref{tab:param_t}).
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \caption{Parámetros del método expresados en cuadros y su equivalente en tiempo real con
+    $\fr = \num{\CuadrosPorSegundo}$~cuadros/s.}
+  \label{tab:param_t}
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    Parámetro & Cuadros & Tiempo real \\
+    \midrule
+    Paso de muestreo $\Delta t$ & \num{1} & \EnSeg{1} \\
+    Ventana de Savitzky--Golay (velocidad y $\omega$) & \num{7} & \EnSeg{7} \\
+    Hueco máximo que se interpola sin advertencia de error & \num{15} & \EnSeg{15} \\
+    Persistencia exigida a un robot nuevo (\SI{75}{\percent} de) & \num{20} & \EnSeg{20} \\
+    Comparaciones de rotación (desfasajes) & 1, 2, 4, 8, 16 & hasta \EnSeg{16} \\
+    Flecha de velocidad dibujada (desplazamiento en) & \num{7.5} & \EnSeg{7.5} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{En la aplicación.} En la pestaña \emph{Original}, el grupo \emph{Escala de tiempo}
+tiene la casilla \emph{Video acelerado (time-lapse)} y el campo
+\emph{\textless$\fr$\textgreater~cuadros = 1~s real} (por defecto, 3). El botón \emph{Calcular desde la
+duración real\ldots} pide la duración medida en minutos y calcula $\fr = N_{\mathrm{cuadros}}/T$; el
+nombre del archivo se muestra solo como referencia, por ser nominal. Debajo se indica cuánto dura
+un cuadro en tiempo real, el factor $A$ y la duración real del archivo. El reproductor sigue
+mostrando el video a $\fa$, pero la etiqueta de tiempo (\emph{cuadro $i$ / $N$ · $t$}) está en
+tiempo real. Si se cambia $\fr$ con un seguimiento ya hecho, solo se recalcula la cinemática. Al
+abrir una sesión guardada (\texttt{.npz}) con otra escala, se aplica la escala vigente y se avisa.
+Desmarcar la casilla vuelve a $\fr = \fa$ (videos en tiempo real).

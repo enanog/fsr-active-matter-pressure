@@ -1,0 +1,64 @@
+% ============================================================================
+% Libraries: what is used from each one and why.
+% ============================================================================
+\section{Bibliotecas utilizadas}\label{sec:librerias}
+
+\Cref{tab:librerias} resume qué se usa de cada biblioteca. La regla general es usar funciones
+compiladas (OpenCV, SciPy, NumPy vectorizado) para todo lo que se repite por píxel o por cuadro, y
+dejar en Python solo la lógica de decisión.
+
+\begin{table}[H]
+  \centering
+  \caption{Bibliotecas, funciones usadas y para qué. Versiones probadas entre paréntesis.}
+  \label{tab:librerias}
+  \small
+  \begin{tabular}{@{}p{2.4cm}p{5.6cm}p{6.6cm}@{}}
+    \toprule
+    Biblioteca & Funciones & Uso \\
+    \midrule
+    \textbf{OpenCV} \newline (\texttt{cv2} 5.0) &
+      \texttt{VideoCapture}, \texttt{CAP\_PROP\_*} &
+      abrir el video, leer metadatos (cuadros, fps, tamaño) y saltar a un cuadro \\
+    & \texttt{VideoWriter}, \texttt{VideoWriter\_fourcc} & escribir videos recortados o anotados \\
+    & \texttt{cvtColor}, \texttt{resize} (\texttt{INTER\_AREA}) & pasar a grises y reducir la imagen a la escala de análisis \\
+    & \texttt{filter2D} & convolución con los núcleos de disco y anillo (filtro de anillo, \cref{sec:deteccion}) \\
+    & \texttt{warpPolar} & imagen en coordenadas polares alrededor de cada centro: cobertura del anillo y firma de rotación \\
+    & \texttt{GaussianBlur}, \texttt{threshold}, \texttt{Canny}, \texttt{convertScaleAbs}, \texttt{dilate} & operaciones de la pestaña \emph{Procesar} y calibración \\
+    & \texttt{circle}, \texttt{line}, \texttt{arrowedLine}, \texttt{putText}, \texttt{ellipse} & dibujo de la superposición y del video anotado \\
+    \midrule
+    \textbf{trackpy} \newline (0.7) &
+      \texttt{locate} & máximos locales del mapa de respuesta con centroide subpíxel (\cref{sec:deteccion}) \\
+    & \texttt{link}, \texttt{filter\_stubs} & vinculación simple de trayectorias en la pestaña \emph{Procesar} (no se usa en el seguimiento con $N$ fijo) \\
+    \midrule
+    \textbf{SciPy} \newline (1.18) &
+      \texttt{optimize.linear\_sum\_assignment} & asignación óptima candidato--robot (algoritmo húngaro) \\
+    & \texttt{spatial.cKDTree} & búsqueda de vecinos para confirmar robots nuevos por persistencia \\
+    & \texttt{signal.savgol\_filter} & derivadas suavizadas: velocidad y $\omega$ \\
+    & \texttt{sparse.coo\_matrix}, \texttt{sparse.linalg.spsolve} & mínimos cuadrados del ángulo acumulado \\
+    \midrule
+    \textbf{NumPy} \newline (2.5) &
+      \texttt{fft.fft}, \texttt{fft.ifft} & armónicos de la firma de rotación y correlación circular \\
+    & arreglos, \texttt{interp}, \texttt{savez\_compressed}, \texttt{load} & todo el cálculo numérico, interpolación de huecos y sesiones \texttt{.npz} \\
+    \midrule
+    \textbf{pandas} \newline (3.0) & \texttt{DataFrame}, \texttt{pivot}, \texttt{to\_csv}, \texttt{read\_csv} & tablas de candidatos y de resultados, formato ancho, CSV \\
+    \midrule
+    \textbf{PySide6} \newline (Qt 6.11) & \texttt{QMainWindow}, \texttt{QTabWidget}, widgets de formulario &
+      interfaz \\
+    & \texttt{QThread} + señales & tareas largas sin congelar la ventana \\
+    & \texttt{QTimer} & reproducción del video \\
+    & \texttt{QImage}, \texttt{QPainter} & visor con zoom y edición del rectángulo \\
+    \midrule
+    \textbf{Matplotlib} & \texttt{imshow}, \texttt{histogram2d} (NumPy) & solo en \texttt{comparar\_ensayos.py}: mapas de ocupación \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Por qué trackpy solo para localizar.} \texttt{trackpy.locate} es robusto para encontrar
+máximos y refinarlos a precisión subpíxel, y por eso se usa. Su vinculador (\texttt{link}) no sabe que
+la cantidad de robots es fija: ante un robot que desaparece unos cuadros crea una trayectoria nueva,
+y ante un falso positivo, también. Por eso el seguimiento del ensayo usa un algoritmo propio con
+$N$ fijo (\cref{sec:seguimiento}), y \texttt{link} queda solo como opción rápida en \emph{Procesar}.
+
+\paragraph{Por qué OpenCV para el video.} \texttt{cv2.VideoCapture} usa FFmpeg internamente: lee
+cualquier formato habitual y permite acceso aleatorio por número de cuadro, que necesitan el
+reproductor, la calibración (cuadros salteados) y la revisión de cuadros con problemas.
