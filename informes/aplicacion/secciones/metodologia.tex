@@ -134,7 +134,7 @@ el \texttt{\_info.json}, la misma clave.
     Magnitud & Símbolo & Unidad & Definición \\
     \midrule
     Tiempo real & $t$ & \si{\second} & $t = n/\fr$, con $n$ el número de cuadro \\
-    Posición & $x,\,y$ & \si{\milli\metre} & \cref{eq:marco}: origen en el centro del recinto, $y$ hacia arriba \\
+    Posición & $x,\,y$ & \si{\milli\metre} & \cref{eq:marco}: origen en el centro del recinto, $y$ hacia la pared de enfrente \\
     Posición polar & $r,\,\phi$ & \si{\milli\metre}, \si{\degree} & $r=\sqrt{x^2+y^2}$, $\phi=\operatorname{atan2}(y,x)$ \\
     Distancia a la pared & $d_{\mathrm{pared}}$ & \si{\milli\metre} & $R_{\mathrm{int}} - r$ (centro del robot a la pared) \\
     Velocidad & $v_x,\,v_y$ & \si{\milli\metre\per\second} & $\mathrm{d}x/\mathrm{d}t$, $\mathrm{d}y/\mathrm{d}t$ (Savitzky--Golay) \\
@@ -190,8 +190,8 @@ cobertura $\geq\SI{50}{\percent}$ y cociente dentro de $\pm\num{0.03}$.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figuras/metodo/f9_recinto.png}
-  \caption{Detección del recinto en un cuadro del ensayo 24/09 (imagen tal como la graba la cámara, sobre la
-    que trabaja la detección). (a) Máscara del anillo (magenta),
+  \caption{Detección del recinto en un cuadro del ensayo 24/09 (vista del observador, imagen rotada
+    \SI{180}{\degree}; la detección no depende de la orientación). (a) Máscara del anillo (magenta),
     bordes por rayo (puntos) y los dos círculos ajustados (blanco); cruz roja: centro. (b) Detalle: el
     borde interior (azul) es el del canto superior del anillo; la franja gris clara de adentro es la cara
     interna de la pared, que se ve por perspectiva. (c) Saturación a lo largo del rayo amarillo con los
@@ -272,7 +272,10 @@ del contraste medido entre anillo y disco, por lo que no dependen de la exposici
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.9\linewidth]{figuras/metodo/f1_calibracion.png}
-  \caption{Calibración: plantilla sobre un robot y respuesta en función del radio de prueba.}
+  \caption{Calibración: plantilla sobre un robot y respuesta en función del radio de prueba. Todas las
+    figuras de esta sección usan el primer minuto del ensayo 24/09 y muestran la escena como la ve el
+    observador (imagen rotada \SI{180}{\degree}, \cref{sec:orientacion}); las regenera
+    \texttt{software/analisis\_video/figuras\_metodo.py}.}
   \label{fig:calib}
 \end{figure}
 
@@ -350,7 +353,8 @@ def ring_coverage(gray, x, y, r0, r1, dark):
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.72\linewidth]{figuras/metodo/f3_cobertura.png}
-  \caption{Cobertura del anillo: un robot cierra el anillo en casi todos los rayos; un hueco, no.}
+  \caption{Cobertura del anillo: un robot cierra el anillo en casi todos los rayos; un hueco, no. Ángulo
+    de cada rayo antihorario desde $+x$.}
   \label{fig:cobertura}
 \end{figure}
 
@@ -416,7 +420,7 @@ for cov_thr, gate_factor, status in levels:   # (0.82, 1, DETECTED), (0.70, 0.6,
   \centering
   \includegraphics[width=\linewidth]{figuras/metodo/f4_seguimiento.png}
   \caption{Faltantes simulados: robot interpolado (naranja) y efecto de una sola ancla manual en un
-    hueco de \Cuadros{30}. Tiempo real con $\fr = 3$~cuadros/s.}
+    hueco de \Cuadros{30}; $x$ en el sistema del recinto. Tiempo real con $\fr = 3$~cuadros/s.}
   \label{fig:seguimiento}
 \end{figure}
 

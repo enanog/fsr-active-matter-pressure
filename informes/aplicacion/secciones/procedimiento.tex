@@ -104,7 +104,7 @@ aplicado, el radio de contacto, el diámetro del robot, la orientación de la es
     \texttt{t\_s} & \si{\second} & tiempo real $n/\fr$ \\
     \texttt{particle} & --- & identificador del robot ($0\ldots N-1$), fijo durante el ensayo \\
     \texttt{status} & --- & estado de la posición (\cref{tab:estados}); \texttt{status\_code}, su código \\
-    \texttt{x\_mm}, \texttt{y\_mm} & \si{\milli\metre} & centro del robot; origen en el centro del recinto, $y$ hacia arriba \\
+    \texttt{x\_mm}, \texttt{y\_mm} & \si{\milli\metre} & centro del robot; origen en el centro del recinto, $x$ a la derecha del observador, $y$ hacia la pared de enfrente \\
     \texttt{r\_mm}, \texttt{phi\_deg} & \si{\milli\metre}, \si{\degree} & coordenadas polares; $\phi$ antihorario desde $+x$ \\
     \texttt{wall\_dist\_mm} & \si{\milli\metre} & $R_{\mathrm{int}} - r$: del centro del robot a la pared \\
     \texttt{vx\_mm\_s}, \texttt{vy\_mm\_s} & \si{\milli\metre\per\second} & velocidad respecto del recinto \\
@@ -344,6 +344,14 @@ Con los videos copiados en \nolinkurl{datos/video/recortados/}, para cada \textt
   \item O, si la sesión ya existe, sin interfaz: el comando de \cref{sec:reexportar}
         (agregar \texttt{-{}-redetectar} para volver a medir el recinto).
   \item \texttt{generar\_informe.py} para cada ensayo y \texttt{comparar\_ensayos.py} con todos.
+  \item Las figuras de método de este informe (\nolinkurl{informes/aplicacion/figuras/metodo/f1}--\texttt{f9}),
+        en la vista del observador:
+\begin{verbatim}
+python software/analisis_video/figuras_metodo.py ^
+       --csv datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
+       --sesion datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
+       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4
+\end{verbatim}
   \item Compilar los dos informes.
 \end{enumerate}
 Las trayectorias versionadas en el repositorio se generaron con \texttt{reexportar.py} y los parámetros

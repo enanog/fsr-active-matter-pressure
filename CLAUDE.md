@@ -35,8 +35,12 @@ El observador está parado en el borde superior del video (y_px = 0) mirando hac
   escala sin cambios. Pared: contrarrotantes 64,9/56,7/74,7 % vs programados 51,7/57,8/45,4 %. Macro nueva
   `PccwCw` (% del tiempo antihorario de los que giran horario en neto).
 - **Figuras:** `atascos.png` (cada panel rotado), `recinto_movimiento.png` (Δy cambia de signo: el anillo se
-  aleja ~2 mm del observador los primeros 15 min), capturas y ocupación regeneradas. f6–f9 del informe de la
-  aplicación quedan en la imagen de la cámara (métodos que trabajan sobre ella).
+  aleja ~2 mm del observador los primeros 15 min), capturas y ocupación regeneradas. Figuras de método f1–f9
+  del informe de la aplicación regeneradas en la vista del observador con `software/analisis_video/figuras_metodo.py`
+  (primer minuto de 24/09; f2 cuadro 160: 25 candidatos, 22 aceptados 0,85–1,00, 3 rechazados 0,72–0,81; f4 robot 8,
+  hueco 60–89, desvío 6,3 mm sin ancla / 3,4 con ancla; f5 robot 5; f6 robot 12, Δθ +58,7° q 0,79, conjunta +61,8°;
+  f7 robots 5 y 8; f8 cuadro 90). Docs de Claude «Detección de robots…» y «Seguimiento de robots — informe técnico»
+  actualizados (figuras, sistema de coordenadas, columnas, ejemplos).
 
 ## 2026-10-08 (noche) — Recinto: origen en el centro, escala, exportación por robot
 
