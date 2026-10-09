@@ -47,7 +47,8 @@ afectados, incluirlos no cambia ningún resultado de este informe.
 \paragraph{Verificación de posiciones, ejes y velocidades.} La herramienta
 \texttt{verificar\_cinematica.py} (informe de la aplicación) contrasta los CSV con los videos
 (\cref{fig:verif_cin,tab:verif_cin}). En los tres ensayos, los robots redibujados solo con
-$(x, y)$ caen sobre los robots del video des-espejado, con los ejes en el sentido correcto; la integral de
+$(x, y)$ caen sobre los robots del video orientado como lo ve el observador, con los ejes en el sentido
+correcto; la integral de
 la velocidad exportada en \SI{10}{\second} reproduce el desplazamiento con un error mediano de
 \SI{0.13}{\milli\metre} (\SI{2.5}{\percent} a \SI{2.8}{\percent} en los desplazamientos mayores que
 \SI{2}{\milli\metre}, el efecto esperado del suavizado); y la velocidad exportada coincide con una
@@ -95,7 +96,7 @@ del recinto y las validaciones de la \cref{sec:recinto_ens}.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figuras/verificacion_cinematica.jpg}
-  \caption{Verificación de \Cmp{Lab}{A}. Izquierda: cuadro des-espejado con los robots redibujados solo
+  \caption{Verificación de \Cmp{Lab}{A}. Izquierda: cuadro rotado \SI{180}{\degree} (vista del observador) con los robots redibujados solo
     con $(x, y)$ del CSV (cruz roja), el recinto (amarillo), los ejes y una cuadrícula de
     \SI{10}{\milli\metre} en el sistema del recinto (valores sobre los ejes). Derecha: cuatro robots en $t$
     (celeste: posición; flecha: integral de la velocidad en \SI{5}{\second}) y en $t+\SI{5}{\second}$

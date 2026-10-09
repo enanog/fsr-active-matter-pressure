@@ -12,18 +12,18 @@ Conventions (screen / image coordinates):
   theta_deg = accumulated rotation (multi-turn) relative to the robot's own orientation in the
   first frame of the (possibly trimmed) range.
 
-Mirrored recordings (KinematicsParams.mirror): everything is computed in image coordinates (the
-overlay is drawn on the image), and only the exported tables are converted to the real scene:
-  horizontal (image flipped about its vertical axis): x -> W - x, vx -> -vx;
-  vertical   (image flipped about its horizontal axis): y -> H - y, vy -> -vy;
-  both cases reverse handedness: theta, omega -> -theta, -omega; the direction is recomputed.
-x_video_px / y_video_px always stay in image (file) pixels.
+Orientation of the scene (KinematicsParams.mirror, see core.orientation): no | rot180 | horizontal |
+vertical. Everything is computed in image coordinates, and only the exported tables are converted to
+the scene as the observer sees it (x right, y away from the observer): positions and velocities get
+the axis signs (sx, sy); theta and omega are multiplied by -1 for a mirror and kept for rot180 (a
+rotation keeps the sense of rotation). x_video_px / y_video_px always stay in file pixels.
 
 Enclosure reference frame (exports): with an ArenaTrack (core.arena) every position is expressed
-relative to the enclosure centre OF ITS OWN FRAME, x to the right, y UP, in the real (un-mirrored)
-scene, and converted to mm with the scale of that frame:
+relative to the enclosure centre OF ITS OWN FRAME, x to the right, y UP, in the displayed scene, and
+converted to mm with the scale of that frame:
     x_mm(f) = s(f) * sx * (x_video(f) - c_x(f)),   y_mm(f) = -s(f) * sy * (y_video(f) - c_y(f)),
-with sx, sy = -1 on the mirrored axis. The velocities of the export are SG derivatives of x_mm, y_mm
+with (sx, sy) = (-1, -1) for rot180, -1 on the mirrored axis for a mirror. The velocities of the
+export are SG derivatives of x_mm, y_mm
 (robot velocity relative to the enclosure). Scale s(f), by KinematicsParams.scale_source:
     "recinto"     s(f) = (D_in / 2) / r_in(f)                     (default; follows camera zoom)
     "perspectiva" s(f) = kappa * (D_in / 2) / r_in(f),  kappa = (D_in/2 - D/2) / (q99.5(r/r_in) * D_in/2)
@@ -40,6 +40,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 
+from core import orientation as ori
 from core import rotation as rot
 from core.tracking import OBSERVED, STATUS_LABELS, Status, TrackingResult
 
@@ -58,9 +59,8 @@ ARROW_NOTE = ("Flecha amarilla: velocidad (largo = desplazamiento en 7,5 cuadros
               "orientación actual; la marca a las 12 h es la referencia θ = 0 (el robot como estaba en "
               "el primer cuadro del tramo). Ángulos positivos = antihorario en pantalla.")
 ROT_LABELS = {ROT_MEASURED: "medida", ROT_INTERPOLATED: "interpolada", ROT_UNAVAILABLE: "no disponible"}
-MIRROR_NONE, MIRROR_H, MIRROR_V = "no", "horizontal", "vertical"
-MIRROR_LABELS = {MIRROR_NONE: "No", MIRROR_H: "Horizontal (respecto del eje y)",
-                 MIRROR_V: "Vertical (respecto del eje x)"}
+MIRROR_NONE, MIRROR_ROT180, MIRROR_H, MIRROR_V = ori.NONE, ori.ROT180, ori.MIRROR_H, ori.MIRROR_V
+MIRROR_LABELS = ori.LABELS          # orientation of the scene (field name kept for saved sessions)
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,8 @@ class KinematicsParams:
     window: int = 7            # Savitzky-Golay window [frames], odd
     polyorder: int = 2
     robot_diameter_mm: float = 33.0  # real robot diameter; 0 -> no SI conversion from the robot
-    mirror: str = MIRROR_NONE        # the recording is a mirror image of the real scene
+    mirror: str = MIRROR_ROT180      # orientation of the scene (core.orientation); fixed camera of this
+                                     # project: the observer stands at the top edge of the video
     scale_source: str = SCALE_ARENA  # recinto | perspectiva | robot (falls back to robot without enclosure)
 
 
@@ -214,8 +215,7 @@ def _enclosure_frame(kin: Kinematics, x: np.ndarray, y: np.ndarray, status: np.n
                      p: KinematicsParams, arena, crop, mm_robot: float) -> None:
     """Fill the centred / scaled arrays of `kin` (see the module docstring)."""
     F = len(kin.frames)
-    sx = -1.0 if kin.mirror == MIRROR_H else 1.0
-    sy = -1.0 if kin.mirror == MIRROR_V else 1.0
+    sx, sy, _ = ori.signs(kin.mirror)
     defined = arena is not None and getattr(arena, "defined", False)
     if defined:
         cx, cy, r_in = arena.at(kin.frames)
@@ -276,12 +276,8 @@ LONG_COLUMNS = [
 
 
 def _sign(kin: Kinematics) -> tuple[float, float, float]:
-    """(sx, sy, s_rot) multiplying vx, vy and theta/omega to go from image to real scene."""
-    if kin.mirror == MIRROR_H:
-        return -1.0, 1.0, -1.0
-    if kin.mirror == MIRROR_V:
-        return 1.0, -1.0, -1.0
-    return 1.0, 1.0, 1.0
+    """(sx, sy, s_rot) multiplying vx, vy and theta/omega to go from image to the displayed scene."""
+    return ori.signs(kin.mirror)
 
 
 def table(result: TrackingResult, kin: Kinematics, origin: tuple[float, float] = (0.0, 0.0),
@@ -334,8 +330,7 @@ def table(result: TrackingResult, kin: Kinematics, origin: tuple[float, float] =
     df["x_video_px"], df["y_video_px"] = result.x.ravel(), result.y.ravel()
     df["mass"], df["ring_cov"] = result.mass.ravel(), result.cov.ravel()
     df = df[[c for c in LONG_COLUMNS if c in df.columns]]
-    if kin.mirror != MIRROR_NONE:
-        df["espejo"] = kin.mirror     # x/y/v/theta are already un-mirrored
+    df["orientacion"] = kin.mirror    # x/y/v/theta are already in the displayed scene
     return df
 
 
@@ -412,7 +407,7 @@ def wide_table(long_df: pd.DataFrame) -> pd.DataFrame:
     n = int(long_df["particle"].max()) + 1
     width = max(2, len(str(n - 1)))
     per_frame = [c for c in ("mm_per_px", "xc_video_px", "yc_video_px") if c in long_df.columns]
-    value_cols = [c for c in long_df.columns if c not in ("frame", "t_s", "particle", "espejo", *per_frame)]
+    value_cols = [c for c in long_df.columns if c not in ("frame", "t_s", "particle", "espejo", "orientacion", *per_frame)]
     wide = long_df.pivot(index="frame", columns="particle", values=value_cols)
     wide = wide.reindex(columns=pd.MultiIndex.from_product([value_cols, range(n)]))
     ordered = [(c, k) for k in range(n) for c in value_cols]
@@ -421,6 +416,7 @@ def wide_table(long_df: pd.DataFrame) -> pd.DataFrame:
     first = long_df.groupby("frame")[["t_s", *per_frame]].first()
     for i, c in enumerate(["t_s", *per_frame]):
         wide.insert(i, c, first[c])
-    if "espejo" in long_df.columns:
-        wide["espejo"] = long_df["espejo"].iloc[0]
+    for c in ("orientacion", "espejo"):
+        if c in long_df.columns:
+            wide[c] = long_df[c].iloc[0]
     return wide.reset_index()

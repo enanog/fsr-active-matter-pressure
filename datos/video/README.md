@@ -15,10 +15,13 @@ que solo se versiona un `.gitkeep` para conservar la estructura (ver `.gitignore
 | `trayectorias/` | `VP_<código>_robots_resumen.csv`: una fila por robot (rapidez, giro, ω, capa de la pared…) | ídem, *Exportar resumen…* |
 | `seguimiento/` | `VS_<código>_seguimiento.mp4`: video con los robots marcados | VidFetch, exportar video de seguimiento |
 
-Todos los videos son espejados respecto del eje vertical; las sesiones y trayectorias de esta carpeta
-ya tienen la corrección aplicada (columna `espejo = horizontal` en los CSV).
+Los videos **no están espejados**. El observador mira la arena desde el borde superior del video, así que
+las sesiones y trayectorias de esta carpeta usan la orientación `rot180` (columna `orientacion` en los CSV):
+imagen rotada 180°, x a la derecha del observador, y hacia la pared de enfrente, ángulos antihorarios
+positivos. Hasta el 08/10 se exportaban como si el video estuviera espejado (`espejo = horizontal`), lo que
+invertía y, θ y ω; los CSV actuales (09/10) ya están corregidos.
 
-Las trayectorias actuales (08/10) se regeneraron con `tools/reexportar.py` (espejo horizontal, ventana 5,
+Las trayectorias actuales (09/10) se regeneraron con `tools/reexportar.py` (orientación rot180, ventana 5,
 robot 33 mm, escala del recinto Ø 185 mm, recinto medido cada 30 cuadros). Respecto de las anteriores,
 longitudes y velocidades son 13 % menores (la escala anterior, del anillo oscuro del robot, estaba 15 % alta).
 

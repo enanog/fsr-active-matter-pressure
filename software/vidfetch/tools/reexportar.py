@@ -2,7 +2,7 @@
 
 Usage (from the repository root):
     python software/vidfetch/tools/reexportar.py datos/video/sesiones/VA_<código>_analisis.npz ^
-        --video datos/video/recortados/VC_<código>.MP4 --espejo horizontal --ventana 5 ^
+        --video datos/video/recortados/VC_<código>.MP4 --orientacion rot180 --ventana 5 ^
         --salida datos/video/trayectorias/VP_<código>_robots.csv --resumen --guardar-sesion
 
 What it does:
@@ -43,7 +43,9 @@ def main() -> None:
     ap.add_argument("--salida", type=Path, help="CSV largo de salida (por defecto <sesión>_robots.csv)")
     ap.add_argument("--resumen", action="store_true", help="exportar también el resumen por robot")
     ap.add_argument("--por-robot", type=Path, metavar="CARPETA", help="un CSV por robot en esta carpeta")
-    ap.add_argument("--espejo", choices=list(km.MIRROR_LABELS), help="video espejado (no/horizontal/vertical)")
+    ap.add_argument("--orientacion", "--espejo", dest="espejo", choices=list(km.MIRROR_LABELS),
+                    help="orientación de la escena: rot180 (observador en el borde superior del video; "
+                         "la de este proyecto), no, horizontal o vertical (videos espejados)")
     ap.add_argument("--ventana", type=int, help="ventana Savitzky-Golay [cuadros, impar]")
     ap.add_argument("--diametro-robot", type=float, help="diámetro real del robot [mm]")
     ap.add_argument("--escala", choices=list(km.SCALE_LABELS), help="fuente de la escala mm/px")

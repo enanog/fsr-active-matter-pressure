@@ -60,10 +60,10 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
    `python software/fsrscope/procesar_lote.py` procesa todos con la configuración guardada.
 2. **Video**: copiar el video a `datos/video/originales/`, recortarlo con VidFetch
    (`python software/vidfetch/main.py`) a `datos/video/recortados/`, analizarlo (escala de tiempo
-   3 cuadros/s, **video espejado: horizontal**, robot 33 mm, recinto Ø 185/195 mm, escala desde el
+   3 cuadros/s, **orientación de la escena: rotada 180°**, robot 33 mm, recinto Ø 185/195 mm, escala desde el
    recinto) y guardar la sesión en `sesiones/` y el CSV en `trayectorias/`. Las posiciones salen con
    origen en el centro del recinto (detectado en cada cuadro o marcado a mano), x a la derecha e y hacia
-   arriba. Con una sesión ya guardada, `software/vidfetch/tools/reexportar.py` regenera el CSV sin interfaz.
+   arriba en la vista del observador. Con una sesión ya guardada, `software/vidfetch/tools/reexportar.py` regenera el CSV sin interfaz.
 3. **Informes**: desde la raíz,
    ```
    python software/analisis_video/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
@@ -74,9 +74,11 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
 
 ## Notas
 
-- Los videos se graban con una cámara DJI fija sobre la arena, en *time-lapse* (≈3 cuadros por segundo real, reproducidos a 29,97 fps) y
-  están **espejados** respecto del eje vertical: hay que indicarlo en VidFetch para que los giros
-  salgan con el sentido real.
+- Los videos se graban con una cámara DJI fija sobre la arena, en *time-lapse* (≈3 cuadros por segundo
+  real, reproducidos a 29,97 fps). **No están espejados.** El observador mira la arena desde el borde
+  superior del video (y = 0 px), así que VidFetch, los informes y FSRScope muestran la imagen **rotada
+  180°** (opción *Orientación de la escena: rotada 180°*): x a la derecha del observador, y hacia la pared
+  de enfrente, ángulos antihorarios positivos. En el modo `QR` los robots giran en sentido antihorario.
 - El registrador del sensor enciende un LED 5 s al comenzar; el video recortado empieza al terminar
   ese pulso, lo que permite sincronizar video y presión.
 - El recinto se desliza unos mm sobre la placa durante la primera media hora y la cámara cambia

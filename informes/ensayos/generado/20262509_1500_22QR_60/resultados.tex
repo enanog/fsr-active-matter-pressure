@@ -28,7 +28,7 @@
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.62\linewidth]{generado/20262509_1500_22QR_60/captura.png}
-  \caption{Cuadro de ejemplo con identificador, vector velocidad (amarillo, largo = desplazamiento en 7,5 cuadros) y orientación (aguja blanca). Círculo verde: posición observada; naranja: estimada. Imagen tal como la graba la cámara (espejada); flecha y aguja dibujadas sobre ella.}
+  \caption{Cuadro de ejemplo con identificador, vector velocidad (amarillo, largo = desplazamiento en 7,5 cuadros) y orientación (aguja blanca). Círculo verde: posición observada; naranja: estimada. Imagen rotada 180° (vista del observador): $x$ a la derecha, $y$ hacia arriba (lejos del observador).}
 \end{figure}}{}
 
 \begin{figure}[H]
@@ -73,7 +73,7 @@
       \addplot [only marks, mark=+, mark size=3pt, black] coordinates {(0,0)};
     \end{axis}
   \end{tikzpicture}
-  \caption{Trayectorias de los 22 robots (escena real, video espejado corregido; origen en el centro del recinto, $y$ hacia arriba; círculo gris: pared interior), primeros 5 minutos reales.}
+  \caption{Trayectorias de los 22 robots (imagen rotada 180° (vista del observador); origen en el centro del recinto, $y$ hacia arriba; círculo gris: pared interior), primeros 5 minutos reales.}
 \end{figure}
 
 \begin{figure}[H]
@@ -109,7 +109,7 @@ Se siguieron \num{22} robots durante \num{11012} cuadros (\SI{61.2}{\minute}). E
 No hubo cuadros con posiciones estimadas.
 La rapidez mediana fue \SI{0.606}{\milli\metre\per\second} y el percentil 95, \SI{3.09}{\milli\metre\per\second}: la cola rápida es \num{5.1} veces la mediana, lo que indica movimiento intermitente, con episodios cortos de alta velocidad.
 El robot más rápido en promedio fue el \num{3} (\SI{1.78}{\milli\metre\per\second}).
-En rotación, \num{8} robots giraron en neto en sentido antihorario, \num{14} en sentido horario y \num{0} giraron menos de media vuelta. El que más giró fue el \num{3}, con $|\omega|$ media de \SI{23.6}{\degree\per\second}. La rotación se midió directamente en el \SI{100}{\percent} de los puntos.
+En rotación, \num{14} robots giraron en neto en sentido antihorario, \num{8} en sentido horario y \num{0} giraron menos de media vuelta. El que más giró fue el \num{3}, con $|\omega|$ media de \SI{23.6}{\degree\per\second}. La rotación se midió directamente en el \SI{100}{\percent} de los puntos.
 
 \IfFileExists{generado/20262509_1500_22QR_60/notas.tex}{\input{generado/20262509_1500_22QR_60/notas.tex}}{}
 \endgroup

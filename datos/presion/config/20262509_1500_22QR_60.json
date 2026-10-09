@@ -20,7 +20,7 @@
     "offset_auto": true,
     "offset_s": 0.0,
     "frames_per_s": 3.0,
-    "mirror": true,
+    "view": "rot180",
     "show_robots": false,
     "robot_radius_px": 47.0,
     "video_path": "C:/Users/dylan/OneDrive/Desktop/Proyecto_PresionRecintoCircular/datos/video/seguimiento/VS_20262509_1500_22QR_60.mp4"

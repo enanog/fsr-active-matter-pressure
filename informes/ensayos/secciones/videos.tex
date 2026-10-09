@@ -82,15 +82,20 @@ iluminación. El método está descripto en el informe de la aplicación.
     Radio de búsqueda [px] & \multicolumn{3}{c}{\num{29.4} ($0{,}625\,r_{\mathrm{ext}}$)} \\
     Ventana de Savitzky--Golay & \multicolumn{3}{c}{\Cuadros{5}, polinomio de grado 2} \\
     Escala de tiempo $\fr$ & \multicolumn{3}{c}{\num{3} cuadros por segundo real} \\
-    Video espejado & \multicolumn{3}{c}{sí, respecto del eje vertical (corregido en las exportaciones)} \\
+    Orientación de la escena & \multicolumn{3}{c}{imagen rotada \SI{180}{\degree} (vista del observador; no espejada)} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \subsection{El recinto: origen, escala y movimiento}\label{sec:recinto_ens}
 
-Todas las posiciones de este informe tienen origen en el centro del recinto, $x$ hacia la derecha e
-$y$ hacia arriba (escena real), y están en milímetros con la escala que da el diámetro interior del
+Todas las posiciones de este informe tienen origen en el centro del recinto y están en el sistema de la
+vista del observador: quien hizo los ensayos estaba parado del lado del borde superior del video
+($y_{\mathrm{px}} = 0$), mirando hacia el inferior ($y_{\mathrm{px}} = 2160$ en el video original). Las
+imágenes se muestran rotadas \SI{180}{\degree} para verlas desde ahí: $x$ queda a la derecha del
+observador (la izquierda del video original), $y$ hacia la pared de enfrente y los ángulos son positivos en
+sentido antihorario visto desde arriba. Una rotación no cambia el sentido de giro, a diferencia de un
+espejado. Las posiciones están en milímetros con la escala que da el diámetro interior del
 recinto, $D_{\mathrm{int}} = \SI{185}{\milli\metre}$ (método en el informe de la aplicación). El recinto
 se midió cada \num{30}~cuadros (\SI{10}{\second}) en los tres videos (\cref{tab:recinto}).
 
@@ -117,7 +122,8 @@ se midió cada \num{30}~cuadros (\SI{10}{\second}) en los tres videos (\cref{tab
 
 \paragraph{El recinto se mueve y la cámara cambia de aumento.} El centro del recinto no está fijo en la
 imagen (\cref{fig:recinto_mov}). En los tres ensayos sigue el mismo patrón: durante los primeros
-\SI{15}{\minute} baja unos \SI{2}{\milli\metre} y entre los minutos 15 y 30 vuelve, con oscilaciones de
+\SI{15}{\minute} se aleja unos \SI{2}{\milli\metre} del observador ($+y$) y entre los minutos 15 y 30
+vuelve, con oscilaciones de
 $\pm\SI{1}{\milli\metre}$ en $x$ al comienzo; después queda quieto dentro de $\pm\SI{0.5}{\milli\metre}$.
 La placa de fondo, en cambio, no se mueve (correlación de fase de las esquinas del cuadro: corrimiento
 constante menor que \SI{1}{px}), así que es el anillo el que se desliza sobre la placa, probablemente
@@ -132,7 +138,7 @@ saldrían borroneadas.
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.95\linewidth]{figuras/recinto_movimiento.png}
-  \caption{Centro del recinto (respecto de su mediana, escena real) y radio aparente a lo largo de cada
+  \caption{Centro del recinto (respecto de su mediana, en el sistema de la vista del observador) y radio aparente a lo largo de cada
     ensayo, después de la mediana móvil de 5 muestras. Los saltos del radio coinciden con un agrandamiento
     igual de la placa de fondo: son cambios de aumento de la cámara.}
   \label{fig:recinto_mov}

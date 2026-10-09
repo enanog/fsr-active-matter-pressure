@@ -62,8 +62,8 @@ sistema fijo al recinto, no a la imagen:
 \begin{itemize}
   \item origen $(0,0)$ en el centro del recinto \emph{en cada cuadro} (el recinto se mueve un poco sobre
         la placa y la cámara cambia levemente de aumento: \cref{sec:recinto});
-  \item $x$ hacia la derecha e $y$ hacia arriba, en la escena real vista desde arriba (con el video
-        espejado ya corregido);
+  \item $x$ hacia la derecha e $y$ hacia arriba en la escena \emph{tal como la ve el observador}
+        (\cref{sec:orientacion}); en este proyecto, la imagen de la cámara rotada \SI{180}{\degree};
   \item ángulos (posición polar $\phi$, dirección de la velocidad, $\theta$ y $\omega$) positivos en
         sentido antihorario.
 \end{itemize}
@@ -74,8 +74,8 @@ centro del recinto en el cuadro $n$ y $s(n)$ la escala de ese cuadro, la posici�
   y = -\,s(n)\,\sigma_y\,\bigl[Y - Y_c(n)\bigr],
   \label{eq:marco}
 \end{equation}
-con $\sigma_x = -1$ si el video está espejado respecto del eje vertical (\emph{horizontal}),
-$\sigma_y = -1$ si lo está respecto del horizontal (\emph{vertical}) y $+1$ en otro caso. De
+con $(\sigma_x, \sigma_y)$ dados por la orientación de la escena (\cref{tab:orientacion}): $(-1,-1)$
+para la imagen rotada \SI{180}{\degree} de este proyecto. De
 $(x,y)$ salen la distancia al centro $r = \sqrt{x^2+y^2}$, el ángulo polar $\phi = \operatorname{atan2}(y,x)$
 y la distancia del centro del robot a la pared, $d_{\mathrm{pared}} = R_{\mathrm{int}} - r$, con
 $R_{\mathrm{int}} = D_{\mathrm{int}}/2$. Un robot apoyado en la pared tiene idealmente
@@ -87,12 +87,42 @@ exportar se aplica la \cref{eq:marco}. Las columnas \texttt{x\_video\_px}, \text
 conservan el centro en píxeles del archivo y \texttt{xc\_video\_px}, \texttt{yc\_video\_px} el centro del
 recinto de ese cuadro, de modo que la transformación siempre se puede rehacer.
 
-\paragraph{Video espejado.} Algunas cámaras graban la escena reflejada. Una reflexión invierte la
-quiralidad: un giro horario se ve antihorario. Con la opción \emph{Video espejado} de la pestaña
-\emph{Seguimiento} la \cref{eq:marco} refleja la posición respecto del centro del recinto, y $\theta$ y
-$\omega$ cambian de signo; las velocidades, al derivarse de $(x,y)$, quedan corregidas solas. El CSV lleva
-la columna \texttt{espejo}. Los videos de este proyecto están espejados respecto del eje vertical
-(\emph{horizontal}).
+\paragraph{Orientación de la escena.}\label{sec:orientacion} La cámara está fija sobre la arena, pero
+quien hace el ensayo la mira desde un costado: en los videos de este proyecto, desde el borde superior de
+la imagen ($y_{\mathrm{px}} = 0$), mirando hacia el inferior ($y_{\mathrm{px}} = 2160$ en el video
+original de $3840\times2160$). La opción \emph{Orientación de la escena} de la pestaña \emph{Seguimiento}
+define cómo se muestra la escena (vista de seguimiento, video exportado, figuras de los informes) y en qué
+sistema se exporta (\cref{tab:orientacion}). La detección, el seguimiento y los ángulos se calculan
+siempre sobre la imagen original; solo se transforman la vista y las exportaciones.
+
+\begin{table}[H]
+  \centering
+  \caption{Orientaciones de la escena. $\sigma_x$, $\sigma_y$: signos de la \cref{eq:marco};
+    $\sigma_\theta$: factor de $\theta$ y $\omega$.}
+  \label{tab:orientacion}
+  \small
+  \begin{tabular}{@{}llrrrl@{}}
+    \toprule
+    Opción & Imagen mostrada & $\sigma_x$ & $\sigma_y$ & $\sigma_\theta$ & Uso \\
+    \midrule
+    \texttt{rot180} & rotada \SI{180}{\degree} & $-1$ & $-1$ & $+1$ & observador en el borde superior (este proyecto) \\
+    \texttt{no} & como la graba la cámara & $+1$ & $+1$ & $+1$ & observador en el borde inferior \\
+    \texttt{horizontal} & espejada respecto del eje $y$ & $-1$ & $+1$ & $-1$ & cámara que graba reflejado \\
+    \texttt{vertical} & espejada respecto del eje $x$ & $+1$ & $-1$ & $-1$ & cámara que graba reflejado \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Con \texttt{rot180}, un robot que en el video original está \SI{100}{px} a la izquierda y \SI{100}{px}
+abajo del centro del recinto queda, con $s = \SI{0.323}{\milli\metre\per px}$, en
+$x = +\SI{32.3}{\milli\metre}$, $y = +\SI{32.3}{\milli\metre}$: a la derecha del observador y hacia la
+pared de enfrente. Una rotación conserva el sentido de giro, así que $\theta$ y $\omega$ no cambian de
+signo; un espejado lo invierte ($\sigma_\theta = -1$): un giro antihorario se vería horario. Por eso la
+opción correcta se comprueba con el sentido de giro conocido de los robots: en el modo \texttt{QR} giran
+en sentido antihorario visto desde arriba (\cref{sec:verif_cin}), y así se ven en el video original, de
+modo que la cámara no espeja. Elegir \texttt{rot180} o \texttt{no} solo rota los ejes $180^\circ$: no
+cambia rapideces, distancias, capas ni sentidos de giro. El CSV lleva la columna \texttt{orientacion} y
+el \texttt{\_info.json}, la misma clave.
 
 \begin{table}[H]
   \centering
@@ -160,7 +190,8 @@ cobertura $\geq\SI{50}{\percent}$ y cociente dentro de $\pm\num{0.03}$.
 \begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figuras/metodo/f9_recinto.png}
-  \caption{Detección del recinto en un cuadro del ensayo 24/09. (a) Máscara del anillo (magenta),
+  \caption{Detección del recinto en un cuadro del ensayo 24/09 (imagen tal como la graba la cámara, sobre la
+    que trabaja la detección). (a) Máscara del anillo (magenta),
     bordes por rayo (puntos) y los dos círculos ajustados (blanco); cruz roja: centro. (b) Detalle: el
     borde interior (azul) es el del canto superior del anillo; la franja gris clara de adentro es la cara
     interna de la pared, que se ve por perspectiva. (c) Saturación a lo largo del rayo amarillo con los

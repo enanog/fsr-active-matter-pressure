@@ -10,6 +10,34 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-10-09 — Orientación: el video NO está espejado; vista rotada 180°
+
+**Corrección del usuario:** en modo `QR` los robots giran **antihorario** (solo motor derecho). El "giran a
+la derecha" anterior era por el motor, no horario. Verificado en el video crudo (robot 6: el clip va de las 3
+a las 12). ⇒ la suposición "video espejado horizontal" (08/10) era **falsa** e invertía y, θ, ω, v_t, φ.
+El observador está parado en el borde superior del video (y_px = 0) mirando hacia y_px = 2160 (VR 3840×2160).
+
+- **`core/orientation.py` (nuevo):** claves `no | rot180 | horizontal | vertical`; signos (sx, sy, s_rot) =
+  (+,+,+) | (−,−,+) | (−,+,−) | (+,−,−); `image`, `points` (involutivo: sirve para clics), `vectors`,
+  `from_frame`. Export: x = s·sx·(X−Xc), y = −s·sy·(Y−Yc). Con rot180: x = −s(X−Xc), y = +s(Y−Yc).
+- **VidFetch:** `KinematicsParams.mirror` (nombre conservado por compatibilidad) = orientación, por defecto
+  **rot180**. Combo "Orientación de la escena". La vista de Seguimiento, el video exportado (`annotator`,
+  `draw_oriented`) y el recinto (`arena.oriented`) se dibujan sobre la imagen ya orientada (rótulos derechos);
+  `_on_click` convierte display→imagen con `ori.points`. Análisis siempre sobre la imagen original.
+  CSV: columna `orientacion` (antes `espejo`); `_info.json`: `orientacion`, `orientacion_descripcion`.
+- **Herramientas:** `reexportar.py --orientacion` (alias `--espejo`); `verificar_cinematica.py` orienta las
+  imágenes y controla ω contra el giro programado (`EXPECTED_SPIN = {"QR": "antihorario"}`,
+  `--giro-esperado`); `verificar_giro.py` orienta los recortes; `generar_informe.py` dibuja la captura sobre la
+  imagen orientada; FSRScope `Sync.view = "rot180"` (antes `mirror: bool`), configs de `datos/presion/config`.
+- **Datos regenerados (exacto):** respecto de los CSV del 08/10: x, vx, r, |v| iguales; y, vy, θ, ω, v_t, φ,
+  vel_dir cambian de signo (diferencia 0). ω media +2,81 / +2,62 / +3,35 °/s; 14 robots antihorario, 8
+  contrarrotan (horario); Φ = +0,21 / +0,20 / +0,25 (circulación antihoraria). Capas, rapideces, atascos y
+  escala sin cambios. Pared: contrarrotantes 64,9/56,7/74,7 % vs programados 51,7/57,8/45,4 %. Macro nueva
+  `PccwCw` (% del tiempo antihorario de los que giran horario en neto).
+- **Figuras:** `atascos.png` (cada panel rotado), `recinto_movimiento.png` (Δy cambia de signo: el anillo se
+  aleja ~2 mm del observador los primeros 15 min), capturas y ocupación regeneradas. f6–f9 del informe de la
+  aplicación quedan en la imagen de la cámara (métodos que trabajan sobre ella).
+
 ## 2026-10-08 (noche) — Recinto: origen en el centro, escala, exportación por robot
 
 **Pedido:** (0,0) en el centro del recinto (Ø int 18,5 cm / ext 19,5 cm — el usuario escribió "r"; son
@@ -177,7 +205,7 @@ más abajo usan las viejas):
   `Medicion Vacio.csv`; las referencias a `Medicion 25/26/27 Robots 30 Min.csv` ya estaban rotas
   antes (esos archivos se renombraron a `P_…` en septiembre).
 
-## 2026-10-08 — Video espejado y análisis de los 3 ensayos
+## 2026-10-08 — Video espejado y análisis de los 3 ensayos (SUPERADO el 09/10: el video NO está espejado, ver arriba)
 
 **Video espejado:** los videos de la cámara fija (DJI, cenital) están espejados respecto del eje vertical (confirmado por el
 usuario: en modo `QR` todos los robots están programados para girar a la derecha). Nueva opción de

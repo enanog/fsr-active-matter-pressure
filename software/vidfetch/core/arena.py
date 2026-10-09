@@ -26,8 +26,9 @@ r_out / r_in measured in pixels must match D_out / D_in: it is reported as a che
 Scale from the enclosure: s = (D_in / 2) / r_in [mm/px]. Perspective (the rim is closer to the
 camera than the floor) biases it by ~ h_wall / H_camera (documented in the report).
 
-Reference frame used for every export (real scene, mirror-corrected):
-  origin = enclosure centre, x to the right, y upwards (counter-clockwise angles positive).
+Reference frame used for every export (scene as the observer sees it, core.orientation):
+  origin = enclosure centre, x to the right, y upwards = away from the observer (counter-clockwise
+  angles positive).
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ from typing import Callable, Optional, Sequence
 import cv2
 import numpy as np
 
+from core import orientation as ori
 from core.models import Roi, TrimRange
 from core.video_io import VideoReader
 
@@ -117,14 +119,10 @@ class Arena:
     # ---- reference frame
     def to_centered(self, x_video: np.ndarray, y_video: np.ndarray, mirror: str = "no"
                     ) -> tuple[np.ndarray, np.ndarray]:
-        """Video px -> px relative to the centre, x right, y UP, in the real (un-mirrored) scene."""
-        x = np.asarray(x_video, float) - self.cx
-        y = -(np.asarray(y_video, float) - self.cy)
-        if mirror == "horizontal":      # image flipped about its vertical axis
-            x = -x
-        elif mirror == "vertical":      # image flipped about its horizontal axis
-            y = -y
-        return x, y
+        """Video px -> px relative to the centre, x right, y UP, in the displayed scene (`mirror` =
+        orientation key of core.orientation)."""
+        sx, sy, _ = ori.signs(mirror)
+        return sx * (np.asarray(x_video, float) - self.cx), -sy * (np.asarray(y_video, float) - self.cy)
 
     def describe(self) -> str:
         rat = (f" · r_ext/r_int {self.ratio_measured:.4f} (esperado {self.ratio_expected:.4f})"
@@ -351,7 +349,8 @@ def draw(img: np.ndarray, arena: Arena, offset: tuple[float, float] = (0.0, 0.0)
     """Overlay: inner (solid) and outer (dashed) circles, centre and the exported x/y axes.
 
     `offset` = ROI origin (img is the crop); `points` = manual clicks in full-frame px.
-    The axes are drawn as they map onto the image: with a mirrored recording the real +x points left.
+    The axes are drawn as they map onto the image: on the raw camera image with orientation rot180 the
+    exported +x points left and +y down. To draw on an already oriented image use `oriented()` and "no".
     """
     out = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     out = out.copy()
@@ -365,9 +364,8 @@ def draw(img: np.ndarray, arena: Arena, offset: tuple[float, float] = (0.0, 0.0)
     for a0 in range(0, 360, 10):
         cv2.ellipse(out, ci, (int(round(ro)), int(round(ro))), 0, a0, a0 + 5, col_out, th, cv2.LINE_AA)
     L = 0.25 * arena.r_in
-    sx = -1.0 if mirror == "horizontal" else 1.0
-    sy = 1.0 if mirror == "vertical" else -1.0     # image y grows downwards
-    for (dx, dy), name in (((sx * L, 0.0), "x"), ((0.0, sy * L), "y")):
+    sx, sy, _ = ori.signs(mirror)
+    for (dx, dy), name in (((sx * L, 0.0), "x"), ((0.0, -sy * L), "y")):   # image y grows downwards
         tip = (int(round(c[0] + dx)), int(round(c[1] + dy)))
         cv2.arrowedLine(out, ci, tip, (0, 0, 0), th + 2, cv2.LINE_AA, tipLength=0.15)
         cv2.arrowedLine(out, ci, tip, col_ax, th, cv2.LINE_AA, tipLength=0.15)
@@ -379,6 +377,18 @@ def draw(img: np.ndarray, arena: Arena, offset: tuple[float, float] = (0.0, 0.0)
         p = (int(round(px - offset[0])), int(round(py - offset[1])))
         cv2.circle(out, p, 4, (255, 0, 255), -1, cv2.LINE_AA)
     return out
+
+
+def oriented(arena: Arena, offset: tuple[float, float], size: tuple[int, int], key: str,
+             points: Sequence[tuple[float, float]] = ()) -> tuple[Arena, list[tuple[float, float]]]:
+    """Arena (and manual points, full-frame px) mapped onto the oriented crop of size (w, h) at `offset`."""
+    w, h = size
+    cx, cy = ori.points(arena.cx - offset[0], arena.cy - offset[1], w, h, key)
+    pts = []
+    for px, py in points:
+        qx, qy = ori.points(px - offset[0], py - offset[1], w, h, key)
+        pts.append((float(qx) + offset[0], float(qy) + offset[1]))
+    return replace(arena, cx=float(cx) + offset[0], cy=float(cy) + offset[1]), pts
 
 
 def save_json(path: str, arena: Optional[Arena], extra: Optional[dict] = None) -> None:

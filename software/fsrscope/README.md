@@ -19,7 +19,7 @@ python software/fsrscope/procesar_lote.py         # genera todos los P_<código>
 | Ensayo | registros de `datos/presion/crudos/` (marca si hay video, trayectorias o configuración guardada), datos del registro: pulso LED, factor del firmware, saturación |
 | Calibración | `V_REF`, `V_EXC`, `R_FEEDBACK`, `ADC_FS`. Modo automático: usa el factor G/ADC que registró el propio firmware (sigue los cambios de `R_FEEDBACK` entre ensayos). Muestra el piso de saturación |
 | Análisis | paso de remuestreo, ΔT fija de la serie ΔG(t), ΔT máxima del barrido, clases de histograma; recorte temporal y tramos excluidos (con la selección amarilla arrastrable sobre los gráficos) |
-| Video | escala del time-lapse (cuadros por segundo real), desfase video↔sensor (automático = fin del pulso LED), espejado, superposición de los robots de VidFetch coloreados por \|v\| |
+| Video | escala del time-lapse (cuadros por segundo real), desfase video↔sensor (automático = fin del pulso LED), vista rotada 180° (como la ve el observador), superposición de los robots de VidFetch coloreados por \|v\| |
 | Gráficos | qué gráficos mostrar, en qué orden (arrastrar) y sus opciones (escalas log, líneas de saturación, columna cruda a graficar…) |
 | Exportar | columnas del CSV procesado y su orden (por defecto, el formato histórico), exportación, guardado de configuración y procesamiento por lotes |
 

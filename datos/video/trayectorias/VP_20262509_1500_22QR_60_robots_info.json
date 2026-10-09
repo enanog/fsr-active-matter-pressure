@@ -11,7 +11,7 @@
     11011
   ],
   "cuadros_por_segundo_real": 3.0,
-  "convencion": "origen en el centro del recinto en cada cuadro; x a la derecha, y hacia arriba; escena real (espejado corregido); ángulos positivos antihorarios; theta = 0 en el primer cuadro del tramo",
+  "convencion": "origen en el centro del recinto en cada cuadro; x a la derecha, y hacia arriba; escena vista por el observador (ver 'orientacion'); ángulos positivos antihorarios; theta = 0 en el primer cuadro del tramo",
   "recinto": {
     "metodo": "automático",
     "d_int_mm": 185.0,
@@ -38,5 +38,6 @@
   "kappa_perspectiva_medido": 0.9753146673515357,
   "r_contacto_sobre_r_int": 0.8424169646220259,
   "diametro_robot_mm": 33.0,
-  "espejo": "horizontal"
+  "orientacion": "rot180",
+  "orientacion_descripcion": "imagen rotada 180° (vista del observador)"
 }

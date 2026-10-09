@@ -245,7 +245,7 @@ def analyse(T: dict, out: Path, k: str, sen: dict | None) -> dict:
     pd.DataFrame({"rank": np.arange(N), "id": order, "w": wmean[order], "vueltas": turns[order],
                   "pared": pwall[order], "horario": pcw[order]}).to_csv(
         out / f"giro_{k}.csv", index=False, float_format="%.4g")
-    ccw, cw = turns > 1, turns < -1                     # net counter-rotating / programmed (clockwise)
+    ccw, cw = turns > 1, turns < -1                     # net CCW (programmed in QR mode) / CW (counter-rotating)
 
     # collective rotation about the enclosure centre (CCW positive)
     vx, vy = T["vx"], T["vy"]                           # mm/s, y up
@@ -278,6 +278,7 @@ def analyse(T: dict, out: Path, k: str, sen: dict | None) -> dict:
         "PwallCcw": float(np.median(pwall[ccw])) if ccw.any() else np.nan,
         "PwallCw": float(np.median(pwall[cw])) if cw.any() else np.nan,
         "PcwCcw": float(np.median(pcw[ccw])) if ccw.any() else np.nan,
+        "PccwCw": float(np.median(100 - pcw[cw])) if cw.any() else np.nan,   # CW robots: % of time turning CCW
         "WabsCcw": float(np.median(np.abs(wmean[ccw]))) if ccw.any() else np.nan,
         "WabsCw": float(np.median(np.abs(wmean[cw]))) if cw.any() else np.nan,
         "Vtan": float(np.nanmedian(np.where(moving, (rx * vy - ry * vx) / np.maximum(r, 1e-9), np.nan))),
@@ -484,7 +485,7 @@ def write_tex(tests: list[dict], R: list[dict], out: Path, rel: str) -> None:
     F_rad = [r"\begin{figure}[H]", r"  \centering",
              r"  \includegraphics[width=\linewidth]{" + rel + r"/ocupacion.png}",
              r"  \caption{Densidad de ocupación de los centros de los robots durante todo cada ensayo, con origen "
-             r"en el centro del recinto de cada cuadro ($y$ hacia arriba, escena real). Círculo naranja: pared "
+             r"en el centro del recinto de cada cuadro (vista del observador: $x$ a su derecha, $y$ hacia la pared de enfrente). Círculo naranja: pared "
              r"interior ($R_{\mathrm{int}}$); punteado blanco: radio de contacto $R_{\mathrm{c}}$ (percentil "
              r"99,5 de $r$, centros de los robots apoyados en la pared).}",
              r"  \label{fig:cmp_ocupacion}", r"\end{figure}", r"\begin{figure}[H]", r"  \centering"]

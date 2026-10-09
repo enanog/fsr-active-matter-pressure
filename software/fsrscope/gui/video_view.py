@@ -116,8 +116,8 @@ class VideoPanel(QWidget):
         n_slow = None
         if sy.show_robots and td.robots is not None:
             n_slow = self._draw_robots(img, n)
-        if sy.mirror:
-            img = cv2.flip(img, 1)
+        if sy.view == "rot180":
+            img = cv2.rotate(img, cv2.ROTATE_180)
         self.view.set_frame(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         extra = f" · robots lentos (< {SLOW_MM_S} mm/s): {n_slow}" if n_slow is not None else ""
         self.info.setText(f"{self.src.path.name} · cuadro {n}/{self.src.frame_count - 1} · "

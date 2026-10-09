@@ -37,6 +37,33 @@ ERROR_STATUS = {"predicho (revisar)", "perdido"}
 
 
 # --------------------------------------------------------------------------- helpers
+
+# Orientation of the scene (as software/vidfetch/core/orientation.py): image-axis signs and angle factor.
+ORIENT = {"no": (1, 1, 1), "rot180": (-1, -1, 1), "horizontal": (-1, 1, -1), "vertical": (1, -1, -1)}
+ORIENT_TXT = {"no": "imagen tal como la graba la cámara", "rot180": "imagen rotada 180° (vista del observador)",
+              "horizontal": "video espejado corregido", "vertical": "video espejado corregido"}
+
+
+def orientation_of(df: pd.DataFrame) -> str:
+    """'orientacion' column (or the older 'espejo'); 'no' when absent."""
+    for c in ("orientacion", "espejo"):
+        if c in df.columns and str(df[c].iloc[0]) in ORIENT:
+            return str(df[c].iloc[0])
+    return "no"
+
+
+def orient_image(img: np.ndarray, key: str) -> np.ndarray:
+    import cv2
+    sx, sy, _ = ORIENT.get(key, (1, 1, 1))
+    if sx < 0 and sy < 0:
+        return cv2.rotate(img, cv2.ROTATE_180)
+    if sx < 0:
+        return cv2.flip(img, 1)
+    if sy < 0:
+        return cv2.flip(img, 0)
+    return img
+
+
 def tex_escape(s: str) -> str:
     rep = {"\\": r"\textbackslash{}", "_": r"\_", "%": r"\%", "&": r"\&", "#": r"\#",
            "$": r"\$", "{": r"\{", "}": r"\}", "~": r"\textasciitilde{}", "^": r"\textasciicircum{}"}
@@ -190,10 +217,9 @@ def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float,
             print(f"No se pudo leer el cuadro {frame}: se omite la captura.")
             return False
     rows = df[df["frame"] == frame]
-    # CSV un-mirrored to the real scene: undo it to draw on the (mirrored) image.
-    mir = str(df["espejo"].iloc[0]) if "espejo" in df.columns else "no"
-    sx, sy, sr = {"horizontal": (-1, 1, -1), "vertical": (1, -1, -1)}.get(mir, (1, 1, 1))
-    centred = "x_mm" in df.columns          # new format: v in the real scene with y UP
+    mir = orientation_of(df)
+    sx, sy, sr = ORIENT[mir]
+    centred = "x_mm" in df.columns          # new format: v and theta in the displayed scene, y UP
     has_video_xy = {"x_video_px", "y_video_px"} <= set(df.columns)
     xs = rows["x_video_px"] if has_video_xy else rows["x_px"]
     ys = rows["y_video_px"] if has_video_xy else rows["y_px"]
@@ -201,6 +227,18 @@ def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float,
     if centred and r_in_mm and {"xc_video_px", "yc_video_px", "mm_per_px"} <= set(rows.columns) and len(rows):
         r0 = rows.iloc[0]
         circle = (float(r0["xc_video_px"]), float(r0["yc_video_px"]), r_in_mm / float(r0["mm_per_px"]))
+    oriented = centred and has_video_xy
+    if oriented:
+        # Show the scene as the observer sees it (e.g. camera image rotated 180 deg): the CSV is in
+        # that frame, so after this everything is drawn with x right, y up, CCW positive.
+        H, W = img.shape[:2]
+        img = orient_image(img, mir)
+        xs = (W - 1) - xs if sx < 0 else xs
+        ys = (H - 1) - ys if sy < 0 else ys
+        if circle is not None:
+            circle = ((W - 1) - circle[0] if sx < 0 else circle[0], (H - 1) - circle[1] if sy < 0 else circle[1],
+                      circle[2])
+        sx = sy = sr = 1
     # Crop around the robots and the enclosure (the app's ROI is not stored in the CSV).
     m = int(2.5 * radius_px)
     x0, y0 = int(np.nanmin(xs)) - m, int(np.nanmin(ys)) - m
@@ -217,7 +255,7 @@ def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float,
         cv2.circle(crop, cc, int(round(circle[2])), (0, 0, 0), th + 2, cv2.LINE_AA)
         cv2.circle(crop, cc, int(round(circle[2])), (0, 255, 255), th, cv2.LINE_AA)
         L = int(0.22 * circle[2])
-        for d in (((sx * L, 0)), ((0, -sy * L))):      # real +x and real +y drawn on the image
+        for d in (((sx * L, 0)), ((0, -sy * L))):      # exported +x and +y drawn on the image
             tip = (cc[0] + int(d[0]), cc[1] + int(d[1]))
             cv2.arrowedLine(crop, cc, tip, (0, 0, 0), th + 2, cv2.LINE_AA, tipLength=0.15)
             cv2.arrowedLine(crop, cc, tip, (255, 255, 255), th, cv2.LINE_AA, tipLength=0.15)
@@ -236,7 +274,7 @@ def annotated_frame(video: Path, df: pd.DataFrame, frame: int, radius_px: float,
             cv2.line(crop, c, tip, (0, 0, 0), th + 2, cv2.LINE_AA)
             cv2.line(crop, c, tip, (255, 255, 255), th, cv2.LINE_AA)
         if {"vx_px_s", "vy_px_s"} <= set(row.index) and np.isfinite(row["vx_px_s"]):
-            if centred:   # real scene, y up -> image
+            if centred:   # displayed scene, y up -> image
                 v = np.array([sx * row["vx_px_s"], -sy * row["vy_px_s"]]) * (7.5 / fps)
             else:         # legacy CSV: image axes with x (or y) un-mirrored
                 v = np.array([sx * row["vx_px_s"], sy * row["vy_px_s"]]) * (7.5 / fps)
@@ -513,7 +551,7 @@ def main() -> None:
   \centering
   \includegraphics[width=0.62\linewidth]{""" + rel + r"""/captura.png}
   \caption{Cuadro de ejemplo con identificador, vector velocidad (amarillo, largo = desplazamiento en 7,5 cuadros) y orientación (aguja blanca). Círculo verde: posición observada; naranja: estimada."""
-    + (" Imagen tal como la graba la cámara (espejada); flecha y aguja dibujadas sobre ella." if "espejo" in df.columns else "")
+    + (f" {ORIENT_TXT[orientation_of(df)].capitalize()}: $x$ a la derecha, $y$ hacia arriba (lejos del observador)." if "x_mm" in df.columns else "")
     + r"""}
 \end{figure}}{}""")
     tex.append(r"""
@@ -561,7 +599,7 @@ def main() -> None:
       \addplot [only marks, mark=+, mark size=3pt, black] coordinates {(0,0)};""" if r_in_mm else "") + r"""
     \end{axis}
   \end{tikzpicture}
-  \caption{Trayectorias de los """ + str(n_rob) + r""" robots (""" + ("escena real, video espejado corregido" if "espejo" in df.columns
+  \caption{Trayectorias de los """ + str(n_rob) + r""" robots (""" + (ORIENT_TXT[orientation_of(df)] if "x_mm" in df.columns
                    else "como en el video") + (r"""; origen en el centro del recinto, $y$ hacia arriba; círculo gris: pared interior"""
                    if r_in_mm else r"""; $y$ hacia abajo""") + r""")"""
     + (f", primeros {TRAJ_WINDOW_S / 60:g} minutos reales" if traj_window else "") + r""".}

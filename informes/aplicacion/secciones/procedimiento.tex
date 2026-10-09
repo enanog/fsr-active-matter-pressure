@@ -29,14 +29,15 @@ python software/vidfetch/main.py
         \texttt{VC} ya están recortados a la arena. El rectángulo debe contener el anillo completo o casi
         completo: el recinto se detecta dentro de él.
   \item \textbf{Parámetros} (pestaña \emph{4 · Seguimiento}): cantidad de robots $N$, diámetro real del
-        robot (\SI{33}{\milli\metre}), \emph{Video espejado: horizontal}, diámetros del recinto
+        robot (\SI{33}{\milli\metre}), \emph{Orientación de la escena: Rotada 180°} (\cref{sec:orientacion}), diámetros del recinto
         (\SI{185}{} y \SI{195}{\milli\metre}), \emph{Escala desde: Recinto} y la casilla \emph{Detectar
         el recinto al analizar} marcada.
   \item \textbf{Analizar video.} En una sola lectura del video se calibra el tamaño de los robots, se
         detectan los candidatos, se mide el recinto cada \num{15}~cuadros y se hace el seguimiento.
   \item \textbf{Revisar el recinto}: con \emph{Mostrar recinto y ejes} se dibujan el borde interior
-        (amarillo), el exterior (celeste, punteado), el centro (cruz roja) y los ejes $x$, $y$ tal como caen
-        sobre la imagen (con el video espejado, $+x$ apunta a la izquierda de la imagen). El cuadro
+        (amarillo), el exterior (celeste, punteado), el centro (cruz roja) y los ejes $x$ (derecha) e $y$
+        (arriba). La vista ya está orientada como la ve el observador (rotada \SI{180}{\degree} respecto del
+        video), igual que el video exportado; los clics se convierten a píxeles del video original. El cuadro
         \emph{Recinto} muestra centro, radio, escala, $r_{\mathrm{ext}}/r_{\mathrm{int}}$ contra el
         esperado, residuo, movimiento del recinto y variación de escala. Si el círculo amarillo no apoya
         sobre el borde interior del anillo, marcarlo a mano (\cref{paso:manual}).
@@ -72,7 +73,7 @@ Al cargar una sesión guardada antes de que existiera el recinto, la aplicación
 Todas usan el tramo vigente y el sistema del recinto (\cref{sec:referencia}). Junto a cada CSV se escribe
 \texttt{<nombre>\_info.json} con el recinto (centro, radio, escala, cociente de radios, residuo,
 movimiento, variación de escala, cantidad de muestras), la fuente de la escala, $\kappa$ medido y
-aplicado, el radio de contacto, el diámetro del robot, el espejado, $\fr$, el video y el recorte.
+aplicado, el radio de contacto, el diámetro del robot, la orientación de la escena, $\fr$, el video y el recorte.
 
 \begin{itemize}
   \item \textbf{Exportar CSV (todos los robots)}: un único archivo; en el diálogo se elige \emph{una fila
@@ -117,9 +118,9 @@ aplicado, el radio de contacto, el diámetro del robot, el espejado, $\fr$, el v
     \texttt{vx\_px\_s}, \texttt{vy\_px\_s}, \texttt{speed\_px\_s} & \si{px\per\second} & velocidad en píxeles (ejes del recinto) \\
     \texttt{mm\_per\_px} & \si{\milli\metre\per px} & escala $s(n)$ del cuadro \\
     \texttt{xc\_video\_px}, \texttt{yc\_video\_px} & px & centro del recinto en ese cuadro, en píxeles del video \\
-    \texttt{x\_video\_px}, \texttt{y\_video\_px} & px & centro del robot en píxeles del video (sin espejar, $y$ hacia abajo) \\
+    \texttt{x\_video\_px}, \texttt{y\_video\_px} & px & centro del robot en píxeles del video original (sin rotar, $y$ hacia abajo) \\
     \texttt{mass}, \texttt{ring\_cov} & --- & intensidad de la detección y cobertura del anillo \\
-    \texttt{espejo} & --- & solo si se corrigió el espejado: \texttt{horizontal} o \texttt{vertical} \\
+    \texttt{orientacion} & --- & orientación de la escena (\cref{tab:orientacion}): \texttt{rot180}, \texttt{no}, \texttt{horizontal} o \texttt{vertical}; los CSV anteriores traían \texttt{espejo} \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -166,7 +167,7 @@ escribe los mismos archivos que la interfaz. Es la forma de regenerar las trayec
 python software/vidfetch/tools/reexportar.py ^
        datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
        --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
-       --espejo horizontal --ventana 5 --diametro-robot 33 --escala recinto ^
+       --orientacion rot180 --ventana 5 --diametro-robot 33 --escala recinto ^
        --cuadros-por-segundo 3 ^
        --salida datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
        --resumen --guardar-sesion
@@ -185,7 +186,7 @@ python software/vidfetch/tools/reexportar.py ^
     \texttt{-{}-salida} & CSV largo (por defecto \texttt{<sesión>\_robots.csv}); también escribe \texttt{\_info.json} \\
     \texttt{-{}-resumen} & escribe además \texttt{<salida>\_resumen.csv} \\
     \texttt{-{}-por-robot CARPETA} & un CSV por robot en esa carpeta \\
-    \texttt{-{}-espejo}, \texttt{-{}-ventana}, \texttt{-{}-diametro-robot} & como en la pestaña \emph{Seguimiento} \\
+    \texttt{-{}-orientacion}, \texttt{-{}-ventana}, \texttt{-{}-diametro-robot} & como en la pestaña \emph{Seguimiento} (\texttt{-{}-orientacion rot180|no|horizontal|vertical}; acepta también \texttt{-{}-espejo}) \\
     \texttt{-{}-escala recinto|perspectiva|robot} & fuente de la escala (\cref{sec:recinto}, punto 6) \\
     \texttt{-{}-cuadros-por-segundo} & $\fr$ \\
     \texttt{-{}-d-int}, \texttt{-{}-d-ext} & diámetros del recinto [\si{\milli\metre}] (por defecto 185 y 195) \\
@@ -228,18 +229,19 @@ lugar de \texttt{\^{}} (que es la continuación de \texttt{cmd}). Escribe en
   \item \nolinkurl{cinematica_<código>.txt}: los controles numéricos.
 \end{itemize}
 Todas las imágenes llevan una \textbf{cuadrícula en milímetros del sistema del recinto} (líneas de $x$ e
-$y$ constantes de la escena real, origen en el centro, $y$ hacia arriba), calculada con la escala y el centro
+$y$ constantes de la escena vista por el observador, origen en el centro, $y$ hacia arriba), calculada con la escala y el centro
 de cada cuadro: \SI{10}{\milli\metre} en el panel A (valores sobre los ejes cada \SI{20}{\milli\metre},
 líneas rojas $x=0$ e $y=0$), \SI{5}{\milli\metre} en el panel B (rotulada cada \SI{20}{\milli\metre}) y
 \SI{1}{\milli\metre} en el panel C (rotulada cada \SI{5}{\milli\metre}). Sobre ella se lee directamente
 la posición de cualquier robot y se compara con el CSV. Qué mirar:
 \begin{itemize}
-  \item \textbf{Panel A (ejes y origen).} El cuadro se des-espeja (queda como la escena real vista desde
-        arriba) y cada robot se redibuja \emph{solo} con \texttt{x\_mm}, \texttt{y\_mm}:
-        $u = X_c' + x/s$, $v = Y_c - y/s$. Se dibujan además el recinto, el centro y los ejes $+x$
+  \item \textbf{Panel A (ejes y origen).} El cuadro se orienta como lo ve el observador (columna
+        \texttt{orientacion}: rotado \SI{180}{\degree} en este proyecto) y cada robot se redibuja \emph{solo}
+        con \texttt{x\_mm}, \texttt{y\_mm}: $u = X_c' + x/s$, $v = Y_c' - y/s$, con $(X_c', Y_c')$ el centro
+        del recinto en la imagen orientada. Se dibujan además el recinto, el centro y los ejes $+x$
         (derecha) y $+y$ (arriba), y se escriben las coordenadas de tres robots. Cada círculo tiene que
         caer sobre su robot y las coordenadas tienen que tener el signo que corresponde al cuadrante donde
-        se ve el robot. Un error de origen, de espejado, de signo de $y$ o de escala desplazaría o achicaría
+        se ve el robot. Un error de origen, de orientación, de signo de $y$ o de escala desplazaría o achicaría
         los círculos.
   \item \textbf{Panel B (desplazamiento y velocidad).} Para los cuatro robots que más se mueven (o los de
         \texttt{-{}-robots}), la flecha amarilla en el cuadro $t$ es la integral de la velocidad del CSV,
@@ -254,11 +256,13 @@ la posición de cualquier robot y se compara con el CSV. Qué mirar:
         rechazo por MAD (descarta los rayos tapados por vecinos, LED, conectores o la pared). Las dos
         cruces tienen que coincidir dentro de \SI{1}{\milli\metre} aproximadamente.
   \item \textbf{Controles numéricos (en el \texttt{.txt}).} (1) $x$, $y$ reconstruidos desde
-        \texttt{x\_video\_px}, \texttt{xc\_video\_px}, \texttt{mm\_per\_px} y el espejado; (2) integral de
+        \texttt{x\_video\_px}, \texttt{xc\_video\_px}, \texttt{mm\_per\_px} y la orientación; (2) integral de
         $\vec v$ en \SI{10}{\second} contra el desplazamiento, para todos los robots cada \SI{30}{\second};
         (3) velocidad exportada contra una diferencia finita cruda de los píxeles del video
         ($\pm 3$~cuadros, sin Savitzky--Golay): la pendiente da el signo y la escala de los ejes; (4) radio
-        de contacto contra $R_{\mathrm{int}}-D/2$ y signo de $\overline{\omega}$; (5) el centro del borde
+        de contacto contra $R_{\mathrm{int}}-D/2$ y signo de $\overline{\omega}$ contra el giro programado
+        (modo \texttt{QR}: antihorario; otro modo, \texttt{-{}-giro-esperado}): si no coincide, la orientación
+        está mal elegida (un espejado invierte el sentido); (5) el centro del borde
         del panel C sobre todos los robots detectados de 20 cuadros: distancia al centro exportado
         (mediana y p90; \texttt{OK} si la mediana es menor que \SI{1}{\milli\metre}), diámetro del cuerpo
         medido (control de escala independiente del recinto) y componente radial de la diferencia ajustada
@@ -272,9 +276,9 @@ altura, unos segundos de:
   \item \textbf{Distancia conocida}: un robot quieto movido a mano a lo largo de una regla una distancia
         medida (por ejemplo \SI{50}{\milli\metre}). La diferencia de \texttt{x\_mm}, \texttt{y\_mm} entre el
         antes y el después tiene que dar esa distancia (verifica la escala y la perspectiva).
-  \item \textbf{Ejes y espejado}: un papel con una flecha y una letra asimétrica (``R'') apuntando a un
-        lugar identificable del laboratorio (la protoboard, la puerta). En el panel A la letra tiene que
-        leerse bien y, si se empuja un robot en el sentido de la flecha, el desplazamiento exportado tiene
+  \item \textbf{Ejes y orientación}: un papel con una flecha y una letra asimétrica (``R'') apuntando a la
+        pared de enfrente del observador. En el panel A la letra tiene que leerse bien y derecha, la flecha
+        apuntar hacia $+y$ y, si se empuja un robot en el sentido de la flecha, el desplazamiento exportado tiene
         que apuntar en esa dirección.
   \item \textbf{Velocidad}: el mismo robot empujado a ritmo aproximadamente constante a lo largo de la
         regla durante un tiempo cronometrado; \texttt{speed\_mm\_s} medio tiene que dar distancia/tiempo.

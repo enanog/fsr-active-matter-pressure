@@ -11,12 +11,13 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QScrollArea, QSpinBox, QVBoxLayout, QWidget)
 
 from core import arena as ar
+from core import orientation as ori
 from core.calibration import GAP_GROWTH_PER_R
 from core.detection import DetectionParams
 from core.kinematics import (ARROW_NOTE, MIRROR_LABELS, MIRROR_NONE, SCALE_ARENA, SCALE_LABELS,
                              KinematicsParams)
 from core.tracking import (CANDIDATE_MIN_COVERAGE, STATUS_COLORS, STATUS_LABELS, Status,
-                           SessionView, TrackerParams, TrackingSession, draw_tracks)
+                           SessionView, TrackerParams, TrackingSession, draw_oriented)
 from core.video_io import VideoInfo
 from gui.frame_view import ClickFrameView
 from gui.player import PlayerWidget
@@ -208,9 +209,12 @@ class TrackingTab(QWidget):
         self.cb_mirror = QComboBox()
         for key, text in MIRROR_LABELS.items():
             self.cb_mirror.addItem(text, key)
-        self.cb_mirror.setToolTip("Si la cámara graba la escena espejada, las exportaciones (CSV, resumen e "
-                                  "informes) se pasan a la escena real: se refleja la posición y se invierte el "
-                                  "sentido de θ y ω. La superposición sobre el video no cambia.")
+        self.cb_mirror.setToolTip("Cómo se muestra la escena y en qué sistema se exporta. 'Rotada 180°': el "
+                                  "observador está parado en el borde superior del video (y = 0) mirando hacia "
+                                  "el inferior; la imagen se gira para verla desde ahí, x queda a su derecha, y "
+                                  "hacia la pared de enfrente y el sentido de giro no cambia. 'Espejada': para "
+                                  "cámaras que graban la escena reflejada (invierte el sentido de θ y ω). El "
+                                  "análisis siempre se hace sobre la imagen original.")
         self.chk_vel = QCheckBox("Mostrar vector velocidad"); self.chk_vel.setChecked(True)
         self.chk_rot = QCheckBox("Mostrar orientación"); self.chk_rot.setChecked(True)
         self.lbl_kin = QLabel(ARROW_NOTE)
@@ -219,7 +223,7 @@ class TrackingTab(QWidget):
         kf = QFormLayout(kin_box)
         kf.addRow("Suavizado", self.sp_window)
         kf.addRow("Diámetro real", self.sp_diam)
-        kf.addRow("Video espejado", self.cb_mirror)
+        kf.addRow("Orientación de la escena", self.cb_mirror)
         self.cb_scale = QComboBox()
         for key, text in SCALE_LABELS.items():
             self.cb_scale.addItem(text, key)
@@ -282,6 +286,7 @@ class TrackingTab(QWidget):
         self.sp_window.valueChanged.connect(self._kin_debounce.start)
         self.sp_diam.valueChanged.connect(self._kin_debounce.start)
         self.cb_mirror.currentIndexChanged.connect(self._kin_debounce.start)
+        self.cb_mirror.currentIndexChanged.connect(lambda _i: self.player.refresh())
         self.cb_scale.currentIndexChanged.connect(self._kin_debounce.start)
         self.btn_arena_detect.clicked.connect(self.arenaDetectRequested)
         self.btn_arena_manual.toggled.connect(self._set_manual_mode)
@@ -549,7 +554,12 @@ class TrackingTab(QWidget):
             self.lbl_hint.setText(f"2) Robot <b>#{self._selected}</b> seleccionado: hacé clic en su centro "
                                   "real. El seguimiento continúa desde ese punto. Esc cancela.")
 
+    def _orientation(self) -> str:
+        return ori.valid(self.cb_mirror.currentData())
+
     def _on_click(self, x: float, y: float) -> None:
+        roi0 = self.session.roi if self.session is not None else self.state.roi
+        x, y = (float(v) for v in ori.points(x, y, roi0.w, roi0.h, self._orientation()))   # display -> image
         if self._manual_mode:
             roi = self.session.roi if self.session is not None else self.state.roi
             self._manual_pts.append((x + roi.x, y + roi.y))
@@ -594,30 +604,34 @@ class TrackingTab(QWidget):
             return img
         roi = self.session.roi if self.session is not None else self.state.roi
         a = self.arena.arena_at(self.player.current_index) if (self.arena is not None and self.arena.defined) else None
-        mirror = self.cb_mirror.currentData() or MIRROR_NONE
+        key = self._orientation()
+        h, w = img.shape[:2]
         if a is None:
             if not self._manual_pts:
                 return img
             out = img.copy() if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
             for (px, py) in self._manual_pts:
-                cv2.circle(out, (int(round(px - roi.x)), int(round(py - roi.y))), 4, (255, 0, 255), -1, cv2.LINE_AA)
+                qx, qy = ori.points(px - roi.x, py - roi.y, w, h, key)
+                cv2.circle(out, (int(round(float(qx))), int(round(float(qy)))), 4, (255, 0, 255), -1, cv2.LINE_AA)
             return out
-        return ar.draw(img, a, (roi.x, roi.y), mirror, self._manual_pts)
+        a, pts = ar.oriented(a, (roi.x, roi.y), (w, h), key, self._manual_pts)
+        return ar.draw(img, a, (roi.x, roi.y), ori.NONE, pts)     # img is already oriented
 
     def _transform_tracks(self, frame: np.ndarray) -> np.ndarray:
         s, v = self.session, self._sv
         roi = s.roi if s is not None else self.state.roi
         crop = roi.apply(frame)
+        key = self._orientation()
         if s is None or v is None:
-            return crop
+            return ori.image(crop, key)
         i = v.result.row_of(self.player.current_index)
         if i is None:
-            return crop
+            return ori.image(crop, key)
         res, kin = v.result, v.kin
         xy = np.stack([res.x[i], res.y[i]], 1) - np.array([roi.x, roi.y])
         vel = np.stack([kin.vx[i], kin.vy[i]], 1) if (kin is not None and self.chk_vel.isChecked()) else None
         ang = kin.theta[i] if (kin is not None and self.chk_rot.isChecked() and s.has_rotation) else None
-        return draw_tracks(crop, xy, res.status[i], s.detection.r_out, self._selected, vel, ang, fps=s.fps)
+        return draw_oriented(crop, key, xy, res.status[i], s.detection.r_out, self._selected, vel, ang, fps=s.fps)
 
     # ------------------------------------------------------------------ enclosure
     def diameters(self) -> tuple[float, float]:

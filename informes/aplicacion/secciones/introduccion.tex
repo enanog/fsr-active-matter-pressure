@@ -96,7 +96,7 @@ un único objeto de estado (\texttt{gui/state.py}): lo que se define en una se r
         vinculadas con \texttt{trackpy.link} y el video procesado.
   \item \textbf{Seguimiento}: análisis completo con $N$ fijo, lista de cuadros con problemas,
         corrección manual del centro, recinto (detección automática, marcado manual, diámetros),
-        parámetros de cinemática (ventana de suavizado, diámetro real, video espejado, fuente de la
+        parámetros de cinemática (ventana de suavizado, diámetro real, orientación de la escena, fuente de la
         escala), superposición de velocidad, orientación y recinto, y exportaciones.
 \end{enumerate}
 
@@ -115,7 +115,7 @@ un único objeto de estado (\texttt{gui/state.py}): lo que se define en una se r
     \texttt{.mp4} (\texttt{mp4v}), \texttt{.avi} (MJPG) & salida & video recortado, procesado o con el seguimiento dibujado \\
     \texttt{.csv} & salida & posiciones de la pestaña \emph{Procesar}; seguimiento completo en formato largo o ancho;
                             un robot; un archivo por robot; resumen por robot (\cref{tab:columnas,tab:resumen}) \\
-    \texttt{\_info.json} & salida & junto a cada CSV: recinto, escala, convenciones, $\kappa$, espejado, $\fr$ \\
+    \texttt{\_info.json} & salida & junto a cada CSV: recinto, escala, convenciones, $\kappa$, orientación, $\fr$ \\
     \texttt{.npz} & entrada y salida & sesión de análisis: candidatos, firmas de rotación, anclas manuales,
                                        recinto y parámetros (NumPy comprimido, sin \texttt{pickle}) \\
     \texttt{.tex}, \texttt{.csv}, \texttt{.png} & salida & secciones de informe generadas por los scripts de \texttt{software/analisis\_video/} \\

@@ -12,30 +12,35 @@ Output (datos/video/verificacion/, or next to --salida):
   cinematica_<code>_centros.png   panel C (robot centres, 1 mm grid)
   cinematica_<code>.txt           numeric checks
 
-Panel A (axes and origin): the frame is flipped back to the REAL scene (if the video is mirrored) and
-every robot is redrawn from x_mm, y_mm only: u = xc' + x/s, v = yc - y/s. The enclosure, its centre and
-the +x (right) / +y (up) axes are drawn too. If origin, mirror, axis signs or scale were wrong, the
-circles would not sit on the robots.
+Orientation: every image is shown as the scene is seen by the observer (column 'orientacion' of the
+CSV, see core/orientation.py; rot180 = the camera image rotated 180 deg, as seen standing at the top
+edge of the video). The CSV frame is that view: x right, y up (away from the observer), CCW positive.
+Panel A (axes and origin): the oriented frame with every robot redrawn from x_mm, y_mm only:
+u = xc' + x/s, v = yc' - y/s. The enclosure, its centre and the +x (right) / +y (up) axes are drawn
+too. If origin, orientation, axis signs or scale were wrong, the circles would not sit on the robots.
 Panel B (displacement and velocity): for a few moving robots, the CSV velocity is integrated over
 [t, t + delta] (trapezoid): the yellow arrow on frame t ends where the robot should be at t + delta.
 On frame t + delta the yellow circle is that prediction and the green one the exported position: the
 real robot must be inside both.
-Grid: lines of constant x and y of the enclosure frame (real scene, mm): every 10 mm, labelled every
+Grid: lines of constant x and y of the enclosure frame (displayed scene, mm): every 10 mm, labelled every
 50 mm on the full frame; every 1 mm, labelled every 5 mm on the close-ups. Positions can be read on it.
 Panel C (centres): close-ups of several robots (--centros, or spread over the layers) with the exported
 centre (red cross, coordinates printed) and an INDEPENDENT centre: a circle fitted to the robot body
-directly on the image (Hough transform, cyan). Both must coincide; the .txt gives the statistics of
+directly on the image (outer edge of the dark body, cyan). Both must coincide; the .txt gives the statistics of
 their distance over many robots and frames.
 Numeric checks (printed and saved in the .txt):
-  1. x_mm, y_mm rebuilt from x_video_px, xc_video_px, mm_per_px and the mirror (transform consistency);
+  1. x_mm, y_mm rebuilt from x_video_px, xc_video_px, mm_per_px and the orientation (transform consistency);
   2. integral of v over 10 s vs the exported displacement (all robots, every 30 s);
   3. exported v vs a raw central difference of x_video_px (independent of the Savitzky-Golay filter);
-  4. contact radius q99.5(r) vs R_int - D/2 (scale/perspective) and sign of the mean omega.
+  4. contact radius q99.5(r) vs R_int - D/2 (scale/perspective) and sign of the mean omega against the
+     programmed spin (QR = counter-clockwise);
+  5. exported centres vs independent body-edge centres (distance, body diameter, radial bias).
 """
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -44,7 +49,7 @@ import numpy as np
 import pandas as pd
 
 COLS = ["frame", "t_s", "particle", "status", "x_mm", "y_mm", "r_mm", "vx_mm_s", "vy_mm_s", "speed_mm_s",
-        "omega_deg_s", "mm_per_px", "xc_video_px", "yc_video_px", "x_video_px", "y_video_px", "espejo"]
+        "omega_deg_s", "mm_per_px", "xc_video_px", "yc_video_px", "x_video_px", "y_video_px", "orientacion", "espejo"]
 YELLOW, GREEN, CYAN, WHITE, RED, BLACK = (0, 230, 255), (0, 200, 0), (255, 200, 0), (255, 255, 255), (0, 0, 255), (0, 0, 0)
 
 
@@ -62,7 +67,7 @@ def arrow(img, p0, p1, col, th=2):
 def draw_grid(img: np.ndarray, sc: "Scene", frame: int, x0: float, y0: float, zoom: float,
               minor: float, major: float, label: bool = True, alpha: float = 0.5,
               clip_r_mm: float | None = None, axis_step: float = 0.0, label_y: int = 14) -> np.ndarray:
-    """mm grid of the enclosure frame on `img` = de-mirrored frame cropped at (x0, y0) and scaled by `zoom`.
+    """mm grid of the enclosure frame on `img` = oriented frame cropped at (x0, y0) and scaled by `zoom`.
 
     Labels go on the image border every `major` mm, or along the axes x = 0, y = 0 every `axis_step` mm.
     """
@@ -126,32 +131,46 @@ def draw_grid(img: np.ndarray, sc: "Scene", frame: int, x0: float, y0: float, zo
     return out
 
 
+# Orientation of the scene (same table as software/vidfetch/core/orientation.py, kept here so that this
+# tool needs only OpenCV, NumPy and pandas): image-axis signs (sx, sy) and factor for angles.
+ORIENT = {"no": (1, 1, 1), "rot180": (-1, -1, 1), "horizontal": (-1, 1, -1), "vertical": (1, -1, -1)}
+ORIENT_TXT = {"no": "imagen tal como la graba la camara", "rot180": "imagen rotada 180 grados (vista del observador)",
+              "horizontal": "video espejado corregido", "vertical": "video espejado corregido"}
+
+
+def orientation_of(df: pd.DataFrame) -> str:
+    for c in ("orientacion", "espejo"):
+        if c in df.columns and str(df[c].iloc[0]) in ORIENT:
+            return str(df[c].iloc[0])
+    return "no"
+
+
 class Scene:
-    """Maps the CSV (real scene, mm, origin at the enclosure centre, y up) onto the de-mirrored frame."""
+    """Maps the CSV (displayed scene, mm, origin at the enclosure centre, y up) onto the oriented frame."""
 
     def __init__(self, df: pd.DataFrame, width: int, height: int):
-        self.mirror = str(df["espejo"].iloc[0]) if "espejo" in df.columns else "no"
+        self.mirror = orientation_of(df)
+        self.sx, self.sy, self.srot = ORIENT[self.mirror]
         self.W, self.H = width, height
         f0 = df.groupby("frame")[["xc_video_px", "yc_video_px", "mm_per_px"]].first()
         self.cx, self.cy, self.s = f0["xc_video_px"], f0["yc_video_px"], f0["mm_per_px"]
 
     def real_image(self, img: np.ndarray) -> np.ndarray:
-        if self.mirror == "horizontal":
+        """Camera frame -> frame as the observer sees it."""
+        if self.sx < 0 and self.sy < 0:
+            return cv2.rotate(img, cv2.ROTATE_180)
+        if self.sx < 0:
             return cv2.flip(img, 1)
-        if self.mirror == "vertical":
+        if self.sy < 0:
             return cv2.flip(img, 0)
         return img.copy()
 
     def centre(self, frame: int) -> tuple[float, float]:
         cx, cy = float(self.cx[frame]), float(self.cy[frame])
-        if self.mirror == "horizontal":
-            cx = self.W - 1 - cx
-        elif self.mirror == "vertical":
-            cy = self.H - 1 - cy
-        return cx, cy
+        return (cx if self.sx > 0 else self.W - 1 - cx), (cy if self.sy > 0 else self.H - 1 - cy)
 
     def to_px(self, frame: int, x_mm, y_mm):
-        """Real-scene mm -> pixel of the de-mirrored frame (x right, y down on screen)."""
+        """Scene mm -> pixel of the oriented frame (x right, y down on screen)."""
         cx, cy = self.centre(frame)
         s = float(self.s[frame])
         return cx + np.asarray(x_mm) / s, cy - np.asarray(y_mm) / s
@@ -196,9 +215,8 @@ def panel_axes(cap, sc: Scene, df: pd.DataFrame, frame: int, r_in_mm: float, d_m
     W = img.shape[1]
     head = np.zeros((70, W, 3), np.uint8)
     text(head, f"A. Ejes y origen - cuadro {frame} (t = {rows['t_s'].iloc[0] / 60:.1f} min)", (10, 28), 0.8, WHITE, 2)
-    text(head, "escena real" + (" (video des-espejado)" if sc.mirror != "no" else "") +
-         "; cuadricula cada 10 mm (gruesa cada 50 mm), valores sobre los ejes en mm; rojo: x = 0, y = 0; "
-         "cruz roja = (x_mm, y_mm) exportado", (10, 56), 0.5)
+    text(head, ORIENT_TXT[sc.mirror] + ": x derecha, y arriba (lejos del observador); cuadricula 10 mm "
+         "(gruesa 50 mm); rojo: x = 0, y = 0; cruz = (x_mm, y_mm)", (10, 56), 0.5)
     foot = np.zeros((40, W, 3), np.uint8)
     text(foot, "   ".join(f"#{int(r_['particle'])}: x = {r_['x_mm']:+.1f}, y = {r_['y_mm']:+.1f} mm"
                           for _, r_ in pick.iterrows()), (10, 27), 0.65, YELLOW, 2)
@@ -277,7 +295,7 @@ def panel_moves(cap, sc: Scene, df: pd.DataFrame, moves, delta_f: int, d_mm: flo
     grid = np.vstack(rows)
     head = np.zeros((34, grid.shape[1], 3), np.uint8)
     text(head, f"B. Desplazamiento: flecha amarilla = integral de v del CSV en {delta_f / fps:.0f} s; "
-               "en t+dt: amarillo = prediccion, verde = posicion exportada; cuadricula 5 mm (gruesa y rotulada cada 20 mm)", (6, 22), 0.5)
+               "en t+dt: amarillo = prediccion, verde = exportada; cuadricula 5 mm", (6, 22), 0.5)
     return np.vstack([head, grid]), lines
 
 
@@ -385,7 +403,7 @@ def panel_centres(cap, sc: Scene, df: pd.DataFrame, frame: int, robots: list[int
     sep = lambda t: np.hstack([t, np.zeros((t.shape[0], 6, 3), np.uint8)])  # noqa: E731
     grid = np.vstack([np.hstack([sep(t) for t in tiles[i:i + cols]]) for i in range(0, len(tiles), cols)])
     head = np.zeros((70, grid.shape[1], 3), np.uint8)
-    text(head, f"C. Centros - cuadro {frame} (t = {rows['t_s'].iloc[0] / 60:.2f} min), escena real", (10, 28), 0.8, WHITE, 2)
+    text(head, f"C. Centros - cuadro {frame} (t = {rows['t_s'].iloc[0] / 60:.2f} min), {ORIENT_TXT[sc.mirror]}", (10, 28), 0.8, WHITE, 2)
     text(head, "rojo = centro exportado (x_mm, y_mm); verde = robot de 33 mm centrado ahi; celeste = borde del cuerpo "
                "medido en la imagen (puntos) y circulo ajustado (x); cuadricula 1 mm, rotulada cada 5 mm", (10, 56), 0.55)
     return np.vstack([head, grid]), lines
@@ -431,11 +449,19 @@ def centre_statistics(cap, sc: Scene, df: pd.DataFrame, d_mm: float, n_frames: i
                "sesgo radial: el centro exportado y el del borde se separan con r (perspectiva entre alturas)"))
 
 
-def numeric_checks(df: pd.DataFrame, fps: float, r_in_mm: float, d_mm: float) -> list[str]:
+# Programmed spin of each motion mode (code ..._22QR_60): QR = right motor only = counter-clockwise seen
+# from above (confirmed on the 2026-09 videos). Other modes: pass --giro-esperado.
+EXPECTED_SPIN = {"QR": "antihorario"}
+
+
+def expected_spin(code: str) -> str:
+    m = re.search(r"_\d+([A-Z]+)_\d+$", code)
+    return EXPECTED_SPIN.get(m.group(1), "") if m else ""
+
+
+def numeric_checks(df: pd.DataFrame, fps: float, r_in_mm: float, d_mm: float, expected: str = "") -> list[str]:
     out = []
-    mir = str(df["espejo"].iloc[0]) if "espejo" in df.columns else "no"
-    sx = -1.0 if mir == "horizontal" else 1.0
-    sy = -1.0 if mir == "vertical" else 1.0
+    sx, sy, _ = ORIENT[orientation_of(df)]
     x = df["mm_per_px"] * sx * (df["x_video_px"] - df["xc_video_px"])
     y = -df["mm_per_px"] * sy * (df["y_video_px"] - df["yc_video_px"])
     e = max(float(np.nanmax(np.abs(x - df["x_mm"]))), float(np.nanmax(np.abs(y - df["y_mm"]))))
@@ -485,7 +511,14 @@ def numeric_checks(df: pd.DataFrame, fps: float, r_in_mm: float, d_mm: float) ->
     out.append(f"4. Radio de contacto q99.5(r) = {rc:.1f} mm vs R_int - D/2 = {r_in_mm - d_mm / 2:.1f} mm "
                f"(diferencia {100 * (rc / (r_in_mm - d_mm / 2) - 1):+.1f} %: perspectiva, esperado ~ +2,5 %)")
     w = float(df["omega_deg_s"].mean())
-    out.append(f"   omega media = {w:+.2f} grados/s ({'horario' if w < 0 else 'antihorario'}; en modo QR se espera horario)")
+    net = df.groupby("particle")["omega_deg_s"].mean()
+    n_ccw, n_cw = int((net > 0).sum()), int((net < 0).sum())
+    sense = "antihorario" if w > 0 else "horario"
+    line = (f"   omega media = {w:+.2f} grados/s ({sense}, visto desde arriba); robots con giro neto antihorario / "
+            f"horario: {n_ccw} / {n_cw}")
+    if expected:
+        line += f"; esperado {expected} -> {'OK' if sense == expected else 'REVISAR (¿espejado?)'}"
+    out.append(line)
     return out
 
 
@@ -496,6 +529,8 @@ def main() -> None:
     ap.add_argument("--cuadro", type=int, help="cuadro del panel A (por defecto, el del medio)")
     ap.add_argument("--robots", default="", help="robots del panel B separados por coma (por defecto, los 4 que más se mueven)")
     ap.add_argument("--delta", type=float, default=5.0, help="intervalo del panel B en segundos reales (def. 5)")
+    ap.add_argument("--giro-esperado", choices=["antihorario", "horario", "ninguno"],
+                    help="sentido de giro programado (por defecto, del modo del código: QR = antihorario)")
     ap.add_argument("--centros", default="", help="robots del panel C separados por coma (por defecto, 6 repartidos por capa)")
     ap.add_argument("--salida", type=Path, help="PNG de salida (por defecto datos/video/verificacion/cinematica_<código>.png)")
     a = ap.parse_args()
@@ -504,7 +539,7 @@ def main() -> None:
         df = pd.read_csv(a.csv, usecols=lambda c: c in COLS)
     except Exception as exc:
         sys.exit(f"No se pudo leer {a.csv}: {exc}")
-    missing = set(COLS) - set(df.columns) - {"espejo"}
+    missing = set(COLS) - set(df.columns) - {"espejo", "orientacion"}
     if missing:
         sys.exit(f"Faltan columnas {sorted(missing)}: el CSV es anterior al recinto; reexportalo con tools/reexportar.py.")
     info_p = a.csv.with_name(a.csv.stem + "_info.json")
@@ -549,8 +584,9 @@ def main() -> None:
     save(out, out_img)
     save(out.with_name(out.stem + "_ejes.png"), A)
     save(out.with_name(out.stem + "_centros.png"), C)
-    lines = [f"Verificación de cinemática: {a.csv.name} (fr = {fps:g} cuadros/s, espejo: {sc.mirror})"]
-    lines += numeric_checks(df, fps, r_in_mm, d_mm)
+    lines = [f"Verificación de cinemática: {a.csv.name} (fr = {fps:g} cuadros/s, orientación: {sc.mirror} = {ORIENT_TXT[sc.mirror]})"]
+    expected = a.giro_esperado or expected_spin(code)
+    lines += numeric_checks(df, fps, r_in_mm, d_mm, "" if expected == "ninguno" else expected)
     lines += [stat_line]
     lines += ["Panel B:"] + ["   " + s_ for s_ in move_lines]
     lines += [f"Panel C (cuadro {f_axes}):"] + ["   " + s_ for s_ in centre_lines]

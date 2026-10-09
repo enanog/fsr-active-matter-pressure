@@ -24,6 +24,7 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 
 from core import arena as arena_mod
+from core import orientation as ori
 from core import detection as det
 from core.analysis import FrameProcessor, scan_video
 from core.models import Roi, TrimRange
@@ -505,6 +506,21 @@ def _outlined_line(img, p0, p1, col, th, arrow=False):
     f(img, p0, p1, col, th, cv2.LINE_AA, **kw)
 
 
+def draw_oriented(img: np.ndarray, key: str, xy: np.ndarray, status: np.ndarray, radius: float,
+                  selected: Optional[int] = None, velocity: Optional[np.ndarray] = None,
+                  theta_deg: Optional[np.ndarray] = None, fps: float = 30.0) -> np.ndarray:
+    """draw_tracks on the oriented image (core.orientation); inputs in raw `img` pixel coordinates."""
+    h, w = img.shape[:2]
+    out = ori.image(img, key)
+    qx, qy = ori.points(xy[:, 0], xy[:, 1], w, h, key)
+    vel = None
+    if velocity is not None:
+        vx, vy = ori.vectors(velocity[:, 0], velocity[:, 1], key)
+        vel = np.column_stack([vx, vy])
+    ang = None if theta_deg is None else ori.signs(key)[2] * np.asarray(theta_deg, float)
+    return draw_tracks(out, np.column_stack([qx, qy]), status, radius, selected, vel, ang, fps=fps)
+
+
 def draw_tracks(img: np.ndarray, xy: np.ndarray, status: np.ndarray, radius: float,
                 selected: Optional[int] = None, velocity: Optional[np.ndarray] = None,
                 theta_deg: Optional[np.ndarray] = None, fps: float = 30.0) -> np.ndarray:
@@ -659,7 +675,8 @@ class TrackingSession:
                 "cuadros": [int(v.result.frames[0]), int(v.result.frames[-1])] if v is not None else None,
                 "cuadros_por_segundo_real": self.fps,
                 "convencion": ("origen en el centro del recinto en cada cuadro; x a la derecha, y hacia arriba; "
-                               "escena real (espejado corregido); ángulos positivos antihorarios; "
+                               "escena vista por el observador (ver 'orientacion'); ángulos positivos "
+                               "antihorarios; "
                                "theta = 0 en el primer cuadro del tramo"),
                 "recinto": self.arena.stats() if self.arena is not None else None}
         if kin is not None:
@@ -667,7 +684,8 @@ class TrackingSession:
                          "mm_por_px_mediana": kin.mm_per_px, "kappa_perspectiva_aplicado": kin.kappa,
                          "kappa_perspectiva_medido": kin.kappa_measured,
                          "r_contacto_sobre_r_int": kin.r_contact_rel,
-                         "diametro_robot_mm": kin.robot_diameter_mm, "espejo": kin.mirror})
+                         "diametro_robot_mm": kin.robot_diameter_mm, "orientacion": kin.mirror,
+                         "orientacion_descripcion": ori.DESCRIPTION[ori.valid(kin.mirror)]})
         return info
 
     def summary_dataframe(self, view: Optional[SessionView] = None) -> pd.DataFrame:
@@ -686,24 +704,26 @@ class TrackingSession:
 
     def annotator(self, view: Optional[SessionView] = None, show_velocity: bool = True,
                   show_orientation: bool = True, show_arena: bool = True) -> Callable[[np.ndarray, int], np.ndarray]:
-        """Thread-safe overlay callable (frame crop, frame index) -> annotated crop."""
+        """Thread-safe overlay callable (frame crop, frame index) -> annotated crop, ORIENTED as the
+        scene is shown (core.orientation: e.g. rotated 180 deg), with labels drawn upright."""
         v = view or self.view()
         if v is None:
             raise RuntimeError("No hay resultados de seguimiento.")
         res, kin, roi, r = v.result, v.kin, self.roi, self.detection.r_out
         off = np.array([roi.x, roi.y])
+        key = ori.valid(getattr(self.kin_params, "mirror", ori.NONE) if self.kin_params is not None else ori.NONE)
 
         def annotate(img: np.ndarray, idx: int) -> np.ndarray:
             i = res.row_of(idx)
             if i is None:
-                return img
+                return ori.image(img, key)
             vel = np.stack([kin.vx[i], kin.vy[i]], 1) if (kin is not None and show_velocity) else None
             ang = kin.theta[i] if (kin is not None and show_orientation and self.has_rotation) else None
             xy = np.stack([res.x[i], res.y[i]], 1) - off
-            out = draw_tracks(img, xy, res.status[i], r, velocity=vel, theta_deg=ang, fps=self.fps)
+            out = draw_oriented(img, key, xy, res.status[i], r, velocity=vel, theta_deg=ang, fps=self.fps)
             if show_arena and self.arena is not None and self.arena.defined:
-                mirror = getattr(self.kin_params, "mirror", "no") if self.kin_params is not None else "no"
-                out = arena_mod.draw(out, self.arena.arena_at(idx), (roi.x, roi.y), mirror)
+                a, _ = arena_mod.oriented(self.arena.arena_at(idx), (roi.x, roi.y), img.shape[1::-1], key)
+                out = arena_mod.draw(out, a, (roi.x, roi.y), ori.NONE)
             return out
         return annotate
 

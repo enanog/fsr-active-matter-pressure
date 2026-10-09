@@ -5,7 +5,9 @@ For a few robots, crops the robot from the cropped video (VC_) every few minutes
   2. the crop rotated back by -theta computed with short links only (previous method),
   3. the crop rotated back by -theta computed with long-range links (current method).
 If theta is right, rows 2/3 look identical across columns (same marks in the same place).
-The red tick marks 12 o'clock; theta is relative to the first column, CCW on screen (image coords).
+The red tick marks 12 o'clock; theta is relative to the first column, CCW positive. The crops are shown
+in the orientation of the session (core.orientation; rot180 = as the observer sees the scene), and the
+printed angles follow it (a rotation keeps their sign, a mirror reverses it).
 
 Usage (from the repository root):
   python software/vidfetch/tools/verificar_giro.py datos/video/sesiones/VA_<code>_analisis.npz \
@@ -23,6 +25,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core import kinematics as km  # noqa: E402
+from core import orientation as ori  # noqa: E402
 from core.tracking import TrackingSession  # noqa: E402
 from core.video_io import VideoReader  # noqa: E402
 
@@ -84,6 +87,8 @@ def main() -> int:
     half = int(round(CROP_PER_R * sess.detection.r_out))
     ox, oy = sess.roi.x, sess.roi.y
     code = Path(a.sesion).stem.replace("VA_", "").replace("_analisis", "")
+    key = ori.valid(getattr(sess.kin_params, "mirror", ori.NONE) if sess.kin_params is not None else ori.NONE)
+    s_rot = ori.signs(key)[2]
 
     fig, axes = plt.subplots(3 * len(robots), len(times), figsize=(1.45 * len(times) + 1.2, 1.55 * 3 * len(robots)),
                              squeeze=False)
@@ -109,8 +114,7 @@ def main() -> int:
                 cx, cy = res.x[r, k] + ox, res.y[r, k] + oy
                 t_old = theta_old[r, k] - theta_old[row0, k]
                 t_new = theta_new[r, k] - theta_new[row0, k]
-                imgs = (_crop(frame, cx, cy, half, 0.0), _crop(frame, cx, cy, half, -t_old),
-                        _crop(frame, cx, cy, half, -t_new))
+                imgs = tuple(ori.image(_crop(frame, cx, cy, half, t), key) for t in (0.0, -t_old, -t_new))
                 for j, (c, im) in enumerate(zip(cells, imgs)):
                     c.imshow(im, cmap="gray", vmin=0, vmax=255)
                     c.plot([half, half], [half - 0.95 * half, half - 0.55 * half], color="#e34948", lw=1.6)
@@ -120,11 +124,12 @@ def main() -> int:
                     if j == 0:
                         c.set_title(f"{tmin:g} min", fontsize=8)
                     if j > 0:
-                        c.text(0.5, -0.04, f"{(t_old if j == 1 else t_new):+.0f}°", transform=c.transAxes,
+                        c.text(0.5, -0.04, f"{s_rot * (t_old if j == 1 else t_new):+.0f}°", transform=c.transAxes,
                                ha="center", va="top", fontsize=7, color="#3f3f3c")
                     if ci == 0:
                         c.set_ylabel(f"robot {k}\n{labels[j]}" if j == 0 else labels[j], fontsize=8)
-    fig.suptitle(f"{code}: robots desgirados por −θ (si θ es correcto, filas 2 y 3 quedan quietas)", fontsize=10)
+    fig.suptitle(f"{code}: robots desgirados por −θ (si θ es correcto, filas 2 y 3 quedan quietas); "
+                 f"{ori.DESCRIPTION[key]}, θ > 0 antihorario", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = Path(a.salida) if a.salida else Path(a.sesion).resolve().parents[1] / "verificacion" / f"giro_{code}.png"
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -19,7 +19,8 @@ python main.py
   (`datos/video/verificacion/cinematica_<código>.png`, `_ejes.png`, `_centros.png` y `.txt`).
 
 Para los videos del proyecto: escala de tiempo **3 cuadros = 1 s real**, diámetro del robot **33 mm**,
-recinto **Ø 185 mm interior / 195 mm exterior**, **Video espejado: horizontal**, **Escala desde: Recinto**.
+recinto **Ø 185 mm interior / 195 mm exterior**, **Orientación de la escena: rotada 180°** (vista del observador, parado en el borde superior del video;
+los videos no están espejados), **Escala desde: Recinto**.
 
 Exportaciones (pestaña *Seguimiento* → *Resultados*): CSV de todos los robots (largo o ancho), **un robot
 con todas sus columnas**, un CSV por robot en una carpeta, resumen por robot, video anotado y sesión. Junto a
@@ -29,7 +30,7 @@ Reexportar un ensayo sin interfaz (desde la raíz del repositorio):
 
 ```
 python software/vidfetch/tools/reexportar.py datos/video/sesiones/VA_<código>_analisis.npz ^
-       --video datos/video/recortados/VC_<código>.MP4 --espejo horizontal --ventana 5 ^
+       --video datos/video/recortados/VC_<código>.MP4 --orientacion rot180 --ventana 5 ^
        --diametro-robot 33 --escala recinto --cuadros-por-segundo 3 ^
        --salida datos/video/trayectorias/VP_<código>_robots.csv --resumen --guardar-sesion
 ```

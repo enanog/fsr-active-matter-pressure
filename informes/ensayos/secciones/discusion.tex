@@ -22,46 +22,49 @@ $\alpha \approx \num{\Cmp{Alfa}{C}}$--$\num{\Cmp{Alfa}{A}}$, entre difusivo ($\a
 satura (\cref{fig:cmp_giro}), porque el confinamiento limita el desplazamiento a la escala del recinto.
 El exponente no depende de la escala espacial.
 
-\paragraph{Sentido de giro y corrección del espejado.} Los videos están grabados espejados respecto del
-eje vertical de la imagen, por lo que un giro horario real se ve antihorario. Todos los datos de este
-informe están corregidos (opción \emph{Video espejado: horizontal} de VidFetch): ángulos y posiciones
-corresponden al recinto visto desde arriba, con giros positivos en sentido antihorario.
+\paragraph{Sentido de giro y orientación de las imágenes.} Las imágenes de este informe están rotadas
+\SI{180}{\degree} respecto del video para mostrar la arena como la veía el observador (parado del lado del
+borde superior del video): $x$ a su derecha, $y$ hacia la pared de enfrente y giros positivos en sentido
+antihorario visto desde arriba. Una rotación no cambia el sentido de giro. La versión anterior de este
+informe suponía, por error, que el video estaba espejado: eso invertía $y$, $\theta$, $\omega$ y la
+circulación. El video original muestra a los robots del modo \texttt{QR} girando en sentido antihorario,
+que es lo programado (solo el motor derecho), así que la cámara no espeja.
 
 \paragraph{La rotación propia domina.} Todos los robots giran sobre sí mismos de forma persistente:
 la $|\omega|$ mediana es de \num{\Cmp{Wmed}{A}} a \SI{\Cmp{Wmed}{B}}{\degree\per\second} y el robot
 más rápido acumula \num{\Cmp{Vmax}{C}} vueltas en \SI{\Cmp{Dur}{C}}{\minute} (una $|\overline{\omega}|$
 de \SI{\Cmp{Spin}{C}}{\degree\per\second}). En el modo \texttt{QR} todos los robots están programados
-para girar a la derecha (sentido horario), y eso es lo que hace la mayoría: en los tres ensayos,
-\Cmp{Ncw}{A} robots giraron en neto en sentido horario y el giro medio con signo es negativo, de
-\num{\Cmp{Wmean}{B}} a \SI{\Cmp{Wmean}{C}}{\degree\per\second}.
+para girar en sentido antihorario (solo con el motor derecho), y eso es lo que hace la mayoría: en los
+tres ensayos, \Cmp{Nccw}{A} robots giraron en neto en sentido antihorario y el giro medio con signo es
+positivo, de \num{\Cmp{Wmean}{B}} a \SI{\Cmp{Wmean}{C}}{\degree\per\second}.
 
-\paragraph{Contrarrotación.} Los otros \Cmp{Nccw}{A} robots terminan con un giro neto antihorario,
+\paragraph{Contrarrotación.} Los otros \Cmp{Ncw}{A} robots terminan con un giro neto horario,
 contrario al programado (\cref{fig:cmp_giro}, izquierda). No son robots que no giran: alternan ambos
-sentidos (giran a la derecha el \num{\Cmp{PcwCcw}{C}}--\SI{\Cmp{PcwCcw}{A}}{\percent} del tiempo) y
-su giro medio es lento: $|\overline{\omega}|$ mediana de \num{\Cmp{WabsCcw}{A}}, \num{\Cmp{WabsCcw}{B}} y
-\SI{\Cmp{WabsCcw}{C}}{\degree\per\second}, contra \num{\Cmp{WabsCw}{A}}, \num{\Cmp{WabsCw}{B}} y
-\SI{\Cmp{WabsCw}{C}}{\degree\per\second} de los que giran a la derecha. Una explicación posible es que
-ruedan por el interior de la pared: un disco que avanza en sentido horario alrededor del centro apoyado
-en ella gira en sentido antihorario sobre sí mismo por el rozamiento en el contacto, y ese arrastre puede
-superar al giro del motor. Con las posiciones referidas al centro real del recinto, los datos apoyan esa
-idea en dos ensayos y no en el tercero. Tiempo en la capa de la pared ($r \geq R_{\mathrm{c}} - D/2$,
-mediana por robot): \num{\Cmp{PwallCcw}{A}} contra \SI{\Cmp{PwallCw}{A}}{\percent} en \Cmp{Lab}{A} y
-\num{\Cmp{PwallCcw}{C}} contra \SI{\Cmp{PwallCw}{C}}{\percent} en \Cmp{Lab}{C} (los que contrarrotan
-pasan más tiempo contra la pared), pero \num{\Cmp{PwallCcw}{B}} contra \SI{\Cmp{PwallCw}{B}}{\percent} en
-\Cmp{Lab}{B} (sin diferencia). La versión anterior de este informe, con el centro fijo y la escala del
-robot, daba la diferencia en los tres. El resultado no cambia si la capa se define como
-$r/R_{\mathrm{c}} > 0{,}85$. La coincidencia 14/8 en los tres ensayos sugiere más bien que la tendencia
-depende de cada robot (por ejemplo, de la fuerza de su motor); para confirmarlo hace falta identificar a
-cada robot entre videos, cosa que el seguimiento no hace.
+sentidos (giran en el sentido programado el \num{\Cmp{PccwCw}{C}}--\SI{\Cmp{PccwCw}{A}}{\percent} del
+tiempo) y su giro medio es lento: $|\overline{\omega}|$ mediana de \num{\Cmp{WabsCw}{A}},
+\num{\Cmp{WabsCw}{B}} y \SI{\Cmp{WabsCw}{C}}{\degree\per\second}, contra \num{\Cmp{WabsCcw}{A}},
+\num{\Cmp{WabsCcw}{B}} y \SI{\Cmp{WabsCcw}{C}}{\degree\per\second} de los que giran en el sentido
+programado. Una explicación posible es que ruedan por el interior de la pared: un disco que avanza en
+sentido antihorario alrededor del centro apoyado en ella gira en sentido horario sobre sí mismo por el
+rozamiento en el contacto, y ese arrastre puede superar al giro del motor. Con las posiciones referidas
+al centro real del recinto, los datos apoyan esa idea en dos ensayos y no en el tercero. Tiempo en la capa
+de la pared ($r \geq R_{\mathrm{c}} - D/2$, mediana por robot): \num{\Cmp{PwallCw}{A}} contra
+\SI{\Cmp{PwallCcw}{A}}{\percent} en \Cmp{Lab}{A} y \num{\Cmp{PwallCw}{C}} contra
+\SI{\Cmp{PwallCcw}{C}}{\percent} en \Cmp{Lab}{C} (los que contrarrotan pasan más tiempo contra la pared),
+pero \num{\Cmp{PwallCw}{B}} contra \SI{\Cmp{PwallCcw}{B}}{\percent} en \Cmp{Lab}{B} (sin diferencia). La
+primera versión de este informe, con el centro fijo y la escala del robot, daba la diferencia en los tres.
+El resultado no cambia si la capa se define como $r/R_{\mathrm{c}} > 0{,}85$. La coincidencia 14/8 en los
+tres ensayos sugiere más bien que la tendencia depende de cada robot (por ejemplo, de la fuerza de su
+motor); para confirmarlo hace falta identificar a cada robot entre videos, cosa que el seguimiento no hace.
 
 \paragraph{Hay una circulación colectiva débil.} El parámetro
 $\Phi = \langle \hat r_i \times \hat v_i \rangle$ (seno del ángulo entre la posición respecto del
 centro del recinto y la velocidad, promediado sobre los robots que se mueven a más de
 \SI{1}{\milli\metre\per\second}) vale \num{\Cmp{Prot}{A}}, \num{\Cmp{Prot}{B}} y \num{\Cmp{Prot}{C}}:
-valdría $-1$ si todos circularan en sentido horario alrededor del centro, $+1$ en sentido antihorario
+valdría $+1$ si todos circularan en sentido antihorario alrededor del centro, $-1$ en sentido horario
 y 0 si no hubiera sentido preferido. La componente tangencial mediana de la velocidad de esos robots es
 de \num{\Cmp{Vtan}{A}}, \num{\Cmp{Vtan}{B}} y \SI{\Cmp{Vtan}{C}}{\milli\metre\per\second}. El grupo
-circula lentamente en sentido horario, el mismo sentido del giro programado, con una velocidad angular
+circula lentamente en sentido antihorario, el mismo sentido del giro programado, con una velocidad angular
 colectiva de unos \SI{0.2}{\degree\per\second} (una vuelta cada \SI{30}{\minute}).
 
 \paragraph{Los robots se ordenan en capas.} Los mapas de ocupación (\cref{fig:cmp_ocupacion}) y la
@@ -101,7 +104,7 @@ ensayos es casi igual (\num{\Cmp{VmedAct}{B}}--\SI{\Cmp{VmedAct}{C}}{\milli\metr
   \centering
   \includegraphics[width=\linewidth]{figuras/atascos.png}
   \caption{Un cuadro durante el atasco principal de cada ensayo (de izquierda a derecha: \Cmp{Lab}{A},
-    minuto 47,8; \Cmp{Lab}{B}, minuto 50,6; \Cmp{Lab}{C}, minuto 19,7). Imágenes tal como las graba la cámara (espejadas). Los robots siguen
+    minuto 47,8; \Cmp{Lab}{B}, minuto 50,6; \Cmp{Lab}{C}, minuto 19,7), rotados \SI{180}{\degree} como los ve el observador. Los robots siguen
     encendidos (LEDs rojos), pero durante el atasco prácticamente no se desplazan ni giran.}
   \label{fig:atascos}
 \end{figure}

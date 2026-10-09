@@ -581,7 +581,10 @@ def _axes_note(kin, out) -> str:
     else:
         txt = "Recinto sin definir: origen en el centro del recorte; x a la derecha, y hacia arriba. "
     txt += "vel_dir_deg, phi_deg, θ y ω: antihorarios. "
-    if "espejo" in out.columns:
+    if "orientacion" in out.columns:
+        from core import orientation as ori
+        txt += f"Escena: {ori.DESCRIPTION[ori.from_frame(out)]} (columna 'orientacion'). "
+    elif "espejo" in out.columns:
         txt += "Video espejado corregido (columna 'espejo'). "
     return txt + "'status' indica si cada posición fue detectada o estimada."
 

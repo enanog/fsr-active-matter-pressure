@@ -33,8 +33,9 @@ confirman otras dos mediciones independientes; la escala anterior estaba \SI{15}
 longitudes y velocidades bajan \SI{13}{\percent} respecto de la versión previa. Los tres ensayos dan
 resultados reproducibles: rapidez mediana de \num{0.50} a \SI{0.61}{\milli\metre\per\second} con episodios
 cortos de hasta \SI{7}{\milli\metre\per\second}, rotación propia persistente de unos \SI{3.5}{\degree\per\second}
-(14 de 22 robots giran a la derecha, como está programado) y un ordenamiento en tres capas concéntricas
-separadas un diámetro. Los datos están corregidos por el espejado del video. La principal diferencia entre
+(14 de 22 robots giran en sentido antihorario, como está programado en el modo \texttt{QR}) y un
+ordenamiento en tres capas concéntricas separadas un diámetro. Las imágenes y los ejes están orientados
+como ve la arena el observador (video rotado \SI{180}{\degree}, no espejado). La principal diferencia entre
 ensayos son los atascos colectivos, en los que todo el grupo se detiene (\SI{17}{\percent},
 \SI{3}{\percent} y \SI{6}{\percent} del tiempo). Sincronizado con el pulso LED del registrador, el sensor de
 presión muestra que en dos ensayos los atascos coinciden con la fuerza máxima: el atasco de
@@ -52,7 +53,8 @@ presión muestra que en dos ensayos los atascos coinciden con la fuerza máxima:
   \section{Comparación de los tres ensayos}\label{sec:comparacion}
   Todas las magnitudes están en tiempo real ($\fr = \num{\CuadrosPorSegundo}$~cuadros/s) y en SI
   (escala de cada ensayo en la \cref{tab:config}); los ángulos son positivos en sentido antihorario
-  en la arena vista desde arriba (video espejado ya corregido). Se usan todos los puntos con posición observada.
+  en la arena vista desde arriba ($x$ a la derecha del observador, $y$ hacia la pared de enfrente). Se usan todos
+  los puntos con posición observada.
   \input{generado/comparacion/comparacion.tex}
   \input{secciones/discusion.tex}
   \input{secciones/presion.tex}
