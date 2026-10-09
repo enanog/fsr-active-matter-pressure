@@ -44,9 +44,13 @@ manual, exportar todos los datos de un solo robot, informes completos con cómo 
 - **`tools/reexportar.py` (nuevo):** sesión → CSV/JSON/resumen/por robot, `--redetectar`, `--guardar-sesion`.
 - **`tools/verificar_cinematica.py` (nuevo, solo cv2/numpy/pandas):** panel A = cuadro des-espejado con robots
   redibujados solo desde x_mm/y_mm + recinto + ejes; panel B = ∫v dt en Δ (def. 5 s) vs posición en t+Δ;
-  .txt con 4 controles. Resultado en los 3 ensayos: transformación 0,0005 mm; ∫v vs Δpos 10 s mediana
-  0,13 mm (2,5–2,8 %); v vs diferencia finita cruda r = 0,96, pendiente 1,05. Pendiente: pruebas físicas
-  (regla, flecha/letra para el espejado, velocidad cronometrada).
+  panel C = 6 robots ampliados ×5 con centro exportado vs centro independiente (borde del cuerpo: 180 rayos,
+  paso oscuro→claro subpíxel, círculo Kåsa radio libre + MAD); cuadrícula mm del recinto en todos los paneles
+  (A 10 mm, B 5 mm, C 1 mm); salidas `cinematica_<c>.png`, `_ejes.png`, `_centros.png`, `.txt` (5 controles).
+  Resultado en los 3 ensayos: transformación 0,0005 mm; ∫v vs Δpos 10 s mediana 0,13 mm (2,5–2,8 %);
+  v vs diferencia finita cruda r = 0,96, pendiente 1,05; centro vs borde mediana 0,71–0,74 mm (p90 1,4),
+  D cuerpo medido 33,03–33,05 mm, sesgo radial ≤ 0,3 % r. Hough descartado como referencia (mediana 1,7 mm,
+  radios erráticos). Pendiente: pruebas físicas (regla, flecha/letra, velocidad cronometrada).
 - **Scripts:** `generar_informe.py` y `comparar_ensayos.py` leen el formato nuevo (y el viejo). Umbral de
   atasco **0,52 mm/s** (= 0,6 × 0,869: mismos episodios). FSRScope `robots.py` acepta speed_mm_s.
 - **Datos regenerados (08/10):** 3 sesiones con recinto (medido cada 30 cuadros sobre JPEG q2 extraídos con

@@ -216,9 +216,23 @@ Necesita solo OpenCV, NumPy y pandas y tarda unos segundos:
 python software/vidfetch/tools/verificar_cinematica.py ^
        datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
        --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
-       [--cuadro 6000] [--robots 3,7,12] [--delta 5]
+       [--cuadro 6000] [--robots 3,7,12] [--delta 5] [--centros 0,4,9]
 \end{verbatim}
-Escribe \nolinkurl{datos/video/verificacion/cinematica_<código>.png} y \texttt{.txt}. Qué mirar:
+En PowerShell el comando va en una sola línea o con acento grave (\texttt{`}) al final de cada línea en
+lugar de \texttt{\^{}} (que es la continuación de \texttt{cmd}). Escribe en
+\nolinkurl{datos/video/verificacion/}:
+\begin{itemize}
+  \item \nolinkurl{cinematica_<código>.png}: paneles A y B lado a lado;
+  \item \nolinkurl{cinematica_<código>_ejes.png}: panel A al doble de resolución;
+  \item \nolinkurl{cinematica_<código>_centros.png}: panel C (centros);
+  \item \nolinkurl{cinematica_<código>.txt}: los controles numéricos.
+\end{itemize}
+Todas las imágenes llevan una \textbf{cuadrícula en milímetros del sistema del recinto} (líneas de $x$ e
+$y$ constantes de la escena real, origen en el centro, $y$ hacia arriba), calculada con la escala y el centro
+de cada cuadro: \SI{10}{\milli\metre} en el panel A (valores sobre los ejes cada \SI{20}{\milli\metre},
+líneas rojas $x=0$ e $y=0$), \SI{5}{\milli\metre} en el panel B (rotulada cada \SI{20}{\milli\metre}) y
+\SI{1}{\milli\metre} en el panel C (rotulada cada \SI{5}{\milli\metre}). Sobre ella se lee directamente
+la posición de cualquier robot y se compara con el CSV. Qué mirar:
 \begin{itemize}
   \item \textbf{Panel A (ejes y origen).} El cuadro se des-espeja (queda como la escena real vista desde
         arriba) y cada robot se redibuja \emph{solo} con \texttt{x\_mm}, \texttt{y\_mm}:
@@ -231,12 +245,24 @@ Escribe \nolinkurl{datos/video/verificacion/cinematica_<código>.png} y \texttt{
         \texttt{-{}-robots}), la flecha amarilla en el cuadro $t$ es la integral de la velocidad del CSV,
         $\int_t^{t+\Delta t}\vec v\,\mathrm{d}t$. En el cuadro $t+\Delta t$ el círculo amarillo es esa
         predicción y el verde la posición exportada: el robot real tiene que estar dentro de ambos.
+  \item \textbf{Panel C (centros).} Seis robots del cuadro del panel A, repartidos entre las capas (o los
+        de \texttt{-{}-centros}), ampliados $\times 5$ en un recorte de $\pm\SI{26}{\milli\metre}$. Las líneas rojas
+        marcan \texttt{x\_mm} e \texttt{y\_mm} exportados y el círculo verde un robot de diámetro $D$
+        centrado ahí. En celeste, un centro \emph{independiente}: 180 rayos desde el centro del recorte; en
+        cada uno, el paso de oscuro a claro más fuerte entre $0.75R$ y $1.3R$ (subpíxel por parábola), que
+        es el borde exterior del cuerpo; los puntos se ajustan a un círculo de radio libre (Kåsa) con
+        rechazo por MAD (descarta los rayos tapados por vecinos, LED, conectores o la pared). Las dos
+        cruces tienen que coincidir dentro de \SI{1}{\milli\metre} aproximadamente.
   \item \textbf{Controles numéricos (en el \texttt{.txt}).} (1) $x$, $y$ reconstruidos desde
         \texttt{x\_video\_px}, \texttt{xc\_video\_px}, \texttt{mm\_per\_px} y el espejado; (2) integral de
         $\vec v$ en \SI{10}{\second} contra el desplazamiento, para todos los robots cada \SI{30}{\second};
         (3) velocidad exportada contra una diferencia finita cruda de los píxeles del video
         ($\pm 3$~cuadros, sin Savitzky--Golay): la pendiente da el signo y la escala de los ejes; (4) radio
-        de contacto contra $R_{\mathrm{int}}-D/2$ y signo de $\overline{\omega}$.
+        de contacto contra $R_{\mathrm{int}}-D/2$ y signo de $\overline{\omega}$; (5) el centro del borde
+        del panel C sobre todos los robots detectados de 20 cuadros: distancia al centro exportado
+        (mediana y p90; \texttt{OK} si la mediana es menor que \SI{1}{\milli\metre}), diámetro del cuerpo
+        medido (control de escala independiente del recinto) y componente radial de la diferencia ajustada
+        como $a\,r$ (un $|a|$ de algunos por ciento indicaría un error de escala o de perspectiva).
 \end{itemize}
 
 \paragraph{Pruebas físicas recomendadas.} Lo anterior verifica que los datos son coherentes con el video;

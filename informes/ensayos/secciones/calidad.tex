@@ -53,8 +53,23 @@ la velocidad exportada en \SI{10}{\second} reproduce el desplazamiento con un er
 \SI{2}{\milli\metre}, el efecto esperado del suavizado); y la velocidad exportada coincide con una
 diferencia finita cruda de los píxeles del video (correlación \num{0.96}, pendiente \num{1.05}: mismo
 signo y misma escala; la pendiente algo mayor que 1 es el ruido de la diferencia cruda, que el filtro
-elimina). Estas pruebas verifican la coherencia interna y con el video; la escala absoluta se apoya en
-el diámetro del recinto y las tres validaciones de la \cref{sec:recinto_ens}.
+elimina).
+
+Para el centro de cada robot hay además una medición independiente del seguimiento: en un recorte de
+$\pm\SI{26}{\milli\metre}$ alrededor de la posición exportada se lanzan 180 rayos y en cada uno se busca el
+paso de oscuro a claro del borde exterior del cuerpo (con resolución subpíxel); los puntos se ajustan a un
+círculo de radio libre, descartando los rayos tapados por vecinos, LED o conectores (rechazo por MAD). Sobre
+440 robots en 20 cuadros por ensayo, el ajuste se logra en el \SI{100}{\percent} de los casos, el centro
+del borde queda a \num{0.71}--\SI{0.74}{\milli\metre} del exportado (mediana; p90
+\SI{1.4}{\milli\metre}, es decir \SI{2}{\percent} y \SI{4}{\percent} del diámetro) y la diferencia no
+crece con la distancia al centro (componente radial $\leq \SI{0.3}{\percent}$ de $r$): no hay sesgo de
+origen, de escala ni de perspectiva entre el centro seguido y el cuerpo. El diámetro del cuerpo medido así,
+\num{33.03}--\SI{33.05}{\milli\metre} (mediana), confirma la escala del recinto dentro de
+\SI{0.2}{\percent}. La \cref{fig:verif_centros} muestra seis robots repartidos en las tres capas, con una
+cuadrícula de \SI{1}{\milli\metre} en el sistema del recinto sobre la que se leen sus coordenadas.
+
+Estas pruebas verifican la coherencia interna y con el video; la escala absoluta se apoya en el diámetro
+del recinto y las validaciones de la \cref{sec:recinto_ens}.
 
 \begin{table}[H]
   \centering
@@ -70,16 +85,32 @@ el diámetro del recinto y las tres validaciones de la \cref{sec:recinto_ens}.
     Ídem, error relativo (desplazamientos $>\SI{2}{\milli\metre}$) [\si{\percent}] & \num{2.5} & \num{2.8} & \num{2.5} \\
     $\vec v$ exportada vs diferencia finita cruda: correlación / pendiente & \num{0.967} / \num{1.049} & \num{0.964} / \num{1.047} & \num{0.967} / \num{1.055} \\
     Panel B: diferencia predicción--posición en \SI{5}{\second} [\si{\milli\metre}] & \num{0.14}--\num{1.02} & \num{0.29}--\num{0.85} & \num{0.12}--\num{0.62} \\
+    Centro exportado vs centro del borde: mediana / p90 [\si{\milli\metre}] & \num{0.71} / \num{1.41} & \num{0.74} / \num{1.38} & \num{0.73} / \num{1.44} \\
+    Diámetro del cuerpo medido (mediana) [\si{\milli\metre}] & \num{33.05} & \num{33.03} & \num{33.03} \\
+    Componente radial (borde $-$ exportado) / $r$ [\si{\percent}] & \num{-0.3} & \num{-0.3} & \num{-0.1} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\linewidth]{figuras/verificacion_cinematica.png}
+  \includegraphics[width=\linewidth]{figuras/verificacion_cinematica.jpg}
   \caption{Verificación de \Cmp{Lab}{A}. Izquierda: cuadro des-espejado con los robots redibujados solo
-    con $(x, y)$ del CSV, el recinto (amarillo) y los ejes. Derecha: cuatro robots en $t$ (celeste: posición;
-    flecha: integral de la velocidad en \SI{5}{\second}) y en $t+\SI{5}{\second}$ (amarillo: predicción;
-    verde: posición exportada).}
+    con $(x, y)$ del CSV (cruz roja), el recinto (amarillo), los ejes y una cuadrícula de
+    \SI{10}{\milli\metre} en el sistema del recinto (valores sobre los ejes). Derecha: cuatro robots en $t$
+    (celeste: posición; flecha: integral de la velocidad en \SI{5}{\second}) y en $t+\SI{5}{\second}$
+    (amarillo: predicción; verde: posición exportada), sobre una cuadrícula de \SI{5}{\milli\metre}.}
   \label{fig:verif_cin}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{figuras/verificacion_centros.jpg}
+  \caption{Centros de seis robots de \Cmp{Lab}{A} (cuadro 6034), ampliados $\times 5$ sobre una cuadrícula de
+    \SI{1}{\milli\metre} del sistema del recinto (rotulada cada \SI{5}{\milli\metre}; líneas rojas: $x$ e $y$
+    del centro exportado). Verde: robot de \SI{33}{\milli\metre} centrado en la posición exportada. Celeste:
+    puntos del borde del cuerpo medidos en la imagen y círculo ajustado (cruz: su centro), independiente del
+    seguimiento. El robot 0, contra la pared, es el de mayor diferencia (\SI{2.5}{\milli\metre}): un LED
+    vecino y la pared interrumpen el borde.}
+  \label{fig:verif_centros}
 \end{figure}
