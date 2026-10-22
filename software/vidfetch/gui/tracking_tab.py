@@ -6,9 +6,9 @@ import cv2
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
-                               QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton,
-                               QScrollArea, QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
+                               QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
+                               QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from core import arena as ar
 from core import orientation as ori
@@ -21,10 +21,13 @@ from core.tracking import (CANDIDATE_MIN_COVERAGE, STATUS_COLORS, STATUS_LABELS,
 from core.video_io import VideoInfo
 from gui.frame_view import ClickFrameView
 from gui.player import PlayerWidget
+from gui.side_panel import page, tabbed_panel
 from gui.state import ProjectState
 
 FILTER_ERRORS = "error"
 FILTER_ALL = "all"
+PANEL_WIDTH = 380
+TAB_ANALYSIS, TAB_REVIEW, TAB_ARENA, TAB_RESULTS = range(4)
 
 
 def _dur(seconds: float) -> str:
@@ -110,6 +113,14 @@ class TrackingTab(QWidget):
         hint.setWordWrap(True)
         f.addRow(hint)
         f.addRow(self.btn_analyze)
+        self.btn_save = QPushButton("Guardar…")
+        self.btn_save.setToolTip("Guarda el análisis (seguimiento, correcciones, recinto) en un .npz.")
+        self.btn_load = QPushButton("Cargar…")
+        self.btn_load.setToolTip("Carga un análisis guardado (.npz) en lugar de analizar de nuevo.")
+        ses_box = QGroupBox("Análisis guardado")
+        sr = QHBoxLayout(ses_box)
+        sr.addWidget(self.btn_save)
+        sr.addWidget(self.btn_load)
 
         # --- results
         self.lbl_summary = QLabel("Sin análisis.")
@@ -162,18 +173,24 @@ class TrackingTab(QWidget):
         self.chk_arena_auto = QCheckBox("Detectar el recinto al analizar"); self.chk_arena_auto.setChecked(True)
         self.chk_arena_auto.setToolTip(f"Mide el recinto cada {ar.DEFAULT_STEP} cuadros durante el análisis "
                                        "(sigue su movimiento y los cambios de zoom de la cámara).")
-        self.btn_arena_detect = QPushButton("Detectar recinto automáticamente")
-        self.btn_arena_manual = QPushButton("Marcar a mano (clics en el borde interior)")
+        self.btn_arena_detect = QPushButton("Detectar automáticamente")
+        self.btn_arena_detect.setToolTip("Mide el recinto en el tramo recortado (borde interior y exterior "
+                                         "del anillo) y sigue su movimiento.")
+        self.btn_arena_manual = QPushButton("Marcar a mano")
         self.btn_arena_manual.setCheckable(True)
-        self.btn_arena_apply = QPushButton("Ajustar círculo a los puntos")
+        self.btn_arena_manual.setToolTip("Activalo y hacé clics sobre el borde INTERIOR del anillo "
+                                         "(≥ 3; mejor 6–8 repartidos).")
+        self.btn_arena_apply = QPushButton("Ajustar a los puntos")
+        self.btn_arena_apply.setToolTip("Ajusta un círculo (mínimos cuadrados) a los puntos marcados.")
         self.btn_arena_clear = QPushButton("Borrar puntos")
         self.lbl_pts = QLabel("Puntos: 0")
-        self.chk_follow = QCheckBox("El círculo manual sigue el movimiento detectado")
+        self.chk_follow = QCheckBox("Seguir el movimiento detectado")
         self.chk_follow.setChecked(True)
         self.chk_follow.setToolTip("Con un recinto automático disponible, el círculo marcado a mano se "
                                    "traslada y escala con el movimiento medido (útil si la detección del "
                                    "radio no es buena pero sí la del movimiento).")
-        self.btn_arena_auto_only = QPushButton("Descartar el círculo manual")
+        self.btn_arena_auto_only = QPushButton("Volver al automático")
+        self.btn_arena_auto_only.setToolTip("Descarta el círculo marcado a mano.")
         self.chk_show_arena = QCheckBox("Mostrar recinto y ejes"); self.chk_show_arena.setChecked(True)
         arena_box = QGroupBox("Recinto: origen (0, 0) y escala")
         af = QFormLayout(arena_box)
@@ -181,19 +198,20 @@ class TrackingTab(QWidget):
         af.addRow("Diámetro interior", self.sp_din)
         af.addRow("Diámetro exterior", self.sp_dout)
         af.addRow(self.chk_arena_auto)
-        af.addRow(self.btn_arena_detect)
-        af.addRow(self.btn_arena_manual)
-        row_pts = QHBoxLayout(); row_pts.addWidget(self.lbl_pts); row_pts.addWidget(self.btn_arena_clear)
-        af.addRow(row_pts)
-        af.addRow(self.btn_arena_apply)
-        af.addRow(self.chk_follow)
-        af.addRow(self.btn_arena_auto_only)
         af.addRow(self.chk_show_arena)
-        arena_hint = QLabel("Origen en el centro del recinto de cada cuadro, x a la derecha, y hacia arriba. "
-                            "Marcado a mano: activá el botón y hacé ≥ 3 clics (mejor 6–8, repartidos) "
-                            "sobre el borde interior del anillo.")
+        arena_hint = QLabel("Origen (0, 0) en el centro del recinto de cada cuadro; x a la derecha e y hacia "
+                            "arriba en la vista mostrada (la del observador).")
         arena_hint.setWordWrap(True)
         af.addRow(arena_hint)
+        det_box = QGroupBox("Detección")
+        dg = QGridLayout(det_box)
+        dg.addWidget(self.btn_arena_detect, 0, 0, 1, 2)
+        dg.addWidget(self.btn_arena_manual, 1, 0)
+        dg.addWidget(self.btn_arena_clear, 1, 1)
+        dg.addWidget(self.lbl_pts, 2, 0)
+        dg.addWidget(self.btn_arena_apply, 2, 1)
+        dg.addWidget(self.chk_follow, 3, 0, 1, 2)
+        dg.addWidget(self.btn_arena_auto_only, 4, 0, 1, 2)
 
         # --- kinematics
         kp = KinematicsParams()
@@ -204,8 +222,8 @@ class TrackingTab(QWidget):
         self.sp_diam = QDoubleSpinBox(decimals=2); self.sp_diam.setRange(0, 10000)
         self.sp_diam.setSuffix(" mm"); self.sp_diam.setSpecialValueText("sin conversión (px)")
         self.sp_diam.setValue(kp.robot_diameter_mm)
-        self.sp_diam.setToolTip("Diámetro real del robot. Con el diámetro medido en px se obtiene la "
-                                "escala mm/px y se exportan columnas en m y m/s.")
+        self.sp_diam.setToolTip("Diámetro real del robot. Fija la escala mm/px solo con 'Escala desde: "
+                                "Diámetro del robot'; con el recinto, define la capa de pared (R_c − D/2).")
         self.cb_mirror = QComboBox()
         for key, text in MIRROR_LABELS.items():
             self.cb_mirror.addItem(text, key)
@@ -223,7 +241,7 @@ class TrackingTab(QWidget):
         kf = QFormLayout(kin_box)
         kf.addRow("Suavizado", self.sp_window)
         kf.addRow("Diámetro real", self.sp_diam)
-        kf.addRow("Orientación de la escena", self.cb_mirror)
+        kf.addRow("Orientación", self.cb_mirror)
         self.cb_scale = QComboBox()
         for key, text in SCALE_LABELS.items():
             self.cb_scale.addItem(text, key)
@@ -236,40 +254,42 @@ class TrackingTab(QWidget):
         kf.addRow(self.lbl_kin)
 
         # --- outputs
-        self.btn_csv = QPushButton("Exportar CSV (todos los robots)…")
+        self.btn_csv = QPushButton("Todos los robots…")
         self.btn_csv.setToolTip("Un único archivo con todos los robots. En el diálogo elegís el formato: "
                                 "una fila por robot y cuadro, o una fila por cuadro con columnas por robot.")
-        self.btn_csv_robot = QPushButton("Exportar resumen por robot (CSV)…")
+        self.btn_csv_robot = QPushButton("Resumen por robot…")
+        self.btn_csv_robot.setToolTip("Una fila por robot: rapidez media, giro, tiempo en la pared, etc.")
         self.cb_export_robot = QComboBox()
-        self.btn_csv_one = QPushButton("Exportar un robot (todos los datos)…")
+        self.btn_csv_one = QPushButton("Exportar este robot…")
         self.btn_csv_one.setToolTip("CSV con todas las columnas del seguimiento, una fila por cuadro, solo para "
                                     "el robot elegido (posición, velocidad, rotación, distancia a la pared…).")
-        self.btn_csv_each = QPushButton("Exportar cada robot en su propio archivo…")
-        self.btn_video = QPushButton("Exportar video con seguimiento…")
-        self.btn_save = QPushButton("Guardar análisis…")
-        self.btn_load = QPushButton("Cargar análisis…")
-        out_box = QGroupBox("Resultados")
-        o = QVBoxLayout(out_box)
-        o.addWidget(self.btn_csv)
-        o.addWidget(self.btn_csv_robot)
-        row_one = QHBoxLayout(); row_one.addWidget(QLabel("Robot")); row_one.addWidget(self.cb_export_robot, 1)
-        o.addLayout(row_one)
-        for b in (self.btn_csv_one, self.btn_csv_each, self.btn_video, self.btn_save, self.btn_load):
-            o.addWidget(b)
+        self.btn_csv_each = QPushButton("Cada robot en su archivo…")
+        self.btn_csv_each.setToolTip("Un CSV por robot (mismas columnas que 'Exportar este robot').")
+        self.btn_video = QPushButton("Video con seguimiento…")
+        out_box = QGroupBox("Exportar")
+        og = QGridLayout(out_box)
+        og.addWidget(QLabel("CSV"), 0, 0)
+        og.addWidget(self.btn_csv, 0, 1)
+        og.addWidget(self.btn_csv_robot, 1, 1)
+        og.addWidget(self.btn_csv_each, 2, 1)
+        og.addWidget(QLabel("Robot"), 3, 0)
+        og.addWidget(self.cb_export_robot, 3, 1)
+        og.addWidget(self.btn_csv_one, 4, 1)
+        og.addWidget(QLabel("Video"), 5, 0)
+        og.addWidget(self.btn_video, 5, 1)
+        og.setColumnStretch(1, 1)
 
-        side = QWidget()
-        sl = QVBoxLayout(side)
-        sl.setContentsMargins(0, 0, 0, 0)
-        for w in (par_box, res_box, cor_box, arena_box, kin_box, out_box):
-            sl.addWidget(w)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(side)
-        scroll.setFixedWidth(360)
+        # Side panel: one tab per stage; pages scroll vertically only (no horizontal bar).
+        self.side_tabs = tabbed_panel([
+            ("Análisis", page([par_box, ses_box])),
+            ("Revisión", page([res_box, cor_box], stretch_index=0)),
+            ("Recinto", page([arena_box, det_box])),
+            ("Resultados", page([kin_box, out_box])),
+        ], PANEL_WIDTH)
 
         lay = QHBoxLayout(self)
         lay.addWidget(self.player, 1)
-        lay.addWidget(scroll)
+        lay.addWidget(self.side_tabs)
 
         # Debounced re-tracking when tracker params change (tracking is cheap, but not free).
         self._debounce = QTimer(self, singleShot=True, interval=400)
@@ -378,6 +398,8 @@ class TrackingTab(QWidget):
         self._set_session_enabled(session is not None)
         if session is None:
             return
+        if self.side_tabs.currentIndex() == TAB_ANALYSIS:
+            self.side_tabs.setCurrentIndex(TAB_REVIEW)     # next step after analysing / loading
         self.set_params_from(session.params)
         self.set_kinematics_from(session.kin_params)
         if session.arena is not None:

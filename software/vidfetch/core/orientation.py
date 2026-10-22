@@ -28,10 +28,10 @@ import numpy as np
 
 NONE, ROT180, MIRROR_H, MIRROR_V = "no", "rot180", "horizontal", "vertical"
 LABELS = {
-    ROT180: "Rotada 180° (observador en el borde superior del video)",
+    ROT180: "Rotada 180° (vista del observador)",
     NONE: "Como la graba la cámara",
-    MIRROR_H: "Espejada horizontal (respecto del eje y)",
-    MIRROR_V: "Espejada vertical (respecto del eje x)",
+    MIRROR_H: "Espejada horizontal",
+    MIRROR_V: "Espejada vertical",
 }
 _SIGNS = {NONE: (1.0, 1.0, 1.0), ROT180: (-1.0, -1.0, 1.0),
           MIRROR_H: (-1.0, 1.0, -1.0), MIRROR_V: (1.0, -1.0, -1.0)}
