@@ -1,0 +1,21 @@
+Verificación de cinemática: VP_20262509_1230_22QR_60_robots.csv (fr = 3 cuadros/s, orientación: rot180 = imagen rotada 180 grados (vista del observador))
+1. Transformación: x_mm, y_mm reconstruidos desde los píxeles del video difieren como máximo 0.0005 mm (redondeo del CSV) -> OK
+2. Integral de v en 10 s vs desplazamiento (2420 ventanas): error mediano 0.141 mm, p95 0.559 mm; en ventanas con desplazamiento > 2 mm, error relativo mediano 2.76 % -> OK
+3. Velocidad exportada vs diferencia finita cruda de los píxeles (+-3 cuadros): correlación 0.964, pendiente 1.047 (signo y escala de los ejes) -> OK
+4. Radio de contacto q99.5(r) = 78.2 mm vs R_int - D/2 = 76.0 mm (diferencia +2.9 %: perspectiva, esperado ~ +2,5 %)
+   omega media = +2.62 grados/s (antihorario, visto desde arriba); robots con giro neto antihorario / horario: 14 / 8; esperado antihorario -> OK
+5. Centro exportado vs centro independiente (borde del cuerpo ajustado en la imagen), 440 robots en 20 cuadros (100 % ajustados): distancia mediana 0.74 mm, p90 1.37 mm -> OK
+   diámetro del cuerpo medido = 33.03 mm (mediana; RIQ 32.44-33.67) vs 33 mm nominal: escala +0.1 %
+   componente radial (borde - exportado) = -0.0027 * r (ajuste por el origen; -0.3 % de r): sin sesgo radial apreciable
+Panel B:
+   robot 10, cuadros 4580-4595: integral de v = (-10.75, +21.73) mm, desplazamiento = (-10.86, +21.99) mm, diferencia 0.29 mm
+   robot 16, cuadros 4085-4100: integral de v = (+21.53, +8.38) mm, desplazamiento = (+21.88, +8.41) mm, diferencia 0.36 mm
+   robot 6, cuadros 5915-5930: integral de v = (-13.77, -17.60) mm, desplazamiento = (-14.28, -17.82) mm, diferencia 0.55 mm
+   robot 0, cuadros 4205-4220: integral de v = (-20.46, +0.39) mm, desplazamiento = (-21.30, +0.27) mm, diferencia 0.85 mm
+Panel C (cuadro 4940):
+   robot 10: exportado (-2.44, +10.70) mm; centro del borde a 1.13 mm, D = 32.8 mm
+   robot 16: exportado (-34.69, +22.35) mm; centro del borde a 0.70 mm, D = 33.3 mm
+   robot 2: exportado (+39.45, -29.14) mm; centro del borde a 0.63 mm, D = 32.7 mm
+   robot 7: exportado (-52.55, -52.73) mm; centro del borde a 0.78 mm, D = 33.6 mm
+   robot 14: exportado (+60.19, +44.90) mm; centro del borde a 0.65 mm, D = 34.2 mm
+   robot 3: exportado (-73.22, -19.79) mm; centro del borde a 2.19 mm, D = 32.3 mm

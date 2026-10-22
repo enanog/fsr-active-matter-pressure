@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
+from core import arena as arena_mod
 from core import detection as det
 from core import rotation
 from core.models import Roi, TrimRange
@@ -45,11 +46,15 @@ def scan_video(
     should_cancel: Optional[Callable[[], bool]] = None,
     with_signatures: bool = False,
     fps: Optional[float] = None,
+    arena_step: int = 0,
+    arena_samples: Optional[list] = None,
 ) -> tuple[pd.DataFrame, np.ndarray, float, bool, Optional[np.ndarray]]:
     """Detect on every frame of [trim] inside [roi].
 
     Returns (detections in full-frame px, frame indices actually read, fps, cancelled,
     rotation signatures aligned with the detection rows or None).
+    With arena_step > 0, the enclosure is also measured on the raw crop every `arena_step` frames and
+    (frame, core.arena.detect_one result in crop px) tuples are appended to `arena_samples`.
     """
     if not processor.detection.enabled:
         raise ValueError("La detección no está activada.")
@@ -71,6 +76,10 @@ def scan_video(
                 break  # container overestimated frame count
             frames_read.append(idx)
             crop = roi.apply(frame)
+            if arena_step > 0 and arena_samples is not None and (
+                    (idx - trim.start) % arena_step == 0 or idx == trim.end):
+                guess = next((r[:3] for _, r in reversed(arena_samples) if r is not None), None)
+                arena_samples.append((idx, arena_mod.detect_one(crop, guess)))
             img = processor.pipeline(crop) if processor.pipeline else crop
             f = det.locate(img, p)
             if len(f):

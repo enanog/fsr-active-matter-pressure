@@ -2,25 +2,32 @@ from __future__ import annotations
 
 from typing import Optional
 
+import cv2
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QBrush, QColor, QKeySequence, QShortcut
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox,
-                               QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton,
-                               QScrollArea, QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout,
+                               QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
+                               QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
+from core import arena as ar
+from core import orientation as ori
 from core.calibration import GAP_GROWTH_PER_R
 from core.detection import DetectionParams
-from core.kinematics import ARROW_NOTE, MIRROR_LABELS, MIRROR_NONE, KinematicsParams
+from core.kinematics import (ARROW_NOTE, MIRROR_LABELS, MIRROR_NONE, SCALE_ARENA, SCALE_LABELS,
+                             KinematicsParams)
 from core.tracking import (CANDIDATE_MIN_COVERAGE, STATUS_COLORS, STATUS_LABELS, Status,
-                           SessionView, TrackerParams, TrackingSession, draw_tracks)
+                           SessionView, TrackerParams, TrackingSession, draw_oriented)
 from core.video_io import VideoInfo
 from gui.frame_view import ClickFrameView
 from gui.player import PlayerWidget
+from gui.side_panel import page, tabbed_panel
 from gui.state import ProjectState
 
 FILTER_ERRORS = "error"
 FILTER_ALL = "all"
+PANEL_WIDTH = 380
+TAB_ANALYSIS, TAB_REVIEW, TAB_ARENA, TAB_RESULTS = range(4)
 
 
 def _dur(seconds: float) -> str:
@@ -48,6 +55,10 @@ class TrackingTab(QWidget):
     loadRequested = Signal()
     kinematicsRequested = Signal()
     summaryCsvRequested = Signal()
+    arenaDetectRequested = Signal()
+    arenaChanged = Signal()
+    robotCsvRequested = Signal(int)
+    allRobotsCsvRequested = Signal()
 
     def __init__(self, state: ProjectState, parent=None):
         super().__init__(parent)
@@ -56,6 +67,9 @@ class TrackingTab(QWidget):
         self._sv: Optional[SessionView] = None   # time-trimmed view of the session
         self._selected: Optional[int] = None
         self._issue_frames: np.ndarray = np.zeros(0, np.int64)
+        self.arena: Optional[ar.ArenaTrack] = None   # enclosure; mirrored into session.arena
+        self._manual_mode = False
+        self._manual_pts: list[tuple[float, float]] = []
 
         self.view = ClickFrameView()
         self.player = PlayerWidget(self.view)
@@ -99,6 +113,14 @@ class TrackingTab(QWidget):
         hint.setWordWrap(True)
         f.addRow(hint)
         f.addRow(self.btn_analyze)
+        self.btn_save = QPushButton("Guardar…")
+        self.btn_save.setToolTip("Guarda el análisis (seguimiento, correcciones, recinto) en un .npz.")
+        self.btn_load = QPushButton("Cargar…")
+        self.btn_load.setToolTip("Carga un análisis guardado (.npz) en lugar de analizar de nuevo.")
+        ses_box = QGroupBox("Análisis guardado")
+        sr = QHBoxLayout(ses_box)
+        sr.addWidget(self.btn_save)
+        sr.addWidget(self.btn_load)
 
         # --- results
         self.lbl_summary = QLabel("Sin análisis.")
@@ -137,6 +159,60 @@ class TrackingTab(QWidget):
         g.addRow(self.btn_clear)
         g.addRow(self.lbl_anchors)
 
+        # --- enclosure (origin and scale of every export)
+        self.lbl_arena = QLabel("Recinto sin definir.")
+        self.lbl_arena.setWordWrap(True)
+        self.lbl_arena.setTextFormat(Qt.TextFormat.RichText)
+        self.sp_din = QDoubleSpinBox(decimals=1); self.sp_din.setRange(1, 100000); self.sp_din.setSuffix(" mm")
+        self.sp_din.setValue(ar.D_IN_MM)
+        self.sp_din.setToolTip("Diámetro INTERIOR del recinto (borde interior del anillo). Fija la escala mm/px.")
+        self.sp_dout = QDoubleSpinBox(decimals=1); self.sp_dout.setRange(1, 100000); self.sp_dout.setSuffix(" mm")
+        self.sp_dout.setValue(ar.D_OUT_MM)
+        self.sp_dout.setToolTip("Diámetro EXTERIOR del anillo. Solo se usa como control: r_ext/r_int medido "
+                                "debe coincidir con D_ext/D_int.")
+        self.chk_arena_auto = QCheckBox("Detectar el recinto al analizar"); self.chk_arena_auto.setChecked(True)
+        self.chk_arena_auto.setToolTip(f"Mide el recinto cada {ar.DEFAULT_STEP} cuadros durante el análisis "
+                                       "(sigue su movimiento y los cambios de zoom de la cámara).")
+        self.btn_arena_detect = QPushButton("Detectar automáticamente")
+        self.btn_arena_detect.setToolTip("Mide el recinto en el tramo recortado (borde interior y exterior "
+                                         "del anillo) y sigue su movimiento.")
+        self.btn_arena_manual = QPushButton("Marcar a mano")
+        self.btn_arena_manual.setCheckable(True)
+        self.btn_arena_manual.setToolTip("Activalo y hacé clics sobre el borde INTERIOR del anillo "
+                                         "(≥ 3; mejor 6–8 repartidos).")
+        self.btn_arena_apply = QPushButton("Ajustar a los puntos")
+        self.btn_arena_apply.setToolTip("Ajusta un círculo (mínimos cuadrados) a los puntos marcados.")
+        self.btn_arena_clear = QPushButton("Borrar puntos")
+        self.lbl_pts = QLabel("Puntos: 0")
+        self.chk_follow = QCheckBox("Seguir el movimiento detectado")
+        self.chk_follow.setChecked(True)
+        self.chk_follow.setToolTip("Con un recinto automático disponible, el círculo marcado a mano se "
+                                   "traslada y escala con el movimiento medido (útil si la detección del "
+                                   "radio no es buena pero sí la del movimiento).")
+        self.btn_arena_auto_only = QPushButton("Volver al automático")
+        self.btn_arena_auto_only.setToolTip("Descarta el círculo marcado a mano.")
+        self.chk_show_arena = QCheckBox("Mostrar recinto y ejes"); self.chk_show_arena.setChecked(True)
+        arena_box = QGroupBox("Recinto: origen (0, 0) y escala")
+        af = QFormLayout(arena_box)
+        af.addRow(self.lbl_arena)
+        af.addRow("Diámetro interior", self.sp_din)
+        af.addRow("Diámetro exterior", self.sp_dout)
+        af.addRow(self.chk_arena_auto)
+        af.addRow(self.chk_show_arena)
+        arena_hint = QLabel("Origen (0, 0) en el centro del recinto de cada cuadro; x a la derecha e y hacia "
+                            "arriba en la vista mostrada (la del observador).")
+        arena_hint.setWordWrap(True)
+        af.addRow(arena_hint)
+        det_box = QGroupBox("Detección")
+        dg = QGridLayout(det_box)
+        dg.addWidget(self.btn_arena_detect, 0, 0, 1, 2)
+        dg.addWidget(self.btn_arena_manual, 1, 0)
+        dg.addWidget(self.btn_arena_clear, 1, 1)
+        dg.addWidget(self.lbl_pts, 2, 0)
+        dg.addWidget(self.btn_arena_apply, 2, 1)
+        dg.addWidget(self.chk_follow, 3, 0, 1, 2)
+        dg.addWidget(self.btn_arena_auto_only, 4, 0, 1, 2)
+
         # --- kinematics
         kp = KinematicsParams()
         self.sp_window = QSpinBox(); self.sp_window.setRange(3, 301); self.sp_window.setSingleStep(2)
@@ -146,14 +222,17 @@ class TrackingTab(QWidget):
         self.sp_diam = QDoubleSpinBox(decimals=2); self.sp_diam.setRange(0, 10000)
         self.sp_diam.setSuffix(" mm"); self.sp_diam.setSpecialValueText("sin conversión (px)")
         self.sp_diam.setValue(kp.robot_diameter_mm)
-        self.sp_diam.setToolTip("Diámetro real del robot. Con el diámetro medido en px se obtiene la "
-                                "escala mm/px y se exportan columnas en m y m/s.")
+        self.sp_diam.setToolTip("Diámetro real del robot. Fija la escala mm/px solo con 'Escala desde: "
+                                "Diámetro del robot'; con el recinto, define la capa de pared (R_c − D/2).")
         self.cb_mirror = QComboBox()
         for key, text in MIRROR_LABELS.items():
             self.cb_mirror.addItem(text, key)
-        self.cb_mirror.setToolTip("Si la cámara graba la escena espejada, las exportaciones (CSV, resumen e "
-                                  "informes) se pasan a la escena real: se refleja la posición y se invierte el "
-                                  "sentido de θ y ω. La superposición sobre el video no cambia.")
+        self.cb_mirror.setToolTip("Cómo se muestra la escena y en qué sistema se exporta. 'Rotada 180°': el "
+                                  "observador está parado en el borde superior del video (y = 0) mirando hacia "
+                                  "el inferior; la imagen se gira para verla desde ahí, x queda a su derecha, y "
+                                  "hacia la pared de enfrente y el sentido de giro no cambia. 'Espejada': para "
+                                  "cámaras que graban la escena reflejada (invierte el sentido de θ y ω). El "
+                                  "análisis siempre se hace sobre la imagen original.")
         self.chk_vel = QCheckBox("Mostrar vector velocidad"); self.chk_vel.setChecked(True)
         self.chk_rot = QCheckBox("Mostrar orientación"); self.chk_rot.setChecked(True)
         self.lbl_kin = QLabel(ARROW_NOTE)
@@ -162,37 +241,55 @@ class TrackingTab(QWidget):
         kf = QFormLayout(kin_box)
         kf.addRow("Suavizado", self.sp_window)
         kf.addRow("Diámetro real", self.sp_diam)
-        kf.addRow("Video espejado", self.cb_mirror)
+        kf.addRow("Orientación", self.cb_mirror)
+        self.cb_scale = QComboBox()
+        for key, text in SCALE_LABELS.items():
+            self.cb_scale.addItem(text, key)
+        self.cb_scale.setToolTip("Fuente de la escala mm/px. Recinto: D_int / (2 r_int) en cada cuadro "
+                                 "(recomendado). Perspectiva: además lleva el radio de contacto de los robots "
+                                 "con la pared a R_int − D/2. Robot: diámetro real / diámetro medido (constante).")
+        kf.addRow("Escala desde", self.cb_scale)
         kf.addRow(self.chk_vel)
         kf.addRow(self.chk_rot)
         kf.addRow(self.lbl_kin)
 
         # --- outputs
-        self.btn_csv = QPushButton("Exportar CSV (todos los robots)…")
+        self.btn_csv = QPushButton("Todos los robots…")
         self.btn_csv.setToolTip("Un único archivo con todos los robots. En el diálogo elegís el formato: "
                                 "una fila por robot y cuadro, o una fila por cuadro con columnas por robot.")
-        self.btn_csv_robot = QPushButton("Exportar resumen por robot (CSV)…")
-        self.btn_video = QPushButton("Exportar video con seguimiento…")
-        self.btn_save = QPushButton("Guardar análisis…")
-        self.btn_load = QPushButton("Cargar análisis…")
-        out_box = QGroupBox("Resultados")
-        o = QVBoxLayout(out_box)
-        for b in (self.btn_csv, self.btn_csv_robot, self.btn_video, self.btn_save, self.btn_load):
-            o.addWidget(b)
+        self.btn_csv_robot = QPushButton("Resumen por robot…")
+        self.btn_csv_robot.setToolTip("Una fila por robot: rapidez media, giro, tiempo en la pared, etc.")
+        self.cb_export_robot = QComboBox()
+        self.btn_csv_one = QPushButton("Exportar este robot…")
+        self.btn_csv_one.setToolTip("CSV con todas las columnas del seguimiento, una fila por cuadro, solo para "
+                                    "el robot elegido (posición, velocidad, rotación, distancia a la pared…).")
+        self.btn_csv_each = QPushButton("Cada robot en su archivo…")
+        self.btn_csv_each.setToolTip("Un CSV por robot (mismas columnas que 'Exportar este robot').")
+        self.btn_video = QPushButton("Video con seguimiento…")
+        out_box = QGroupBox("Exportar")
+        og = QGridLayout(out_box)
+        og.addWidget(QLabel("CSV"), 0, 0)
+        og.addWidget(self.btn_csv, 0, 1)
+        og.addWidget(self.btn_csv_robot, 1, 1)
+        og.addWidget(self.btn_csv_each, 2, 1)
+        og.addWidget(QLabel("Robot"), 3, 0)
+        og.addWidget(self.cb_export_robot, 3, 1)
+        og.addWidget(self.btn_csv_one, 4, 1)
+        og.addWidget(QLabel("Video"), 5, 0)
+        og.addWidget(self.btn_video, 5, 1)
+        og.setColumnStretch(1, 1)
 
-        side = QWidget()
-        sl = QVBoxLayout(side)
-        sl.setContentsMargins(0, 0, 0, 0)
-        for w in (par_box, res_box, cor_box, kin_box, out_box):
-            sl.addWidget(w)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(side)
-        scroll.setFixedWidth(360)
+        # Side panel: one tab per stage; pages scroll vertically only (no horizontal bar).
+        self.side_tabs = tabbed_panel([
+            ("Análisis", page([par_box, ses_box])),
+            ("Revisión", page([res_box, cor_box], stretch_index=0)),
+            ("Recinto", page([arena_box, det_box])),
+            ("Resultados", page([kin_box, out_box])),
+        ], PANEL_WIDTH)
 
         lay = QHBoxLayout(self)
         lay.addWidget(self.player, 1)
-        lay.addWidget(scroll)
+        lay.addWidget(self.side_tabs)
 
         # Debounced re-tracking when tracker params change (tracking is cheap, but not free).
         self._debounce = QTimer(self, singleShot=True, interval=400)
@@ -209,6 +306,19 @@ class TrackingTab(QWidget):
         self.sp_window.valueChanged.connect(self._kin_debounce.start)
         self.sp_diam.valueChanged.connect(self._kin_debounce.start)
         self.cb_mirror.currentIndexChanged.connect(self._kin_debounce.start)
+        self.cb_mirror.currentIndexChanged.connect(lambda _i: self.player.refresh())
+        self.cb_scale.currentIndexChanged.connect(self._kin_debounce.start)
+        self.btn_arena_detect.clicked.connect(self.arenaDetectRequested)
+        self.btn_arena_manual.toggled.connect(self._set_manual_mode)
+        self.btn_arena_apply.clicked.connect(self._apply_manual)
+        self.btn_arena_clear.clicked.connect(self._clear_points)
+        self.btn_arena_auto_only.clicked.connect(self._drop_manual)
+        self.chk_follow.toggled.connect(self._on_follow)
+        self.chk_show_arena.toggled.connect(lambda _: self.player.refresh())
+        self.sp_din.valueChanged.connect(self._on_diameters)
+        self.sp_dout.valueChanged.connect(self._on_diameters)
+        self.btn_csv_one.clicked.connect(lambda: self.robotCsvRequested.emit(int(self.cb_export_robot.currentData() or 0)))
+        self.btn_csv_each.clicked.connect(self.allRobotsCsvRequested)
         self.chk_vel.toggled.connect(lambda _: self.player.refresh())
         self.chk_rot.toggled.connect(lambda _: self.player.refresh())
         self.btn_video.clicked.connect(self.videoRequested)
@@ -256,7 +366,8 @@ class TrackingTab(QWidget):
     def kinematics_params(self) -> KinematicsParams:
         w = self.sp_window.value()
         return KinematicsParams(window=w if w % 2 else w + 1, robot_diameter_mm=self.sp_diam.value(),
-                                mirror=self.cb_mirror.currentData() or MIRROR_NONE)
+                                mirror=self.cb_mirror.currentData() or MIRROR_NONE,
+                                scale_source=self.cb_scale.currentData() or SCALE_ARENA)
 
     def set_kinematics_from(self, p: Optional[KinematicsParams]) -> None:
         if p is None:
@@ -265,10 +376,11 @@ class TrackingTab(QWidget):
             w.blockSignals(True)
             w.setValue(v)
             w.blockSignals(False)
-        i = self.cb_mirror.findData(getattr(p, "mirror", MIRROR_NONE))
-        self.cb_mirror.blockSignals(True)
-        self.cb_mirror.setCurrentIndex(max(0, i))
-        self.cb_mirror.blockSignals(False)
+        for cb, key in ((self.cb_mirror, getattr(p, "mirror", MIRROR_NONE)),
+                        (self.cb_scale, getattr(p, "scale_source", SCALE_ARENA))):
+            cb.blockSignals(True)
+            cb.setCurrentIndex(max(0, cb.findData(key)))
+            cb.blockSignals(False)
 
     def set_search_range(self, value: float) -> None:
         self.sp_search.blockSignals(True)
@@ -286,8 +398,17 @@ class TrackingTab(QWidget):
         self._set_session_enabled(session is not None)
         if session is None:
             return
+        if self.side_tabs.currentIndex() == TAB_ANALYSIS:
+            self.side_tabs.setCurrentIndex(TAB_REVIEW)     # next step after analysing / loading
         self.set_params_from(session.params)
         self.set_kinematics_from(session.kin_params)
+        if session.arena is not None:
+            self.arena = session.arena
+            for w, v in ((self.sp_din, session.arena.d_in_mm), (self.sp_dout, session.arena.d_out_mm)):
+                w.blockSignals(True); w.setValue(v); w.blockSignals(False)
+        elif self.arena is not None:
+            session.arena = self.arena          # circle marked before analysing
+        self._update_arena_label()
         self.on_result_updated()
 
     def current_view(self) -> Optional[SessionView]:
@@ -348,7 +469,8 @@ class TrackingTab(QWidget):
 
     def _set_session_enabled(self, on: bool) -> None:
         for w in (self.cb_filter, self.list_issues, self.btn_prev, self.btn_next, self.cb_robot,
-                  self.btn_clear, self.btn_csv, self.btn_csv_robot, self.btn_video, self.btn_save):
+                  self.btn_clear, self.btn_csv, self.btn_csv_robot, self.btn_video, self.btn_save,
+                  self.cb_export_robot, self.btn_csv_one, self.btn_csv_each):
             w.setEnabled(on)
 
     def _update_stale(self) -> None:
@@ -411,6 +533,13 @@ class TrackingTab(QWidget):
 
     # ------------------------------------------------------------------ manual correction
     def _fill_robot_combo(self, n: int) -> None:
+        if self.cb_export_robot.count() != n:
+            cur = self.cb_export_robot.currentData()
+            self.cb_export_robot.clear()
+            for k in range(n):
+                self.cb_export_robot.addItem(f"#{k}", k)
+            if cur is not None and cur < n:
+                self.cb_export_robot.setCurrentIndex(int(cur))
         if self.cb_robot.count() == n + 1:
             return
         self.cb_robot.blockSignals(True)
@@ -435,6 +564,10 @@ class TrackingTab(QWidget):
         self.player.refresh()
 
     def _update_hint(self) -> None:
+        if self._manual_mode:
+            self.lbl_hint.setText("Modo recinto: los clics marcan puntos del borde interior del anillo "
+                                  "(no corrigen robots). Desactivá 'Marcar a mano' para volver.")
+            return
         if self.session is None or self.session.result is None:
             self.lbl_hint.setText("Analizá el video para habilitar las correcciones.")
         elif self._selected is None:
@@ -443,7 +576,19 @@ class TrackingTab(QWidget):
             self.lbl_hint.setText(f"2) Robot <b>#{self._selected}</b> seleccionado: hacé clic en su centro "
                                   "real. El seguimiento continúa desde ese punto. Esc cancela.")
 
+    def _orientation(self) -> str:
+        return ori.valid(self.cb_mirror.currentData())
+
     def _on_click(self, x: float, y: float) -> None:
+        roi0 = self.session.roi if self.session is not None else self.state.roi
+        x, y = (float(v) for v in ori.points(x, y, roi0.w, roi0.h, self._orientation()))   # display -> image
+        if self._manual_mode:
+            roi = self.session.roi if self.session is not None else self.state.roi
+            self._manual_pts.append((x + roi.x, y + roi.y))
+            self.lbl_pts.setText(f"Puntos: {len(self._manual_pts)}")
+            self.btn_arena_apply.setEnabled(len(self._manual_pts) >= 3)
+            self.player.refresh()
+            return
         s = self.session
         if s is None or s.result is None:
             return
@@ -474,24 +619,146 @@ class TrackingTab(QWidget):
 
     # ------------------------------------------------------------------ rendering
     def _transform(self, frame: np.ndarray) -> np.ndarray:
+        return self._draw_arena(self._transform_tracks(frame))
+
+    def _draw_arena(self, img: np.ndarray) -> np.ndarray:
+        if not self.chk_show_arena.isChecked() and not self._manual_mode:
+            return img
+        roi = self.session.roi if self.session is not None else self.state.roi
+        a = self.arena.arena_at(self.player.current_index) if (self.arena is not None and self.arena.defined) else None
+        key = self._orientation()
+        h, w = img.shape[:2]
+        if a is None:
+            if not self._manual_pts:
+                return img
+            out = img.copy() if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+            for (px, py) in self._manual_pts:
+                qx, qy = ori.points(px - roi.x, py - roi.y, w, h, key)
+                cv2.circle(out, (int(round(float(qx))), int(round(float(qy)))), 4, (255, 0, 255), -1, cv2.LINE_AA)
+            return out
+        a, pts = ar.oriented(a, (roi.x, roi.y), (w, h), key, self._manual_pts)
+        return ar.draw(img, a, (roi.x, roi.y), ori.NONE, pts)     # img is already oriented
+
+    def _transform_tracks(self, frame: np.ndarray) -> np.ndarray:
         s, v = self.session, self._sv
         roi = s.roi if s is not None else self.state.roi
         crop = roi.apply(frame)
+        key = self._orientation()
         if s is None or v is None:
-            return crop
+            return ori.image(crop, key)
         i = v.result.row_of(self.player.current_index)
         if i is None:
-            return crop
+            return ori.image(crop, key)
         res, kin = v.result, v.kin
         xy = np.stack([res.x[i], res.y[i]], 1) - np.array([roi.x, roi.y])
         vel = np.stack([kin.vx[i], kin.vy[i]], 1) if (kin is not None and self.chk_vel.isChecked()) else None
         ang = kin.theta[i] if (kin is not None and self.chk_rot.isChecked() and s.has_rotation) else None
-        return draw_tracks(crop, xy, res.status[i], s.detection.r_out, self._selected, vel, ang, fps=s.fps)
+        return draw_oriented(crop, key, xy, res.status[i], s.detection.r_out, self._selected, vel, ang, fps=s.fps)
+
+    # ------------------------------------------------------------------ enclosure
+    def diameters(self) -> tuple[float, float]:
+        return self.sp_din.value(), self.sp_dout.value()
+
+    def set_arena(self, track: Optional[ar.ArenaTrack]) -> None:
+        """New automatic result (keeps a manual circle if there is one)."""
+        if track is not None and self.arena is not None and self.arena.manual is not None:
+            track.manual, track.manual_frame = self.arena.manual, self.arena.manual_frame
+            track.manual_points, track.follow_motion = self.arena.manual_points, self.chk_follow.isChecked()
+        self.arena = track
+        if self.session is not None:
+            self.session.arena = track
+        self._update_arena_label()
+        self.player.refresh()
+
+    def _update_arena_label(self) -> None:
+        a = self.arena
+        if a is None or not a.defined:
+            self.lbl_arena.setText("<span style='color:#c33'>Recinto sin definir</span>: el origen de las "
+                                   "exportaciones es el centro del recorte y la escala sale del diámetro del robot.")
+        else:
+            st = a.static()
+            warn = "" if (st is not None and (st.reliable or a.manual is not None)) else \
+                "<br><span style='color:#c60'>Detección dudosa: revisá el círculo o marcalo a mano.</span>"
+            self.lbl_arena.setText(a.describe() + warn)
+        self.btn_arena_auto_only.setEnabled(a is not None and a.manual is not None)
+        self.chk_follow.setEnabled(a is not None and a.has_auto)
+
+    def _set_manual_mode(self, on: bool) -> None:
+        self._manual_mode = on
+        if on:
+            self._select(None)
+        self.btn_arena_apply.setEnabled(len(self._manual_pts) >= 3)
+        self._update_hint()
+        self.player.refresh()
+
+    def _clear_points(self) -> None:
+        self._manual_pts.clear()
+        self.lbl_pts.setText("Puntos: 0")
+        self.btn_arena_apply.setEnabled(False)
+        self.player.refresh()
+
+    def _apply_manual(self) -> None:
+        if len(self._manual_pts) < 3:
+            return
+        d_in, d_out = self.diameters()
+        try:
+            circ = ar.fit_points(self._manual_pts, d_in, d_out)
+        except ValueError as exc:
+            self.lbl_arena.setText(f"<span style='color:#c33'>{exc}</span>")
+            return
+        t = self.arena if self.arena is not None else ar.ArenaTrack.empty(d_in, d_out)
+        t.manual, t.manual_frame = circ, int(self.player.current_index)
+        t.manual_points = tuple(self._manual_pts)
+        t.follow_motion = self.chk_follow.isChecked()
+        self.arena = t
+        if self.session is not None:
+            self.session.arena = t
+        self.btn_arena_manual.setChecked(False)
+        self._manual_pts.clear()
+        self.lbl_pts.setText("Puntos: 0")
+        self._update_arena_label()
+        self.arenaChanged.emit()
+        self.player.refresh()
+
+    def _drop_manual(self) -> None:
+        if self.arena is None or self.arena.manual is None:
+            return
+        self.arena.manual = None
+        self.arena.manual_frame = None
+        self.arena.manual_points = ()
+        if not self.arena.has_auto:
+            self.arena = None
+            if self.session is not None:
+                self.session.arena = None
+        self._update_arena_label()
+        self.arenaChanged.emit()
+        self.player.refresh()
+
+    def _on_follow(self, on: bool) -> None:
+        if self.arena is not None and self.arena.manual is not None:
+            self.arena.follow_motion = on
+            self._update_arena_label()
+            self.arenaChanged.emit()
+            self.player.refresh()
+
+    def _on_diameters(self) -> None:
+        if self.arena is None:
+            return
+        d_in, d_out = self.diameters()
+        self.arena = self.arena.with_diameters(d_in, d_out)
+        if self.session is not None:
+            self.session.arena = self.arena
+        self._update_arena_label()
+        self._kin_debounce.start()
 
     def _on_loaded(self, info: VideoInfo) -> None:
         self.setEnabled(True)
         self.player.load(info.path)
         self.set_session(None)
+        self.arena = None
+        self._manual_pts.clear()
+        self.lbl_pts.setText("Puntos: 0")
+        self._update_arena_label()
         self._sv = None
         self.lbl_summary.setText("Sin análisis.")
         self.list_issues.clear()

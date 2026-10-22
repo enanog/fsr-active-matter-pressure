@@ -7,7 +7,7 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
-                               QInputDialog, QLabel, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget)
+                               QInputDialog, QLabel, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from core.analysis import FrameProcessor
 from core.detection import METHOD_DIRECT, METHOD_RING, TRACKPY_ERROR, DetectionParams
@@ -16,6 +16,7 @@ from core.processing import OPERATIONS, Pipeline
 from core.video_io import VideoInfo
 from gui.frame_view import FrameView, RoiFrameView
 from gui.player import PlayerWidget
+from gui.side_panel import VScrollArea
 from gui.state import ProjectState
 
 PANEL_WIDTH = 300
@@ -443,9 +444,7 @@ class ProcessTab(QWidget):
         ops_lay.addWidget(self.det_panel)
         ops_lay.addStretch(1)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(ops_widget)
+        scroll = VScrollArea(ops_widget)
 
         self.btn_save = QPushButton("Guardar video procesado…")
         self.btn_save.setMinimumHeight(34)

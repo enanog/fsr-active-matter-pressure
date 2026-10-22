@@ -8,7 +8,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-USECOLS = ["frame", "particle", "speed_m_s", "x_video_px", "y_video_px"]
+# speed_mm_s: VidFetch >= 2026-10-08 (enclosure frame); speed_m_s: older exports.
+REQUIRED = ["frame", "particle", "x_video_px", "y_video_px"]
+SPEED_COLS = {"speed_mm_s": 1.0, "speed_m_s": 1e3}
 
 
 @dataclass
@@ -32,10 +34,11 @@ class Robots:
 
 
 def load_robots(path: Path) -> Robots:
-    d = pd.read_csv(path, usecols=lambda c: c in USECOLS)
-    missing = set(USECOLS) - set(d.columns)
-    if missing:
-        raise ValueError(f"'{path.name}': faltan columnas {sorted(missing)}")
+    d = pd.read_csv(path, usecols=lambda c: c in REQUIRED or c in SPEED_COLS)
+    missing = set(REQUIRED) - set(d.columns)
+    speed_col = next((c for c in SPEED_COLS if c in d.columns), None)
+    if missing or speed_col is None:
+        raise ValueError(f"'{path.name}': faltan columnas {sorted(missing | ({'speed_mm_s'} if speed_col is None else set()))}")
     d = d.dropna(subset=["frame", "particle"])
     d["frame"] = d["frame"].astype(int)
     d["particle"] = d["particle"].astype(int)
@@ -44,7 +47,7 @@ def load_robots(path: Path) -> Robots:
         return d.pivot_table(index="frame", columns="particle", values=col, aggfunc="first")
 
     x, y = wide("x_video_px"), wide("y_video_px")
-    v = wide("speed_m_s").reindex(index=x.index, columns=x.columns) * 1e3
+    v = wide(speed_col).reindex(index=x.index, columns=x.columns) * SPEED_COLS[speed_col]
     y = y.reindex(index=x.index, columns=x.columns)
     vv = v.to_numpy(dtype=float)
     with np.errstate(all="ignore"):

@@ -354,7 +354,9 @@ class SyncPanel(_Panel):
                         "Cuadros de video por segundo REAL (time-lapse ×10: 3 cuadros = 1 s)")
         self.auto = QCheckBox("Desfase = fin del pulso LED (automático)")
         self.offset = dspin(-1e5, 1e5, 2, 0.1, "s", "Tiempo del sensor que corresponde al cuadro 0")
-        self.mirror = QCheckBox("Video espejado (mostrar volteado horizontalmente)")
+        self.mirror = QCheckBox("Mostrar como lo ve el observador (imagen rotada 180°)")
+        self.mirror.setToolTip("El observador está parado en el borde superior del video, mirando hacia el "
+                               "inferior. La rotación no cambia el sentido de giro (no es un espejado).")
         self.robots = QCheckBox("Superponer robots de VidFetch (color = |v|)")
         self.radius = dspin(2, 500, 1, 1, "px", "Radio dibujado de cada robot")
         form = QFormLayout()
@@ -381,7 +383,7 @@ class SyncPanel(_Panel):
         self.auto.setChecked(sy.offset_auto)
         self.offset.setValue(td.offset_s if td is not None else sy.offset_s)
         self.offset.setEnabled(not sy.offset_auto)
-        self.mirror.setChecked(sy.mirror)
+        self.mirror.setChecked(sy.view == "rot180")
         self.robots.setChecked(sy.show_robots)
         self.radius.setValue(sy.robot_radius_px)
         self.robots.setEnabled(td is not None and td.robots is not None)
@@ -393,7 +395,7 @@ class SyncPanel(_Panel):
         sy.frames_per_s = self.fr.value()
         sy.offset_auto = self.auto.isChecked()
         sy.offset_s = self.offset.value()
-        sy.mirror = self.mirror.isChecked()
+        sy.view = "rot180" if self.mirror.isChecked() else "no"
         sy.show_robots = self.robots.isChecked()
         sy.robot_radius_px = self.radius.value()
 

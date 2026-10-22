@@ -10,6 +10,91 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-10-09 — Orientación: el video NO está espejado; vista rotada 180°
+
+**Corrección del usuario:** en modo `QR` los robots giran **antihorario** (solo motor derecho). El "giran a
+la derecha" anterior era por el motor, no horario. Verificado en el video crudo (robot 6: el clip va de las 3
+a las 12). ⇒ la suposición "video espejado horizontal" (08/10) era **falsa** e invertía y, θ, ω, v_t, φ.
+El observador está parado en el borde superior del video (y_px = 0) mirando hacia y_px = 2160 (VR 3840×2160).
+
+- **`core/orientation.py` (nuevo):** claves `no | rot180 | horizontal | vertical`; signos (sx, sy, s_rot) =
+  (+,+,+) | (−,−,+) | (−,+,−) | (+,−,−); `image`, `points` (involutivo: sirve para clics), `vectors`,
+  `from_frame`. Export: x = s·sx·(X−Xc), y = −s·sy·(Y−Yc). Con rot180: x = −s(X−Xc), y = +s(Y−Yc).
+- **VidFetch:** `KinematicsParams.mirror` (nombre conservado por compatibilidad) = orientación, por defecto
+  **rot180**. Combo "Orientación de la escena". La vista de Seguimiento, el video exportado (`annotator`,
+  `draw_oriented`) y el recinto (`arena.oriented`) se dibujan sobre la imagen ya orientada (rótulos derechos);
+  `_on_click` convierte display→imagen con `ori.points`. Análisis siempre sobre la imagen original.
+  CSV: columna `orientacion` (antes `espejo`); `_info.json`: `orientacion`, `orientacion_descripcion`.
+- **Herramientas:** `reexportar.py --orientacion` (alias `--espejo`); `verificar_cinematica.py` orienta las
+  imágenes y controla ω contra el giro programado (`EXPECTED_SPIN = {"QR": "antihorario"}`,
+  `--giro-esperado`); `verificar_giro.py` orienta los recortes; `generar_informe.py` dibuja la captura sobre la
+  imagen orientada; FSRScope `Sync.view = "rot180"` (antes `mirror: bool`), configs de `datos/presion/config`.
+- **Datos regenerados (exacto):** respecto de los CSV del 08/10: x, vx, r, |v| iguales; y, vy, θ, ω, v_t, φ,
+  vel_dir cambian de signo (diferencia 0). ω media +2,81 / +2,62 / +3,35 °/s; 14 robots antihorario, 8
+  contrarrotan (horario); Φ = +0,21 / +0,20 / +0,25 (circulación antihoraria). Capas, rapideces, atascos y
+  escala sin cambios. Pared: contrarrotantes 64,9/56,7/74,7 % vs programados 51,7/57,8/45,4 %. Macro nueva
+  `PccwCw` (% del tiempo antihorario de los que giran horario en neto).
+- **Figuras:** `atascos.png` (cada panel rotado), `recinto_movimiento.png` (Δy cambia de signo: el anillo se
+  aleja ~2 mm del observador los primeros 15 min), capturas y ocupación regeneradas. Figuras de método f1–f9
+  del informe de la aplicación regeneradas en la vista del observador con `software/analisis_video/figuras_metodo.py`
+  (primer minuto de 24/09; f2 cuadro 160: 25 candidatos, 22 aceptados 0,85–1,00, 3 rechazados 0,72–0,81; f4 robot 8,
+  hueco 60–89, desvío 6,3 mm sin ancla / 3,4 con ancla; f5 robot 5; f6 robot 12, Δθ +58,7° q 0,79, conjunta +61,8°;
+  f7 robots 5 y 8; f8 cuadro 90). Docs de Claude «Detección de robots…» y «Seguimiento de robots — informe técnico»
+  actualizados (figuras, sistema de coordenadas, columnas, ejemplos).
+
+## 2026-10-08 (noche) — Recinto: origen en el centro, escala, exportación por robot
+
+**Pedido:** (0,0) en el centro del recinto (Ø int 18,5 cm / ext 19,5 cm — el usuario escribió "r"; son
+**diámetros**: con radios el anillo no entra en el VC de 610 px), detección automática con alternativa
+manual, exportar todos los datos de un solo robot, informes completos con cómo re-ejecutar todo.
+
+- **`core/arena.py` (nuevo):** máscara HSV del anillo (tono dominante saturado ±12; LEDs/pilas fuera),
+  720 rayos con borde subpíxel en S, ajuste de **2 círculos concéntricos** (Kåsa + MAD), `detect_one`
+  (~0,12 s/cuadro), `ArenaTrack` (muestras cada `DEFAULT_STEP`=15 cuadros, mediana móvil 5, interp.),
+  manual por ≥3 clics (`fit_points`) con opción de seguir el movimiento detectado, `track_video` (grab +
+  retrieve), `draw`. Guardado en la sesión `.npz` (`arena` array + meta, versión 3).
+- **Hallazgos en los 3 VC:** (1) el anillo **se desliza sobre la placa** 1,5–2,6 × 3,3–4,1 mm (mismo patrón
+  los 3 días: baja ~2 mm los primeros 15 min y vuelve entre 15–30 min); la placa no se mueve (correlación de
+  fase < 1 px). (2) **La cámara cambia de aumento** en saltos de +0,5 % (24/09 min 18, 25/09 15:00 min 13): la
+  placa también se agranda 0,47 % → reenfoque. ⇒ centro y escala por cuadro.
+- **Escala:** recinto 0,3233/0,3241/0,3230 mm/px. r_ext/r_int = 1,0545–1,0547 vs 195/185 = 1,0541. Cuerpo del
+  robot 101 px (4870 rayos libres) = 32,7 mm. Capas a 75,2 y 42,8 mm → separación 32,5 mm = D. La escala
+  vieja (35 mm / 2·47 px = 0,372) estaba **15 % alta** (r_ext del detector = anillo oscuro, no el cuerpo
+  ~51 px) ⇒ longitudes y velocidades **−13 %** respecto de los informes anteriores. Diámetro robot por
+  defecto: **33 mm**.
+- **Perspectiva:** R_c = q99,5(r) = 77,8–78,2 mm vs R_int − D/2 = 76 mm ⇒ κ = 0,972–0,978 (2,5 %). Se reporta,
+  no se aplica por defecto (opción `scale_source="perspectiva"`).
+- **Export (`kinematics.table`, 34 col.):** x_mm, y_mm (origen centro del recinto del cuadro, y arriba,
+  espejo corregido), r_mm, phi_deg, wall_dist_mm (= R_int − r), v{x,y}_mm_s (SG de las posiciones en mm →
+  relativas al recinto, incluyen la escala por cuadro), speed, vel_dir, v_rad, v_tan (>0 antihorario),
+  θ/ω, px centrados, mm_per_px, xc/yc_video_px, x/y_video_px, mass, ring_cov, status_code, espejo.
+  **Cambian nombres**: x_m/speed_m_s → *_mm*. `_info.json` junto a cada CSV. `robot_table`, resumen con
+  mean_r, pct_wall_layer (r ≥ R_c − D/2), mean_v_tan, pct_omega_cw, turns.
+- **GUI:** grupo "Recinto: origen (0,0) y escala" (detectar, marcar a mano, ajustar, seguir movimiento,
+  descartar manual, diámetros, mostrar), combo "Escala desde", "Exportar un robot", "Exportar cada robot".
+  Detecta el recinto durante "Analizar video"; sesiones viejas lo miden al cargarse. Overlay en video exportado.
+- **`tools/reexportar.py` (nuevo):** sesión → CSV/JSON/resumen/por robot, `--redetectar`, `--guardar-sesion`.
+- **`tools/verificar_cinematica.py` (nuevo, solo cv2/numpy/pandas):** panel A = cuadro des-espejado con robots
+  redibujados solo desde x_mm/y_mm + recinto + ejes; panel B = ∫v dt en Δ (def. 5 s) vs posición en t+Δ;
+  panel C = 6 robots ampliados ×5 con centro exportado vs centro independiente (borde del cuerpo: 180 rayos,
+  paso oscuro→claro subpíxel, círculo Kåsa radio libre + MAD); cuadrícula mm del recinto en todos los paneles
+  (A 10 mm, B 5 mm, C 1 mm); salidas `cinematica_<c>.png`, `_ejes.png`, `_centros.png`, `.txt` (5 controles).
+  Resultado en los 3 ensayos: transformación 0,0005 mm; ∫v vs Δpos 10 s mediana 0,13 mm (2,5–2,8 %);
+  v vs diferencia finita cruda r = 0,96, pendiente 1,05; centro vs borde mediana 0,71–0,74 mm (p90 1,4),
+  D cuerpo medido 33,03–33,05 mm, sesgo radial ≤ 0,3 % r. Hough descartado como referencia (mediana 1,7 mm,
+  radios erráticos). Pendiente: pruebas físicas (regla, flecha/letra, velocidad cronometrada).
+- **Scripts:** `generar_informe.py` y `comparar_ensayos.py` leen el formato nuevo (y el viejo). Umbral de
+  atasco **0,52 mm/s** (= 0,6 × 0,869: mismos episodios). FSRScope `robots.py` acepta speed_mm_s.
+- **Datos regenerados (08/10):** 3 sesiones con recinto (medido cada 30 cuadros sobre JPEG q2 extraídos con
+  ffmpeg en la PC; `--redetectar` usa el video, paso 15) y 3 VP_ (espejo horizontal, ventana 5, D 33 mm).
+  Calidad recalculada: estrictos 265302/217149/241944; episodios 46/33/15.
+- **Resultados nuevos:** φ = 0,70 (antes 0,58); capas 75,2/42,8/~11 mm con 12,5/7,3/2,2 robots (87–90 %
+  llenas); |v| mediana 0,50/0,56/0,61 mm/s; contrarrotantes en la pared: A 65 vs 52 %, C 75 vs 45 %, **B 57 vs
+  58 % (no se cumple)** → hipótesis de rodadura abierta.
+- **Pendientes:** medir alturas de pared y robots (κ geométrico); fijar anillo y foco de la cámara; ubicar
+  el FSR en φ; el usuario debe revisar que las sesiones 24/09 tenían espejo `no`/ventana 3 (se regeneraron
+  con horizontal/5, como los otros dos). Cambios no commiteados (el usuario decide el commit).
+
 ## 2026-10-08 — Deriva del giro acumulado θ: diagnóstico y corrección
 
 **Problema (reportado por el usuario: la desrotación del informe no queda quieta):** θ se resolvía solo con
@@ -124,7 +209,7 @@ más abajo usan las viejas):
   `Medicion Vacio.csv`; las referencias a `Medicion 25/26/27 Robots 30 Min.csv` ya estaban rotas
   antes (esos archivos se renombraron a `P_…` en septiembre).
 
-## 2026-10-08 — Video espejado y análisis de los 3 ensayos
+## 2026-10-08 — Video espejado y análisis de los 3 ensayos (SUPERADO el 09/10: el video NO está espejado, ver arriba)
 
 **Video espejado:** los videos de la cámara fija (DJI, cenital) están espejados respecto del eje vertical (confirmado por el
 usuario: en modo `QR` todos los robots están programados para girar a la derecha). Nueva opción de

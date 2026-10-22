@@ -54,7 +54,8 @@ class Sync:
     offset_auto: bool = True        # offset = end of the LED sync pulse
     offset_s: float = 0.0
     frames_per_s: float = 3.0       # time-lapse: video frames per REAL second
-    mirror: bool = True             # DJI top camera videos are horizontally mirrored
+    view: str = "rot180"            # how the video is shown: "rot180" = camera image rotated 180 deg, as
+                                    # seen by the experimenter (top edge of the video); "no" = as recorded
     show_robots: bool = False       # overlay VidFetch trajectories on the video
     robot_radius_px: float = 47.0
     video_path: str = ""            # manual choice; empty = VC_/VR_<code> found in datos/video
