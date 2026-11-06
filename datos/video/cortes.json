@@ -1,0 +1,53 @@
+{
+  "20263010_1600_22QL_60": {
+    "partes": [
+      "VR_20263010_1600_22QL_60(1).MP4",
+      "VR_20263010_1600_22QL_60(2).MP4"
+    ],
+    "cuadros_VR": [
+      8639,
+      3492
+    ],
+    "creation_time": [
+      "2018-04-19T18:33:45.000000Z",
+      "2018-04-19T19:22:19.000000Z"
+    ],
+    "hueco_s": [
+      31.79
+    ],
+    "incertidumbre_s": 1.0,
+    "fr": 2.9970029970029968,
+    "residuo_cierre_s": [
+      25.46,
+      -0.15
+    ],
+    "control_fr": [
+      {
+        "archivo": "VR_20262409_1600_22QR_60.MP4",
+        "residuo_s": -1.04
+      },
+      {
+        "archivo": "VR_20262509_1230_22QR_60.MP4",
+        "residuo_s": -0.64
+      },
+      {
+        "archivo": "VR_20262509_1500_22QR_60.MP4",
+        "residuo_s": -1.01
+      },
+      {
+        "archivo": "VR_20263010_1100_22QL_60.MP4",
+        "residuo_s": 0.34
+      },
+      {
+        "archivo": "VR_20263010_1200_22R_60.MP4",
+        "residuo_s": 0.0
+      },
+      {
+        "archivo": "VR_20263010_1430_22R_60.MP4",
+        "residuo_s": -0.23
+      }
+    ],
+    "metodo": "creation_time del MP4 (inicio, 1 s de resolución) + cuadros/f_r; ver medir_corte.py",
+    "medido": "2026-11-06T14:00:45+00:00"
+  }
+}

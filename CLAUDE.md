@@ -10,6 +10,41 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-06 — Ensayos del 30/10 (QL/R), video partido y comparación por modo
+
+- **Video partido `20263010_1600_22QL_60(1)/(2)`:** hueco = **31,8 ± 1 s** (≈ 94 cuadros sin grabar) entre el
+  último cuadro de (1) y el primero de (2). Método: `creation_time` del MP4 (inicio, 1 s) + cuadros/f_r
+  (`software/analisis_video/medir_corte.py` → `datos/video/cortes.json`). Controles: VC(1) termina en el último
+  cuadro de VR(1) (template matching 0,998, recorte 1:1, solo se cortó el inicio, 41 cuadros); en los 6 VR
+  completos `mtime − inicio − cuadros/f_r` = −1,0…+0,3 s; VR(1) da +25,5 s (cierre anormal: ~25 s finales
+  perdidos). Robots casi quietos a través del corte (desplazamiento mediana 0,25 mm, máx 13,6 mm) ⇒
+  identidad por asignación húngara sin ambigüedad (cociente 1.º/2.º vecino ≤ 0,41). El fin de la actividad
+  en G (4070 s) cae 3 s antes del fin predicho de (2) (4073 s): consistente, pero no es ancla (en 1100/1200
+  los robots siguieron ~90–100 s tras cortar la cámara).
+- **f_r = 2,997 exacto** (30000/1001/10) según los metadatos; `comparar_modos.py` lo usa para el eje de
+  tiempo/sincronía (con 3,0 el desfase acumulado es ~4 s a los 67 min). Velocidades de los VP_ sin tocar (0,1 %).
+- **`software/analisis_video/comparar_modos.py` (nuevo):** une partes con hueco NaN (`status = sin video`),
+  θ de la parte 2 continúa desde el último θ; presión cruda (`fsrscope.core.log_io`, K del firmware) entre
+  inicio y fin del video. Salida `informes/ensayos/generado/modos/`: `series_tiempo`, `distribuciones`,
+  `giro_circulacion`, `ocupacion`, `sensor` (G vs movilidad + asimetría ΔG), `resumen_modos` (png/csv),
+  `corte_<código>.png`, `serie_<código>.csv`. Colores por modo (QR azul, QL naranja, R aqua); sin doble eje.
+- **Resultados (7 ensayos, 22 robots):**
+  - **QL gira antihorario** (ω media +5,3 / +1,2 °/s; 18/0 y 12/2 robots antihorario/horario; Φ +0,25/+0,16),
+    igual que QR. Verificado a ojo en el VC crudo (robot 5, 1100: LED 3→1 h en 3 cuadros) y la escena no está
+    espejada (misma disposición del laboratorio que 24/09). **Pendiente: confirmar qué programa es QL.**
+  - **R:** ω media −2,0 / −1,0 °/s (13 y 10 robots horario), Φ −0,17 / −0,09, **0 atascos**, |v| mediana 0,67.
+  - El signo de Φ sigue al signo de la ω media en los 7 ensayos.
+  - **1600 QL:** a los 18,0–18,6 min la movilidad colapsa (|v| mediana 0,77 → 0,1 mm/s) y G salta de ~6 a
+    ~1000 µS; queda así hasta el final (atasco de ≥ 49,5 min, 73 % del ensayo). 20 robots con giro neto 0
+    durante 47 min; solo 12 y 15 siguen girando (−49 y +31 vueltas); el robot 3 queda contra la pared en
+    φ ≈ 295°. Misma firma que el atasco de 382 s del 24/09 (20 quietos, 2 girando). Antes del atasco:
+    |v| 0,77, ω +4,6 °/s, Φ +0,35. **Pendiente: mirar el video ~min 18 (¿atasco real o robots detenidos?).**
+  - 1100 QL: atasco de 3 min al inicio con G ~100–1000 µS. Tiempo en la capa de la pared 55–57 % en todos.
+  - Asimetría de ΔG fuertemente negativa solo en ensayos con atascos/eventos grandes (24/09, 1100 QL, 1430 R).
+- **Ubicación del sensor por correlación (robot en el sector vs log G):** no robusta; solo 30/10 R ×2 y 1600
+  QL coinciden en ~285–295°. Descartada de las figuras: medir la posición física.
+- Cuadros de verificación en `datos/video/verificacion/corte_20263010_1600/` (corte y giro).
+
 ## 2026-10-09 — Orientación: el video NO está espejado; vista rotada 180°
 
 **Corrección del usuario:** en modo `QR` los robots giran **antihorario** (solo motor derecho). El "giran a

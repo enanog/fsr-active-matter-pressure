@@ -32,5 +32,9 @@ longitudes y velocidades son 13 % menores (la escala anterior, del anillo oscuro
 | `20262409_1600_22QR_60` | 4,04 GB | 12105 / 12069 | 67,0 min | sí |
 | `20262509_1230_22QR_60` | 3,30 GB | 9907 / 9881 | 54,9 min | sí |
 | `20262509_1500_22QR_60` | 3,68 GB | 11038 / 11012 | 61,2 min | sí |
+| `20263010_1100_22QL_60` | 3,67 GB | 10995 / 10967 | 61,0 min | sí |
+| `20263010_1200_22R_60` | 4,01 GB | 12024 / 11996 | 66,7 min | sí |
+| `20263010_1430_22R_60` | 3,90 GB | 11710 / 11686 | 65,0 min | sí |
+| `20263010_1600_22QL_60` | 2,88 + 1,16 GB, partido `(1)`/`(2)` | 8639+3492 / 8598+3492 | 47,8 + 0,5 (hueco) + 19,4 min | sí; hueco en `cortes.json` |
 
 Al agregar un ensayo, sumar una fila (código, tamaño, cuadros, duración real y si ya se analizó).
