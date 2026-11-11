@@ -10,6 +10,71 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-06 (noche) — `software/matlab/comparar_ensayos.m`: superposición de ensayos en MATLAB
+
+- Elige varios `VP_*_robots.csv` (diálogo o lista `archivos`); une `(1)/(2)` con `cortes.json` (t₂ + t_fin₁ + hueco).
+  Una ventana por gráfico: V̄(t), ⟨|ω|⟩(t), E total, E tras/rot, histograma (fracción, clases comunes), P(v),
+  1−F(v), **G vs V̄** (mediana de G por clase de V̄, ambas suavizadas 30 s, clases ≥ 30 cuadros) y **V̄ y G vs t**
+  por ensayo (doble eje, atascos sombreados). Leyendas con clic → muestra/oculta todas las curvas del ensayo
+  (Tag = etiqueta); `ocultar` = ensayos ocultos al inicio. Tabla en consola (+ CSV si `guardar_figuras`).
+- Presión como FSRScope: t0 = primera fila válida, desfase = fin del LED (o manual de la config), recorte y
+  exclusiones de la config, G del firmware o ADC·K si la calibración es manual (aviso si difiere > 2 %).
+  Verificado contra FSRScope: desfases idénticos en los 7 ensayos, G dif. relativa ≤ 6e-6.
+- Spearman V̄–G (30 s): −0,08 a −0,45 en los 7 ensayos (más velocidad ↔ menos presión).
+- **Hallazgo:** `datos/presion/config/20262409_1600_22QR_60.json` tiene calibración manual con R_FEEDBACK = 50 000 Ω;
+  el firmware registró K = 0,8563 µS/cuenta (= 5 kΩ, lo documentado) ⇒ G de FSRScope ×0,1 para 24/09 (y en
+  resumen_ensayos.csv). Probable cero de más: pendiente que el usuario lo confirme/corrija.
+
+## 2026-11-06 (tarde) — velocidades.py: media móvil global, ⟨|ω|⟩(t), energía cinética, ventanas aparte
+
+- **Origen:** script de MATLAB del usuario (V̄(t), histograma, PDF, 1−F); se revisó (paneles 2–4 usaban |v|
+  individual, no V̄; etiqueta 1−P(v≤V) invertida; 1−F en lineal) y se pasó todo a la app.
+- **`VelSettings`** nuevos: `smooth_s` (30 s, media móvil de todos los gráficos de tiempo, cruda en gris),
+  `dist_smoothed` (distribuciones de V̄ suavizada; solo para comparar), `mass_g` (0 = por unidad de masa),
+  `k_inertia` (0,5). `from_dict` genérico.
+- **`robots.py`** lee `omega_rad_s` (o `omega_deg_s`) → `Robots.omega_rad_s`, también en videos partidos.
+- **Energía** (`MobilityData.energy`): E_tras = N·⟨½v²⟩, E_rot = N·⟨½kR²ω²⟩ por cuadro (König: la órbita ya
+  está en v); [mm²/s² = µJ/kg] o ×m[g] → nJ. Rot/tras = 2,5–2,9 con k = 0,5 (R·|ω| ≈ 1,5 mm/s > |v| típica).
+  Piso de ruido de ω (robots quietos en atasco 30/10 16:00): ω rms 0,62 °/s → e_rot 0,008 mm²/s² (< 0,5 %).
+  En el atasco de 30/10 16:00 la rotación vuelve a subir desde min ~55 con traslación ~0 (robots girando
+  en el lugar).
+- **GUI:** pestañas nuevas ⟨|ω|⟩(t) y Energía cinética; botón «Ventana aparte» en cada gráfico
+  (`DetachedWindow`, vuelve a su pestaña al cerrar); grupos laterales «Visualización» y «Energía cinética»;
+  panel lateral con scroll. Usar ⟨⟩ y no `<|ω|>` en textos (Qt/pyqtgraph lo toman como HTML y lo borran).
+- **Resumen:** columnas `omega_abs_media_deg_s`, `energia_unidad`, `masa_g`, `k_inercia`, `E_traslacion_media`,
+  `E_rotacion_media`, `E_total_media`, `E_rot_sobre_E_tras`.
+- Verificado contra el cálculo del script: 30/10 12:00 ΣE_tras 18,2 y ΣE_rot 45,7 µJ/kg (= 22 × 0,827 / 2,075).
+
+## 2026-11-06 — App de velocidades `software/fsrscope/velocidades.py` (FSRScope queda solo para presión + video)
+
+**Pedido del usuario:** los gráficos de velocidad dentro de FSRScope eran demasiada información junta ⇒
+FSRScope volvió exacto a su versión anterior (main_window, panels, plots, session, export, stats, settings,
+procesar_lote) y las velocidades van en una interfaz aparte que comparte `core/`.
+
+- **Archivos nuevos:** `velocidades.py` (interfaz; `--resumen [CSV]` sin interfaz), `gui/vel_window.py` (lista de
+  ensayos con trayectorias + umbral + ventana a la izquierda; una pestaña por gráfico), `gui/vel_plots.py`
+  (V̄(t), V̄ y G doble eje, umbral arrastrable, histograma, P(v), 1−F(v), mapa de ocupación; opciones en una
+  barra sobre cada gráfico), `core/mobility.py` (`Mobility`, `VelSettings`, `MobilityData`, atascos,
+  distribuciones, ocupación, G por estado), `core/summary.py` (resumen por ensayo). Pestaña «Resumen de
+  ensayos» muestra la tabla del CSV.
+- **Compartidos con FSRScope:** `core/robots.py` (lee x_mm/y_mm/status, filas contiguas por cuadro, `v_mean`,
+  une `VP_<c>(1)/(2)` con `cortes.json` por asignación húngara) y `core/paths.find_trajectories` (devuelve la
+  parte (1)) ⇒ FSRScope ahora también encuentra las trayectorias del 30/10 16:00.
+- **Configuración separada:** `datos/video/config/<código>.json` (umbral, ventana en min de video, opciones de
+  gráficos). De `datos/presion/config/` solo se lee (sincronía, calibración, recorte, exclusiones para G).
+- **Eje X:** minutos de video; G se ubica con t_video = t_sensor − desfase (FSRScope).
+- **Criterio de atasco:** estadístico (media/mediana/p90 entre robots) → mediana móvil `smooth_s` → < umbral
+  ≥ `min_duration_s`. Default media 0,35 mm/s, 30 s, 20 s: coincide con p90 < 0,52 en 98,5–100 % de los
+  cuadros de los 7 ensayos (0,30 y 0,40 coinciden menos). Runs separados solo por hueco de video se unen.
+- **Convenciones:** V̄ incluye interpolados (N constante); «media de cada robot» e «individual» solo observados.
+  G entra en la ventana de velocidades ∩ máscara de FSRScope. Mapa: robots/cm² promedio, celdas 5 mm, vista
+  del observador (él en y = −R). G < 1e-3 µS oculto en log (redondeo del remuestreo, hay G ~1e-14).
+- **Resumen** `datos/resumen_ensayos.csv` (7 ensayos): atasco 17,1 / 3,3 / 7,3 / 4,8 / 0 / 0,5 / 72,7 %; máx.
+  380 s (24/09, = 382 s de los informes) y 2963 s (30/10 16:00 a través del corte). G media atasco ≫ flujo.
+- **Verificado:** P_ de FSRScope idénticos al código anterior; ventana 10–40 min = 5401 cuadros.
+- **Limitación:** en el ensayo partido la superposición de robots sobre el video (FSRScope) solo coincide con
+  la parte (1).
+
 ## 2026-11-06 — Ensayos del 30/10 (QL/R), video partido y comparación por modo
 
 - **Video partido `20263010_1600_22QL_60(1)/(2)`:** hueco = **31,8 ± 1 s** (≈ 94 cuadros sin grabar) entre el

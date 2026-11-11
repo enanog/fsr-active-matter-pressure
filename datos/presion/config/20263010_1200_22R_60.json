@@ -1,0 +1,282 @@
+{
+  "calibration": {
+    "mode": "auto",
+    "v_ref": 3.3,
+    "v_exc": 0.7534,
+    "r_feedback": 1000.0,
+    "adc_fs": 1023.0
+  },
+  "analysis": {
+    "step_s": 0.05,
+    "deltaT_fixed_s": 2.5,
+    "deltaT_max_s": 15.0,
+    "t_start": null,
+    "t_end": null,
+    "exclusions": [],
+    "exclude_saturated": false,
+    "hist_bins": 120
+  },
+  "sync": {
+    "offset_auto": true,
+    "offset_s": 0.0,
+    "frames_per_s": 3.0,
+    "view": "rot180",
+    "show_robots": false,
+    "robot_radius_px": 47.0,
+    "video_path": ""
+  },
+  "playback": {
+    "speed": 100.0,
+    "live": false,
+    "live_window_s": 540.0,
+    "stats_period_s": 1.0
+  },
+  "mobility": {
+    "statistic": "media",
+    "v_threshold_mm_s": 0.35,
+    "smooth_s": 10.0,
+    "min_duration_s": 20.0,
+    "hist_bins": 60,
+    "heat_bin_mm": 5.0
+  },
+  "plots": [
+    {
+      "id": "G",
+      "visible": true,
+      "options": {
+        "log_y": false,
+        "show_sat": true,
+        "show_gmax": false,
+        "show_jams": false
+      }
+    },
+    {
+      "id": "dG",
+      "visible": true,
+      "options": {
+        "log_y": false
+      }
+    },
+    {
+      "id": "robots",
+      "visible": true,
+      "options": {
+        "show_p90": true,
+        "smooth_s": 0.0
+      }
+    },
+    {
+      "id": "R",
+      "visible": false,
+      "options": {
+        "log_y": true,
+        "show_floor": true
+      }
+    },
+    {
+      "id": "ADC",
+      "visible": false,
+      "options": {
+        "show_fs": true
+      }
+    },
+    {
+      "id": "raw",
+      "visible": false,
+      "options": {
+        "column": "",
+        "log_y": false
+      }
+    },
+    {
+      "id": "skew",
+      "visible": true,
+      "options": {
+        "mark_fixed": true
+      }
+    },
+    {
+      "id": "kurt",
+      "visible": false,
+      "options": {
+        "mark_fixed": true
+      }
+    },
+    {
+      "id": "surv",
+      "visible": true,
+      "options": {
+        "log_x": false,
+        "log_y": true
+      }
+    },
+    {
+      "id": "hist_G",
+      "visible": false,
+      "options": {
+        "log_y": false
+      }
+    },
+    {
+      "id": "hist_dG",
+      "visible": true,
+      "options": {
+        "log_y": true
+      }
+    },
+    {
+      "id": "vmean",
+      "visible": true,
+      "options": {
+        "smooth_s": 0.0,
+        "show_median": false,
+        "show_p90": false,
+        "show_thr": true,
+        "show_jams": false,
+        "log_y": false
+      }
+    },
+    {
+      "id": "v_G",
+      "visible": true,
+      "options": {
+        "smooth_s": 10.0,
+        "log_y2": true,
+        "show_jams": true
+      }
+    },
+    {
+      "id": "v_jam",
+      "visible": true,
+      "options": {
+        "show_raw": true,
+        "show_jams": true,
+        "log_y": false
+      }
+    },
+    {
+      "id": "hist_v",
+      "visible": true,
+      "options": {
+        "source": "V̄ colectiva por cuadro",
+        "log_y": false,
+        "mark_thr": true
+      }
+    },
+    {
+      "id": "pdf_v",
+      "visible": true,
+      "options": {
+        "source": "V̄ colectiva por cuadro",
+        "log_x": false,
+        "log_y": true,
+        "mark_thr": true
+      }
+    },
+    {
+      "id": "ccdf_v",
+      "visible": true,
+      "options": {
+        "source": "V̄ colectiva por cuadro",
+        "log_x": false,
+        "log_y": true,
+        "mark_thr": true
+      }
+    },
+    {
+      "id": "heat",
+      "visible": true,
+      "options": {
+        "subset": "todo",
+        "log_c": false,
+        "show_ring": true
+      }
+    }
+  ],
+  "export_columns": [
+    [
+      "tiempo",
+      true
+    ],
+    [
+      "ADC_RAW",
+      true
+    ],
+    [
+      "G",
+      true
+    ],
+    [
+      "deltaG",
+      true
+    ],
+    [
+      "deltaT",
+      true
+    ],
+    [
+      "skewness",
+      true
+    ],
+    [
+      "G_surv",
+      true
+    ],
+    [
+      "P_G_geq",
+      true
+    ],
+    [
+      "kurtosis",
+      false
+    ],
+    [
+      "R",
+      false
+    ],
+    [
+      "tiempo_video",
+      false
+    ],
+    [
+      "saturado",
+      false
+    ],
+    [
+      "en_analisis",
+      false
+    ],
+    [
+      "hist_G_centro",
+      false
+    ],
+    [
+      "hist_G_densidad",
+      false
+    ],
+    [
+      "hist_dG_centro",
+      false
+    ],
+    [
+      "hist_dG_densidad",
+      false
+    ],
+    [
+      "v_robots_mediana",
+      false
+    ],
+    [
+      "v_robots_p90",
+      false
+    ],
+    [
+      "v_robots_media",
+      false
+    ],
+    [
+      "atasco_v",
+      false
+    ]
+  ]
+}

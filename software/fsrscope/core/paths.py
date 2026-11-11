@@ -71,7 +71,13 @@ def find_video(code: str) -> Optional[Path]:
 
 
 def find_trajectories(code: str) -> Optional[Path]:
-    return _first_existing(TRAJ_DIR / f"VP_{code}_robots.csv")
+    """VP_<code>_robots.csv, or the first part of a split recording (VP_<code>(1)_robots.csv);
+    core.robots joins the parts."""
+    single = _first_existing(TRAJ_DIR / f"VP_{code}_robots.csv")
+    if single is not None or not TRAJ_DIR.is_dir():
+        return single
+    parts = sorted(TRAJ_DIR.glob(f"VP_{code}(*)_robots.csv"))
+    return parts[0] if parts else None
 
 
 def trial_from_path(path: Path) -> Trial:
