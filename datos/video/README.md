@@ -10,7 +10,7 @@ que solo se versiona un `.gitkeep` para conservar la estructura (ver `.gitignore
 | `originales/` | `VR_<código>.MP4`: video de la cámara DJI fija sobre la arena, 3840×2160, H.264, *time-lapse* | cámara |
 | `recortados/` | `VC_<código>.MP4`: recorte a la arena (~610×610 px); empieza al terminar el pulso LED del registrador | VidFetch, pestaña *Recortar* |
 | `sesiones/` | `VA_<código>_analisis.npz`: candidatos, firmas de rotación, anclas manuales, recinto y parámetros | VidFetch, *Guardar análisis…* |
-| `trayectorias/` | `VP_<código>_robots.csv`: una fila por robot y cuadro; posición en mm con origen en el centro del recinto (y hacia arriba), polares, distancia a la pared, velocidad, θ, ω, estado | VidFetch, *Exportar CSV (todos los robots)…* o `tools/reexportar.py` |
+| `trayectorias/` | `VP_<código>_robots.csv`: una fila por robot y cuadro; posición en mm con origen en el centro del recinto (y hacia arriba), polares, distancia a la pared, velocidad, θ, ω, estado | VidFetch, *Exportar CSV (todos los robots)…* o `herramientas/reexportar.py` |
 | `trayectorias/` | `VP_<código>_robots_info.json`: recinto (centro, radio, escala, movimiento, zoom), convenciones, κ | ídem |
 | `trayectorias/` | `VP_<código>_robots_resumen.csv`: una fila por robot (rapidez, giro, ω, capa de la pared…) | ídem, *Exportar resumen…* |
 | `seguimiento/` | `VS_<código>_seguimiento.mp4`: video con los robots marcados | VidFetch, exportar video de seguimiento |
@@ -21,7 +21,7 @@ imagen rotada 180°, x a la derecha del observador, y hacia la pared de enfrente
 positivos. Hasta el 08/10 se exportaban como si el video estuviera espejado (`espejo = horizontal`), lo que
 invertía y, θ y ω; los CSV actuales (09/10) ya están corregidos.
 
-Las trayectorias actuales (09/10) se regeneraron con `tools/reexportar.py` (orientación rot180, ventana 5,
+Las trayectorias actuales (09/10) se regeneraron con `herramientas/reexportar.py` (orientación rot180, ventana 5,
 robot 33 mm, escala del recinto Ø 185 mm, recinto medido cada 30 cuadros). Respecto de las anteriores,
 longitudes y velocidades son 13 % menores (la escala anterior, del anillo oscuro del robot, estaba 15 % alta).
 
@@ -29,12 +29,12 @@ longitudes y velocidades son 13 % menores (la escala anterior, del anillo oscuro
 
 | Código | Original | Cuadros (VR / VC) | Duración real | Sesión y trayectorias |
 |---|---|---|---|---|
-| `20262409_1600_22QR_60` | 4,04 GB | 12105 / 12069 | 67,0 min | sí |
-| `20262509_1230_22QR_60` | 3,30 GB | 9907 / 9881 | 54,9 min | sí |
-| `20262509_1500_22QR_60` | 3,68 GB | 11038 / 11012 | 61,2 min | sí |
-| `20263010_1100_22QL_60` | 3,67 GB | 10995 / 10967 | 61,0 min | sí |
-| `20263010_1200_22R_60` | 4,01 GB | 12024 / 11996 | 66,7 min | sí |
-| `20263010_1430_22R_60` | 3,90 GB | 11710 / 11686 | 65,0 min | sí |
-| `20263010_1600_22QL_60` | 2,88 + 1,16 GB, partido `(1)`/`(2)` | 8639+3492 / 8598+3492 | 47,8 + 0,5 (hueco) + 19,4 min | sí; hueco en `cortes.json` |
+| `20260924_1600_22AH_60` | 4,04 GB | 12105 / 12069 | 67,0 min | sí |
+| `20260925_1230_22AH_60` | 3,30 GB | 9907 / 9881 | 54,9 min | sí |
+| `20260925_1500_22AH_60` | 3,68 GB | 11038 / 11012 | 61,2 min | sí |
+| `20261030_1100_22AH_60` | 3,67 GB | 10995 / 10967 | 61,0 min | sí |
+| `20261030_1200_22AL_60` | 4,01 GB | 12024 / 11996 | 66,7 min | sí |
+| `20261030_1430_22AL_60` | 3,90 GB | 11710 / 11686 | 65,0 min | sí |
+| `20261030_1600_22AH_60` | 2,88 + 1,16 GB, partido `(1)`/`(2)` | 8639+3492 / 8598+3492 | 47,8 + 0,5 (hueco) + 19,4 min | sí; hueco en `cortes.json` |
 
 Al agregar un ensayo, sumar una fila (código, tamaño, cuadros, duración real y si ya se analizó).

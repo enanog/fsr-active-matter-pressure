@@ -23,10 +23,10 @@ from typing import Callable, Optional
 import cv2
 import numpy as np
 
-from core import detection as det
-from core.models import Roi, TrimRange
-from core.processing import Pipeline
-from core.video_io import VideoReader
+from vidfetch.core import detection as det
+from vidfetch.core.models import Roi, TrimRange
+from vidfetch.core.processing import Pipeline
+from vidfetch.core.video_io import VideoReader
 
 RING_RATIO = 0.75            # r_in / r_out
 TARGET_R_ANALYSIS = 24.0     # r_out after downscaling for detection (px)

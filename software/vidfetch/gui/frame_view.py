@@ -8,7 +8,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
-from core.models import Roi
+from vidfetch.core.models import Roi
 
 
 def ndarray_to_qimage(frame: np.ndarray) -> QImage:

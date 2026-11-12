@@ -14,8 +14,8 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QLabel, QSplitter, QVBoxLayout, QWidget
 
-from core.session import TrialData
-from core.stats import Stats, decimate_survival
+from comun.session import TrialData
+from comun.stats import Stats, decimate_survival
 
 pg.setConfigOptions(background="w", foreground="k", antialias=False)
 

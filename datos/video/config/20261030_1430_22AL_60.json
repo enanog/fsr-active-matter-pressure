@@ -1,0 +1,26 @@
+{
+  "mobility": {
+    "statistic": "media",
+    "v_threshold_mm_s": 0.35,
+    "smooth_s": 30.0,
+    "min_duration_s": 20.0,
+    "hist_bins": 60,
+    "heat_bin_mm": 5.0
+  },
+  "t_start_min": null,
+  "t_end_min": null,
+  "smooth_s": 15.0,
+  "dist_smoothed": false,
+  "mass_g": 0.0,
+  "k_inertia": 0.5,
+  "plots": {
+    "vmean": {
+      "log_y": false,
+      "show_jams": false,
+      "show_median": false,
+      "show_p90": false,
+      "show_raw": true,
+      "show_thr": true
+    }
+  }
+}

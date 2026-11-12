@@ -4,8 +4,8 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, Signal
 
-from core.models import Roi, TrimRange
-from core.video_io import VideoInfo
+from vidfetch.core.models import Roi, TrimRange
+from vidfetch.core.video_io import VideoInfo
 
 # Time-lapse videos: real capture rate (frames per real second). The project's DJI videos are
 # recorded at ~3 frames/s and played back at 29.97 fps (x10 acceleration).

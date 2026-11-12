@@ -8,12 +8,12 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from core import arena as arena_mod
-from core import detection as det
-from core import rotation
-from core.models import Roi, TrimRange
-from core.processing import Pipeline
-from core.video_io import VideoReader
+from vidfetch.core import arena as arena_mod
+from vidfetch.core import detection as det
+from vidfetch.core import rotation
+from vidfetch.core.models import Roi, TrimRange
+from vidfetch.core.processing import Pipeline
+from vidfetch.core.video_io import VideoReader
 
 
 @dataclass

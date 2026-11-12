@@ -6,35 +6,16 @@ histogramas, con el video del ensayo sincronizado y reproducción «en vivo». R
 `procesar_presion_ventanas.py` (antes en `software/analisis_presion/`).
 
 ```
-pip install -r software/fsrscope/requirements.txt
-python software/fsrscope/main.py                  # interfaz
-python software/fsrscope/main.py 20262509_1500    # abre directamente ese ensayo
-python software/fsrscope/procesar_lote.py         # genera todos los P_<código>.csv sin interfaz
+pip install -r software/requirements.txt
+python software/fsrscope/app.py                      # interfaz
+python software/fsrscope/app.py 20260925_1500        # abre directamente ese ensayo
+python software/herramientas/procesar_lote.py        # genera todos los P_<código>.csv sin interfaz
 ```
 
-Las **velocidades de los robots** se analizan en una aplicación aparte que comparte `core/`:
-
-```
-python software/fsrscope/velocidades.py                  # interfaz
-python software/fsrscope/velocidades.py 20263010_1600    # abre directamente ese ensayo
-python software/fsrscope/velocidades.py --resumen        # datos/resumen_ensayos.csv sin interfaz
-```
-
-Una pestaña por gráfico, con sus opciones arriba y un botón **Ventana aparte** (al cerrar la ventana
-vuelve a su pestaña): V̄(t) (media de |v| entre robots por cuadro), ⟨|ω|⟩(t), energía cinética del
-conjunto (Σ½mv² + Σ½Iω², I = k·m·R², por unidad de masa [µJ/kg] o en nJ si se carga la masa), V̄ y G
-con doble eje, umbral de atasco (línea arrastrable, atascos sombreados), histograma de velocidades
-medias, P(v), 1 − F(v), mapa de ocupación (robots/cm², todo / atasco / flujo) y **Resumen de
-ensayos** (una fila por ensayo con los valores medios, también en `datos/resumen_ensayos.csv`).
-Todos los gráficos de tiempo llevan la misma media móvil (30 s por defecto, pestaña lateral
-«Visualización») con la serie cruda en gris de fondo. Las distribuciones se calculan con los datos
-sin suavizar; la casilla «Distribuciones de V̄ suavizada» existe solo para comparar (con 30 s el
-desvío de V̄ baja de 0,39 a 0,18 mm/s y P(V̄ < 0,35) de 4 % a 0,03 % en 30/10 12:00).
-Atasco: el estadístico elegido (media por defecto), con mediana móvil de 30 s, por debajo del umbral
-(0,35 mm/s por defecto) durante ≥ 20 s; coincide con el criterio de los informes (p90 < 0,52 mm/s)
-en el ≥ 98,5 % de los cuadros de los 7 ensayos. Su configuración (umbral, ventana en minutos de
-video, opciones de los gráficos) va en `datos/video/config/<código>.json`; de FSRScope solo lee la
-sincronía, la calibración, el recorte y las exclusiones (para G), sin escribir su configuración.
+Ejecutable: `software/empaquetado/dist/FSRScope/FSRScope.exe` (ver `software/README.md`).
+Las velocidades de los robots están en la app **Velocidades** (`software/velocidades/`) y la
+superposición de varios ensayos en el **Comparador** (`software/comparador/`); las tres comparten
+`software/comun/`.
 
 ## Qué hace cada pestaña
 
@@ -63,34 +44,37 @@ cursor rojo en un gráfico de tiempo salta a ese instante. Clic derecho sobre un
 - ΔG(t) = G(t) − G(t − ΔT) se anula (NaN) cuando cualquiera de los dos extremos cae fuera del
   recorte o en un tramo excluido; la estadística usa solo esas diferencias válidas.
 - Asimetría y curtosis: estimadores insesgados de Fisher–Pearson (iguales a `pandas` y a
-  `SKEW()`/`KURT()` de Excel; ver `docs/Metodologia_calculo_presion.xlsx`).
+  `SKEW()`/`KURT()` de Excel; ver `software/docs/Metodologia_calculo_presion.xlsx`).
 
 ## Archivos
 
 - Configuración por ensayo: `datos/presion/config/<código>.json` (se guarda al exportar, al
-  cambiar de ensayo o al cerrar si hubo cambios; la usa `procesar_lote.py`).
+  cambiar de ensayo o al cerrar si hubo cambios; la usa `herramientas/procesar_lote.py`).
 - Salida: `datos/presion/procesados/P_<código>.csv`. Las series temporales se exportan dentro del
   recorte; las columnas más cortas (barrido, supervivencia, histogramas) se rellenan con vacío.
+
+## Video partido
+
+Si la cámara se cortó durante el ensayo y el video quedó en varios archivos
+(`VC_<código>(1).mp4`, `VC_<código>(2).mp4`, …), FSRScope lo detecta solo y reproduce las partes en una
+única línea de tiempo: cada parte empieza donde corresponde según el tiempo que no se grabó, en el
+hueco muestra «Sin video», y los robots de VidFetch y la presión siguen sincronizados en todas las partes.
+
+- **Hueco entre partes:** se toma de `datos/video/cortes.json`; si el ensayo no figura, se mide en el
+  momento con los originales `VR_<código>(n)` (hora de inicio que graba la cámara en cada MP4, con 1 s de
+  resolución, y cantidad de cuadros) y se guarda ahí para Velocidades, MATLAB y los informes.
+- **Pestaña Video → «Video partido»:** muestra las partes, el hueco y avisos (parte recortada, cierre
+  anormal de la cámara). Se puede desmarcar «Hueco automático» y escribir el hueco a mano (se guarda en la
+  configuración del ensayo) o volver a medirlo con «Medir de nuevo en los originales».
+- Lo mismo desde la línea de comandos: `python software/herramientas/medir_corte.py [código]`.
 
 ## Código
 
 ```
-main.py            interfaz (presión + video)
-velocidades.py     interfaz de velocidades de los robots
-procesar_lote.py   procesamiento por lotes (misma lógica que la interfaz)
-core/              lógica sin interfaz
-  paths.py         estructura del repo y búsqueda de ensayos (R_/VC_/VR_/VP_)
-  settings.py      parámetros y JSON por ensayo
-  log_io.py        lectura robusta de todos los formatos de registro
-  signal.py        calibración, remuestreo, saturación, máscara de análisis, ΔG
-  stats.py         asimetría/curtosis vs ΔT, supervivencia, histogramas
-  robots.py        trayectorias de VidFetch (une videos partidos con datos/video/cortes.json)
-  mobility.py      velocidades.py: V̄, atascos por umbral, distribuciones, mapa de ocupación
-  summary.py       velocidades.py: resumen por ensayo
-  video.py         lectura de cuadros para reproducción
-  export.py        columnas y escritura del CSV procesado
-  session.py       todo lo cargado de un ensayo (lo comparten la GUI y el lote)
-gui/               interfaz (ventana, paneles, gráficos, video, trabajos en segundo plano;
-                   vel_window.py y vel_plots.py son los de velocidades.py)
-docs/              planilla con la metodología de cálculo
+app.py             punto de entrada (python software/fsrscope/app.py o python -m fsrscope)
+gui/               ventana, paneles, gráficos y video sincronizado
 ```
+
+La lógica sin interfaz está en `software/comun/` (rutas y ensayos, configuración, lectura de
+registros, señal, estadística, trayectorias, lote); la planilla con la metodología de cálculo, en
+`software/docs/Metodologia_calculo_presion.xlsx`.

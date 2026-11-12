@@ -9,37 +9,17 @@ import numpy as np
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout,
                                QGroupBox, QHBoxLayout, QHeaderView, QLabel, QListWidget,
-                               QListWidgetItem, QPushButton, QSpinBox, QTableWidget,
+                               QLineEdit, QListWidgetItem, QPushButton, QSpinBox, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from core import paths
-from core.export import COLUMNS, header
-from core.session import TrialData
-from core.settings import TrialSettings
-from gui.plots import RAW_COLUMNS, SPEC_BY_ID
+from comun import paths
+from comun.export import COLUMNS, header
+from comun.session import TrialData
+from comun.settings import TrialSettings
+from comun.qt.widgets import dspin, note  # noqa: F401  (re-exported)
+from fsrscope.gui.plots import RAW_COLUMNS, SPEC_BY_ID
 
 NONE_SENTINEL = -1.0
-
-
-def dspin(lo: float, hi: float, dec: int, step: float, suffix: str = "", tip: str = "") -> QDoubleSpinBox:
-    w = QDoubleSpinBox()
-    w.setRange(lo, hi)
-    w.setDecimals(dec)
-    w.setSingleStep(step)
-    w.setKeyboardTracking(False)        # emit on Enter / focus-out / arrows, not every keystroke
-    if suffix:
-        w.setSuffix(" " + suffix)
-    if tip:
-        w.setToolTip(tip)
-    return w
-
-
-def note(text: str = "") -> QLabel:
-    lab = QLabel(text)
-    lab.setWordWrap(True)
-    lab.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    lab.setStyleSheet("color:#444;")
-    return lab
 
 
 class _Panel(QWidget):
@@ -348,6 +328,8 @@ class AnalysisPanel(_Panel):
 
 # =============================================================================================
 class SyncPanel(_Panel):
+    remeasureRequested = Signal()         # measure the gap of a split recording again
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.fr = dspin(0.01, 1000, 4, 0.01, "cuadros/s",
@@ -367,14 +349,37 @@ class SyncPanel(_Panel):
         form.addRow(self.robots)
         form.addRow("Radio del robot", self.radius)
         self.summary = note()
+
+        # split recording: the camera stopped and restarted (VC_<code>(1), (2), ...)
+        self.grp_split = QGroupBox("Video partido")
+        self.split_info = note()
+        self.gaps_auto = QCheckBox("Hueco automático (cortes.json o medido en los originales VR_)")
+        self.gaps_auto.setToolTip("Hora de inicio que graba la cámara en cada MP4 (1 s de resolución) y "
+                                  "cantidad de cuadros de cada parte. Se guarda en datos/video/cortes.json.")
+        self.gaps = QLineEdit()
+        self.gaps.setPlaceholderText("ej. 31.8   (varios: 31.8; 12)")
+        self.gaps.setToolTip("Tiempo sin grabar entre el último cuadro de una parte y el primero de la "
+                             "siguiente [s]. Ajustable a mano si el video no coincide con la presión.")
+        self.btn_measure = QPushButton("Medir de nuevo en los originales")
+        self.btn_measure.clicked.connect(self.remeasureRequested)
+        fs = QFormLayout(self.grp_split)
+        fs.addRow(self.split_info)
+        fs.addRow(self.gaps_auto)
+        fs.addRow("Hueco [s]", self.gaps)
+        fs.addRow(self.btn_measure)
+        self.grp_split.setVisible(False)
+
         lay = QVBoxLayout(self)
         lay.addWidget(note("t_sensor = desfase + cuadro / (cuadros por segundo real). El video "
                            "recortado empieza al terminar el pulso LED de 5 s del registrador."))
         lay.addLayout(form)
+        lay.addWidget(self.grp_split)
         lay.addWidget(self.summary)
         lay.addStretch(1)
         self.auto.toggled.connect(lambda on: self.offset.setEnabled(not on))
-        self._watch(self.fr, self.auto, self.offset, self.mirror, self.robots, self.radius)
+        self.gaps_auto.toggled.connect(lambda on: self.gaps.setReadOnly(on))
+        self.gaps.editingFinished.connect(self._emit)
+        self._watch(self.fr, self.auto, self.offset, self.mirror, self.robots, self.radius, self.gaps_auto)
 
     def load(self, s: TrialSettings, td: Optional[TrialData]) -> None:
         self._loading = True
@@ -387,8 +392,32 @@ class SyncPanel(_Panel):
         self.robots.setChecked(sy.show_robots)
         self.radius.setValue(sy.robot_radius_px)
         self.robots.setEnabled(td is not None and td.robots is not None)
+        self.gaps_auto.setChecked(sy.gaps_auto)
+        self.gaps.setReadOnly(sy.gaps_auto)
+        self.gaps.setText("; ".join(f"{float(g):g}" for g in sy.gaps_s))
         self._loading = False
         self.update_summary(td, None)
+
+    def show_split(self, info) -> None:
+        """Show the parts and gap of a split recording (comun.cortes.SplitInfo), or hide the group."""
+        split = info is not None and info.split
+        self.grp_split.setVisible(split)
+        if not split:
+            return
+        self.split_info.setText(info.describe())
+        if self.gaps_auto.isChecked() or not self.gaps.text().strip():
+            self._loading = True
+            self.gaps.setText("; ".join(f"{g:.2f}" for g in info.gaps_s))
+            self._loading = False
+
+    def manual_gaps(self) -> list:
+        out = []
+        for tok in self.gaps.text().replace(",", ".").replace(";", " ").split():
+            try:
+                out.append(max(0.0, float(tok)))
+            except ValueError:
+                continue
+        return out
 
     def store(self, s: TrialSettings) -> None:
         sy = s.sync
@@ -398,6 +427,8 @@ class SyncPanel(_Panel):
         sy.view = "rot180" if self.mirror.isChecked() else "no"
         sy.show_robots = self.robots.isChecked()
         sy.robot_radius_px = self.radius.value()
+        sy.gaps_auto = self.gaps_auto.isChecked()
+        sy.gaps_s = [] if sy.gaps_auto else self.manual_gaps()
 
     def update_summary(self, td: Optional[TrialData], n_frames: Optional[int]) -> None:
         if td is None:

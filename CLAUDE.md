@@ -5,10 +5,206 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
 
 ## Convención de nombres (vigente)
 
+- Código de ensayo `AAAAMMDD_HHMM_NNMM_TT`: fecha (ordena cronológicamente), hora, robots + modo, minutos nominales.
+- **Modos (desde 2026-11-12):** `AH` = todos giran **antihorario** (solo motor izquierdo), `HO` = todos giran
+  **horario** (solo motor derecho; reservado), `AL` = **aleatorio**. Antes `QR` y `QL` (los dos eran antihorario:
+  mismo modo) → `AH`; `R` → `AL`. Las secciones históricas de abajo conservan `QR`/`QL`/`R` en el texto (los
+  códigos de archivo ya están actualizados).
+
 - `deltaT` — tamaño de ventana temporal, en segundos.
 - `deltaG` — diferencia de conductancia `G(t) - G(t - deltaT)` (lo que antes
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
+
+## 2026-11-12 — MATLAB: R_FEEDBACK por registro en `datos/presion/calibracion.csv`
+
+**Pedido:** el 24/09 sí fue con 50 kΩ (confirmado por el usuario); poder editar R de cada ensayo en una lista.
+- Antes: K = mediana(G/ADC) del firmware (modo auto) o parámetros si la config de FSRScope era manual (solo 24/09
+  50 kΩ y 25/09 12:30 1 kΩ). R equivalente del firmware: agosto 12 kΩ, 27/08 6797 Ω (K 0,6299 con V_EXC 0,7534),
+  24/09 5 kΩ, resto 1 kΩ.
+- `calibracion.csv` (12 registros, precargado con esos valores y 50 000 en 24/09); prioridad lista > FSRScope
+  manual > firmware; prefijo de código válido (gana el más largo); vacío = siguiente.
+- `funciones/r_feedback_lista.m` (nuevo); `leer_presion` → `P.r_feedback` (R equivalente a K) y `P.origen_K`;
+  aviso en consola (ya no warning «Revisar») si difiere > 2 % del firmware. Cachés: `cargar_presion` v2,
+  `cargar_ensayo` v4, firma incluye el valor de la fila del ensayo. `tabla_presion` + columna `R_FB_ohm`.
+- Verificado en Octave: K 0,3568 / 0,6299 / 0,0856 / 4,2817 (24/08, 27/08, 24/09, 30/10 12:00); vacío → FSRScope;
+  restaurar → vuelve a la lista y relee.
+- Pendiente: FSRScope/Velocidades/Comparador (Python) no leen la lista.
+- Usuario: 30/10 y los registros actuales usan **3k7 (a confirmar, no lo recuerda)**; el firmware logueó con 1 kΩ ⇒ G ×0,27. Lista: 4 filas 20261030_* = 3700 y prefijo `202611` = 3700 (06/11 en adelante).
+
+## 2026-11-12 — FSRScope: detección de video partido y desfase automático de las partes
+
+**Pedido:** que FSRScope se dé cuenta si el video está cortado y calcule cuánto desfasar las otras partes.
+- **`comun/cortes.py` (nuevo):** `video_parts(code)` (VC_<c>(n), si no VR_), `mp4_creation_time` (lee `moov/mvhd`
+  del MP4 sin ffprobe; = ffprobe en los 9 VR, 0,03 s por archivo de 4 GB), `measure(code)` (hueco = inicio(k+1) −
+  inicio(k) − (cuadros_VR(k) − 1)/f_r, f_r = 2,997; residuo de cierre por mtime), `save_cut`/`load_cuts`,
+  `split_info(code, manual_gaps, remeasure)` (manual > cortes.json > medido ahora y guardado), `part_starts`
+  (inicio(k+1) = inicio(k) + cuadros_VC(k) − 1 + round(hueco·f_r), misma regla que `robots.py`). Avisos: VC(k≥2)
+  con cuadros ≠ VR(k); VC(1) recortado al inicio (no afecta); cierre anormal.
+- Los VC_ no traen creation_time y VC(1) tiene 41 cuadros menos que VR(1) (recorte del LED) ⇒ la medición usa los VR_.
+- **`comun/video.PartedVideoSource`:** varias partes en un eje de cuadros (`locate`, `gap_at`; `read` → None en el hueco).
+- **FSRScope:** `paths.find_video` también encuentra `VC_<c>(1)`; `_open_video` arma `split_info` y usa
+  `PartedVideoSource`; video_view muestra «Sin video: hueco entre la parte k y la k+1» y «parte k/n, cuadro local»;
+  pestaña Video → grupo «Video partido» (descripción, «Hueco automático», hueco manual `31.8; 12`, «Medir de nuevo en
+  los originales»); `Sync.gaps_auto`/`gaps_s` en la config del ensayo. `TrialData.apply_split` recarga los robots con
+  los mismos huecos (overlay alineado también con hueco manual).
+- **`robots.load_robots(path, gaps=None, fr=None)`:** si cortes.json no tiene el ensayo, mide y guarda (Velocidades,
+  MATLAB vía cortes.json). `herramientas/medir_corte.py` reescrito sobre `comun.cortes` (sin ffprobe; sin código = todos).
+- **Verificado:** 30/10 16:00 → partes en 0 y 8692, video 12 184 cuadros = robots 12 184; hueco auto 31,79 s (real y con
+  VR sintéticos de mismo creation_time/cuadros), manual 40 s → 8717; overlay de robots coincide en la parte 2; ensayo sin
+  cortes sin cambios; Velocidades une con 94 cuadros de hueco.
+- Pendiente: reconstruir los .exe de FSRScope/Velocidades; precisión ±1 s (3 cuadros): ajustar a mano si se ve corrido.
+- **Corrección (mismo día, «no se actualizó»):** la config del 30/10 16:00 tenía `sync.video_path` elegido a mano
+  (`VS_…(1).mp4`, de cuando FSRScope no encontraba video) y el video manual salteaba la detección. Ahora
+  `cortes.sibling_parts(path)` junta las partes hermanas de un video manual `(n)` (VS_, VC_ o VR_) y `split_info(...,
+  parts=)` las ubica con el mismo hueco. VS(k) = VC(k) en cuadros y tamaño (8598/3492, 610×610).
+- **Aviso al abrir a mano:** «Abrir video…» con una parte `(n)` muestra un mensaje (parte k de n, partes cargadas, hueco
+  y su origen) y pasa a la pestaña Video; si faltan las otras partes en la carpeta, advierte. Al abrir un ensayo
+  partido la barra de estado lo indica. Probado con los archivos reales en tu PC (lógica sin Qt) y la GUI offscreen.
+
+## 2026-11-12 — Nomenclatura de modos: QR/QL → AH, R → AL (HO reservado)
+
+**Pedido del usuario:** todos los `QR` son en realidad `QL` (giran antihorario con el motor izquierdo); propuso usar una
+nomenclatura más clara. `QR`/`QL` eran ambiguos (¿motor o sentido?) y `R` se confundía con «right» y con el prefijo `R_`.
+- 110 renombres (`datos/`, `informes/`, videos VR/VC/VS, sesiones, trayectorias, configs, `generado/<código>/`), 45
+  archivos de texto (códigos `2[2-7](QR|QL)` → `AH`, `2[2-7]R` → `AL`, tokens sueltos `QR`/`QL`; `,R,` y `hh:mm R` en
+  `resumen_ensayos.csv` y `resumen_modos.csv`), 27 reemplazos puntuales y `src_path` de las 9 sesiones `.npz`.
+  En las configs de FSRScope `"R"` es la resistencia (no se tocó). Caché de MATLAB borrada (se regenera).
+- Código: `estilo.MODE_COLOR = {AH azul, HO naranja, AL aqua}`; `comparar_modos` `MODE_NAME`/orden AH, HO, AL;
+  `verificar_cinematica.EXPECTED_SPIN = {AH: antihorario, HO: horario}`; MATLAB `colores_ensayos` (por modo),
+  `fig_comparar_modos` (`orden_modos = {'AH','HO','AL'}`).
+- Textos corregidos: «solo el motor derecho» → «solo el motor izquierdo» (conclusiones, discusión); README raíz con la
+  tabla de modos; «otros modos (R, QZ)» → «(AL, HO)».
+- Aparecieron archivos del 06/11 procesados por el usuario (`VA_/VP_20261106_1600_22AH_60`); sin registro R_ todavía.
+
+## 2026-11-12 — MATLAB: comparación de varios ensayos (giro, circulación, MSD, capas, ocupación, modos)
+
+- **Figuras nuevas** (port de `figuras/comparar_ensayos.py` y `comparar_modos.py`): `fig_giro_robots` (ω̄ o vueltas por
+  robot ordenadas), `fig_omega_distribucion`, `fig_circulacion_tiempo` (Φ u Ω), `fig_msd` (α 1–20 s en la leyenda),
+  `fig_densidad_radial` (r/R_c, todo/atasco/fluido), `fig_ocupacion` (paneles, escala hasta p99), `fig_comparar_modos`
+  (cualquier campo del resumen agrupado QR/QL/R). `fig_velocidad_tiempo` con `estadistico` media|mediana|p90|p10.
+- **`cargar_ensayo` (caché v3):** matrices cuadros × robots X, Y, VX, VY, S, Wr [°/s], TH, OBS. Video partido: identidad
+  por vecino más cercano (greedy) entre el último cuadro de (1) y el primero de (2); θ de (2) continúa desde el último.
+  `M.OBS = logical(...)` (en Octave `[]`+logical concatena a double y el indexado fallaba).
+- **Funciones nuevas:** `percentil` (= numpy.nanpercentile, sin Statistics Toolbox), `rapidez_conjunto`, `radio_contacto`
+  (q99,5 de r observados), `circulacion` (Φ con |v| > 1 mm/s y r > 0,3 R_c; Ω = Σ(x vy − y vx)/Σr²),
+  `desplazamiento_cuadratico` (lags log hasta min(F/4, 20 min); pares que cruzan el hueco de un video partido excluidos
+  por segmento). `resumen_ensayo` + `omega_media_signo`, `robots_antihorario/horario` (|ω̄| > 0,5), `Phi_circulacion`,
+  `Omega_grupo`, `pared_pct` (r ≥ R_c − 16,5 mm), `alfa_msd`, `asim_dG`/`curt_dG` (ΔT de FSRScope).
+- **Verificado contra `resumen_modos.csv` (24/09, 30/10 12:00, 30/10 16:00):** ω media 2,811 / −1,956 / 1,163 °/s, robots
+  14/4, 5/13, 12/2, Φ 0,2119 / −0,1661 / 0,1555, pared 56,04 / 56,63 / 54,99 % — idénticos. α = 1,35 / 1,41 / 1,39.
+  Los 25 scripts corren en Octave 8.4 (`parula` → `viridis` si no existe).
+
+## 2026-11-12 — MATLAB: gráficos de presión
+
+- **Figuras nuevas** (`software/matlab/figuras/`): `fig_presion_supervivencia` (P(G≥g), normalizable), `fig_presion_histograma`
+  (clases log), `fig_deltaG_tiempo` (paneles por ensayo), `fig_deltaG_distribucion` (varios ensayos con un ΔT o un
+  ensayo con varios ΔT; /σ, curva normal), `fig_asimetria_deltaT` (asimetría/curtosis/ambas vs ΔT, como el póster),
+  `fig_presion_vs_robots` (mediana/media + IQR vs N o φ, color por modo), `tabla_presion` (+ CSV).
+  `fig_presion_tiempo` rehecho: cualquier registro (también agosto sin video), eje video|sensor, marcar saturación.
+- **`leer_presion` reescrito = FSRScope** (`comun/log_io` + `signal` + `stats`): grilla uniforme `step_s`, G = ADC
+  interpolado·K (K firmware en auto, parámetros en manual), saturación (ADC ≥ FS−0,5 en la fila siguiente o
+  CLIPSAT ≥ N), máscara recorte/exclusiones/saturación, ΔT y clases de la config. Devuelve G completo + `mascara`
+  (`presion_valida(P)` = NaN fuera). Bordes de la interpolación fijos como `np.interp`.
+- **Funciones nuevas:** `buscar_registros` (incluye la referencia 0 robots), `cargar_presion` (caché
+  `cache/presion_<código>.mat`), `presion_valida`, `delta_g`, `momentos` (asimetría/curtosis insesgadas),
+  `momentos_vs_deltaT`, `supervivencia`. `presion_en_cuadros` toma la muestra de grilla más cercana (como
+  Velocidades). `colores_ensayos` indexa sobre registros ∪ trayectorias (mismo color en todas las figuras MATLAB).
+  Caché de `cargar_ensayo` → versión 2.
+- **Verificado en Octave contra Python (12 registros):** n, K, G media/desvío, % saturado, asimetría y curtosis de ΔG
+  (2,5 s) y asimetría a 15 s idénticos en 9; en 3 la grilla difiere en 1 muestra final (el parseo del CSV cambia el
+  último ulp del tiempo y el floor): diferencias ≤ 3e-5. Las 18 figuras corren y guardan.
+- Advertencia en README: G absoluto de agosto (12 kΩ, base ~160 µS) no comparable con sept/oct; 24/09 con 50 kΩ manual.
+
+## 2026-11-11 — MATLAB: un script por figura (`software/matlab/figuras/`, `funciones/`)
+
+**Pedido:** las apps de comparación son difíciles de entender (mucha información, poca personalización) ⇒
+scripts simples, uno por figura, con un bloque SETTINGS arriba (ensayos, nombres, colores, suavizado, límites,
+textos, leyenda, tamaño en cm, guardar).
+- **Figuras:** `fig_velocidad_tiempo`, `fig_rotacion_tiempo`, `fig_energia_tiempo` (total/tras/rot/ambas),
+  `fig_presion_tiempo`, `fig_velocidad_y_presion` (un ensayo, 2 paneles, sin doble eje), `fig_histograma_velocidad`,
+  `fig_pdf_velocidad`, `fig_ccdf_velocidad`, `fig_presion_vs_velocidad` (mediana + IQR por clase, ρ),
+  `fig_barras_resumen` (cualquier campo de `resumen_ensayo`), `tabla_resumen` (+ CSV). Salida
+  `informes/figuras/matlab/<archivo>.pdf/.png`.
+- **Funciones:** `cargar_ensayos(filtros | 'todos' | {} = listdlg)`, `cargar_ensayo` (series por cuadro: t, V, W,
+  V2, W2, v_ind observados, P; caché `software/matlab/cache/<código>.mat` invalidada por datenum+bytes de los
+  orígenes, gitignored), `leer_csv` (textscan, sin readtable: MATLAB y Octave; nombres de columna saneados
+  `timestamp(ms)` → `timestamp_ms_`), `leer_presion` (port de comparar_ensayos.m), `presion_en_cuadros`,
+  `suavizar` (conv con NaN), `mediana_movil`, `atascos`, `energia`, `resumen_ensayo`, `colores_ensayos`
+  (paleta de `comun/estilo.py` por índice del ensayo | 'modo' | propios), `nueva_figura`, `poner_leyenda`
+  (clic oculta curva), `guardar_figura` (exportgraphics o print), `raiz_proyecto` (sin rutas fijas).
+- **Verificado en GNU Octave 8.4 (los 11 scripts corren y guardan):** V media, % atasco, duración máx. y ρ(V,G)
+  idénticos a Python (0,90414/0,928137/0,401742; 17,06/0/72,75 %; 380/2963 s; −0,384/−0,236/−0,417).
+  **No probado en MATLAB** (sintaxis compatible R2019b+; `h = []; h(end+1) = plot(...)`).
+- `comparar_ensayos.m` queda como versión anterior (sin cambios).
+
+## 2026-11-11 — Reorganización de software/: 4 apps con .exe, biblioteca común, figuras, empaquetado
+
+**Pedido:** apps bien separadas, cada una empaquetable como .exe, y un lugar para los gráficos (scripts de
+figuras + app de comparación). Estructura vigente (detalle en `software/README.md`):
+
+| Antes | Ahora |
+|---|---|
+| `software/fsrscope/core/*` | `software/comun/*` (+ `comun/qt/`: `worker.py`, `widgets.py` dspin/note, `repo.py`) |
+| `fsrscope/main.py` | `fsrscope/app.py` (+ `__main__.py`) |
+| `fsrscope/velocidades.py`, `gui/vel_*.py` | `velocidades/app.py`, `velocidades/gui/` |
+| `vidfetch/main.py` | `vidfetch/app.py` |
+| `fsrscope/procesar_lote.py` | `herramientas/procesar_lote.py` (lógica en `comun/lote.py`) |
+| `vidfetch/tools/*`, `analisis_video/medir_corte.py` | `herramientas/` |
+| `analisis_video/{generar_informe,comparar_ensayos,comparar_modos,figuras_metodo}.py` | `figuras/` |
+| `fsrscope/docs/*.xlsx` | `software/docs/` |
+| `*/requirements.txt` | `software/requirements.txt` (único) |
+| — | `comparador/` (app nueva), `figuras/plantilla.py`, `comun/estilo.py`, `empaquetado/` |
+
+- **Imports absolutos desde `software/`** (`from comun.X`, `from vidfetch.core.X`, `from fsrscope.gui.X`); antes
+  cada app usaba paquetes top-level `core`/`gui` que chocaban entre sí (los scripts hacían sys.path hacks).
+  `app.py` agrega `software/` al path si se corre como script. Grafo: vidfetch autónoma; fsrscope, velocidades,
+  comparador → comun; figuras/herramientas → comun + vidfetch.core.
+- **`comun/paths.py`:** raíz del repo = `PRESION_REPO` > subir desde el .exe (congelado) o desde el archivo >
+  carpeta recordada en `~/.proyecto_presion.json` > cwd; válida si tiene `datos/presion` o `datos/video`.
+  `set_repo_root()` rebindea todas las rutas (+ `VEL_CONFIG_DIR`, `SUMMARY_PATH`, `CUTS_PATH`; `mobility` y
+  `summary` ya no copian rutas al importar). `comun/qt/repo.ensure_repo()` pide la carpeta si no la encuentra
+  (antes de importar las ventanas). `discover_trials(root=None)`, `code_label()`. `summary.date_key` sin la
+  heurística día/mes.
+- **Comparador (`comparador/`):** port de `comparar_ensayos.m` con parámetros comunes a todos los ensayos.
+  `core.py` (curvas por ensayo vía `MobilityData` + overrides, clases comunes, G vs V̄ mediana + IQR con clases
+  vacías = NaN, Spearman), `exportar.py` (matplotlib con `comun.estilo`, ancho columna/página/póster),
+  `gui/window.py` (pestañas V̄, ⟨|ω|⟩, energía, histograma, P(v), 1−F, G vs V̄, resumen; cálculo en hilo
+  `LatestJobRunner`, caché de `MobilityData`; QSettings «ITBA/Comparador»). Verificado: resumen = `resumen_ensayos.csv`
+  (dif 0); ρ(V̄,G) −0,38 / −0,24 / −0,42 (24/09, 30/10 12:00, 30/10 16:00), como el .m.
+- **`comun/estilo.py`:** paleta categórica de 8 (validada CVD; contraste < 3:1 en aqua/amarillo/magenta ⇒ leyenda +
+  tabla), color fijo por ensayo según su índice en la lista completa (no por selección), trazo como 2.ª
+  codificación > 8; `MODE_COLOR` (QR azul, QL naranja, R aqua; `comparar_modos.py` lo importa); `mpl_rc`,
+  `figsize`, `save`.
+- **Empaquetado:** `empaquetado/construir.py [apps] [--onefile]` (+ `construir.bat`, `requirements-build.txt`,
+  `lanzadores/lanzar_<app>.py` — no pueden llamarse como el paquete, se autoimportan —, `iconos/*.ico` +
+  `generar_iconos.py`). onedir por defecto (onefile descomprime ~400 MB por arranque). Excluye módulos Qt no usados;
+  trackpy/matplotlib fuera de FSRScope y Velocidades; `--collect-submodules trackpy` en VidFetch. Salida
+  `empaquetado/dist/<App>/` (gitignored, con `build/` y `*.spec`). Probado en Linux (PyInstaller 6.22, Py 3.13):
+  las 4 congeladas arrancan, encuentran `datos/` subiendo desde el ejecutable y cargan ensayos; fuera del repo
+  muestran el diálogo. Tamaños Linux: VidFetch 619 MB, FSRScope 586, Comparador 406, Velocidades 381. **No probado
+  en Windows.**
+- **Verificación:** las 4 apps desde fuente (offscreen) y congeladas (Xvfb); `procesar_lote` nuevo vs código anterior
+  en 24/09 y 30/10 12:00: dif 0; `velocidades --resumen` = CSV existente; `comparar_modos` corre; `--help` de todos
+  los scripts. `comparar_modos.py:430` ya no exige Python ≥ 3.12.
+- Rutas actualizadas en READMEs (raíz, software, cada app, figuras, herramientas, informes, datos/video) y en
+  `informes/aplicacion/secciones/{introduccion,metodologia,procedimiento}.tex`, `informes/ensayos/informe_ensayos.tex`.
+  Las secciones históricas de este archivo conservan las rutas viejas (ver tabla).
+- **Pendientes:** construir los .exe en Windows (`construir.bat`) y probarlos; commit (`git add -A`); `software/matlab/
+  comparar_ensayos.m` sigue con `carpeta = C:\Users\dylan\Desktop\...`; config 24/09 con R_FEEDBACK 50 000 Ω
+  (G ×0,1, ver 06/11) sigue sin confirmar; el `P_20260924` guardado no coincide con la config actual (regenerar
+  con `herramientas/procesar_lote.py` si corresponde).
+
+## 2026-11-11 — Código de fecha pasado a `AAAAMMDD` (orden cronológico)
+
+- Antes: año-día-mes (`20262409` = 24/09) → por nombre el 30/10 quedaba antes que agosto. Ahora
+  **`AAAAMMDD_HHMM_XXYY_TT`** en todo el repo. Mapeo: `20262409→20260924`, `20262509→20260925`,
+  `20263010→20261030`, `20260611→20261106` (VR del 06/11, sin procesar). Agosto ya estaba bien.
+- Renombrados archivos de `datos/`, `informes/ensayos/{figuras,generado}`; contenido de py/tex/md/json/csv;
+  `src_path` dentro de los `VA_*.npz` (reescritos y verificados). Las secciones de abajo ya usan los códigos nuevos.
+- El commit «Programa de procesado» (16:26 UTC) volvió a traer archivos con nombres viejos (configs, `VA_…1100…`,
+  velocidades, CLAUDE.md): se tomó su contenido como vigente y se renombró; `VA_20263010_1100` era idéntico salvo
+  `src_path` → borrado.
 
 ## 2026-11-06 (noche) — `software/matlab/comparar_ensayos.m`: superposición de ensayos en MATLAB
 
@@ -21,7 +217,7 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   exclusiones de la config, G del firmware o ADC·K si la calibración es manual (aviso si difiere > 2 %).
   Verificado contra FSRScope: desfases idénticos en los 7 ensayos, G dif. relativa ≤ 6e-6.
 - Spearman V̄–G (30 s): −0,08 a −0,45 en los 7 ensayos (más velocidad ↔ menos presión).
-- **Hallazgo:** `datos/presion/config/20262409_1600_22QR_60.json` tiene calibración manual con R_FEEDBACK = 50 000 Ω;
+- **Hallazgo:** `datos/presion/config/20260924_1600_22AH_60.json` tiene calibración manual con R_FEEDBACK = 50 000 Ω;
   el firmware registró K = 0,8563 µS/cuenta (= 5 kΩ, lo documentado) ⇒ G de FSRScope ×0,1 para 24/09 (y en
   resumen_ensayos.csv). Probable cero de más: pendiente que el usuario lo confirme/corrija.
 
@@ -77,7 +273,7 @@ procesar_lote) y las velocidades van en una interfaz aparte que comparte `core/`
 
 ## 2026-11-06 — Ensayos del 30/10 (QL/R), video partido y comparación por modo
 
-- **Video partido `20263010_1600_22QL_60(1)/(2)`:** hueco = **31,8 ± 1 s** (≈ 94 cuadros sin grabar) entre el
+- **Video partido `20261030_1600_22AH_60(1)/(2)`:** hueco = **31,8 ± 1 s** (≈ 94 cuadros sin grabar) entre el
   último cuadro de (1) y el primero de (2). Método: `creation_time` del MP4 (inicio, 1 s) + cuadros/f_r
   (`software/analisis_video/medir_corte.py` → `datos/video/cortes.json`). Controles: VC(1) termina en el último
   cuadro de VR(1) (template matching 0,998, recorte 1:1, solo se cortó el inicio, 41 cuadros); en los 6 VR
@@ -108,7 +304,7 @@ procesar_lote) y las velocidades van en una interfaz aparte que comparte `core/`
   - Asimetría de ΔG fuertemente negativa solo en ensayos con atascos/eventos grandes (24/09, 1100 QL, 1430 R).
 - **Ubicación del sensor por correlación (robot en el sector vs log G):** no robusta; solo 30/10 R ×2 y 1600
   QL coinciden en ~285–295°. Descartada de las figuras: medir la posición física.
-- Cuadros de verificación en `datos/video/verificacion/corte_20263010_1600/` (corte y giro).
+- Cuadros de verificación en `datos/video/verificacion/corte_20261030_1600/` (corte y giro).
 
 ## 2026-10-09 — Orientación: el video NO está espejado; vista rotada 180°
 
@@ -225,12 +421,12 @@ huella entre cuadros separados (q ≥ 0,8), θ erraba en mediana 30 / 44 / 30° 
 ## 2026-10-08 — Versionado de sesiones y trayectorias de video
 - `.gitignore`: se ignoran solo los videos (`originales/`, `recortados/`, `seguimiento/`, `*.mp4`) y `Videos/`; `.gitkeep` conserva esas carpetas.
 - Se versionan `datos/video/sesiones/*.npz` (54–64 MB) y `trayectorias/*.csv` (≤ 56 MB): < 100 MB (límite duro de GitHub); > 50 MB da solo advertencia. Sin Git LFS (no instalado).
-- `VP_20262409_1600_22QR_60_robots.csv` había sido sobrescrito con el resumen por robot (22 filas): renombrado a `_resumen.csv` y trayectoria completa regenerada desde `VA_…npz` con `TrackingSession.load → run → to_dataframe` (265 518 filas × 25 col.); giro total y rapidez media coinciden con el resumen (|Δv| < 1e-5 px/s).
+- `VP_20260924_1600_22AH_60_robots.csv` había sido sobrescrito con el resumen por robot (22 filas): renombrado a `_resumen.csv` y trayectoria completa regenerada desde `VA_…npz` con `TrackingSession.load → run → to_dataframe` (265 518 filas × 25 col.); giro total y rapidez media coinciden con el resumen (|Δv| < 1e-5 px/s).
 
 ## 2026-10-08 — Material didáctico: detección + v + ω
 
 - `informes/aplicacion/deteccion_cinematica.xlsx`: rehace con fórmulas (43k, 0 errores en LibreOffice) la detección, v y ω
-  del robot 3, ensayo `20262409_1600`, cuadros 6034/6035 (5998–6092 para v y ω). Hojas: Parametros (nombres definidos),
+  del robot 3, ensayo `20260924_1600`, cuadros 6034/6035 (5998–6092 para v y ω). Hojas: Parametros (nombres definidos),
   Img_analisis (gris ×0,511), Filtro_anillo (máscaras 51×51, R en un punto), Mapa_R (μ, R y centroide iterado ≈ trackpy),
   Img_completa/Img_6035, Cobertura (360 rayos × r 37–44, vecino más cercano = cv2.warpPolar flag 0), Firma_6034/6035,
   Giro (c(Δ) cada 0,1°, selector firmas calculadas/app), Velocidad, Rotacion. Builder: no versionado (scratch de la sesión).
@@ -370,8 +566,8 @@ reproducen a `f_a` = 29.97 fps (×10). Todo el análisis trabaja en cuadros; `t 
 - Informe: `\CuadrosPorSegundo{3}` en `informe/config.tex`; `generar_informe.py --cuadros-por-segundo F`
   reescala un CSV exportado con otra escala sin re-analizar.
 - **Verificación de `f_r` con el registro del sensor** (duración `R_<código>.csv` vs cuadros `VR`):
-  `20262409_1600`: 12105 cuadros / 4055.1 s = 2.985; `20262509_1230`: 9907 / 3368.4 s = 2.941;
-  `20262509_1500`: 11038 / 3699.5 s = 2.984 → consistente con time-lapse ×10 (`f_r` = 2.997).
+  `20260924_1600`: 12105 cuadros / 4055.1 s = 2.985; `20260925_1230`: 9907 / 3368.4 s = 2.941;
+  `20260925_1500`: 11038 / 3699.5 s = 2.984 → consistente con time-lapse ×10 (`f_r` = 2.997).
 - **El `_60` del nombre es nominal:** duraciones reales ≈ 67.3 / 55.1 / 61.4 min. Usar 60 min daría
   `f_r` = 3.36 / 2.75 / 3.07 (errores de −8 % a +12 % en v y ω). No usarlo para calibrar.
 
@@ -389,9 +585,9 @@ y `videos/lista_videos.tex` (generado). Para agregar un ensayo:
   una predicción errónea (visto en un robot, ~90 px de error en 8 puntos). Para estadística, filtrar
   `status == detectado`.
 - `Videos/README.md` está desactualizado (lista `DJI_0196…`).
-- El código de fecha de los archivos es año-día-mes (`20262409` = 24/09), no `AAAAMMDD`.
+- (Superado el 11/11: el código de fecha es `AAAAMMDD`.)
 
-## 2026-09-24 — Saturación del ADC en `R_20262409_1600_23QR_60.csv` y ajuste de `R_FEEDBACK`
+## 2026-09-24 — Saturación del ADC en `R_20260924_1600_23AH_60.csv` y ajuste de `R_FEEDBACK`
 
 **Modelo del front-end (transimpedancia):** `V_out = V_EXC * R_FEEDBACK / R_FSR`
 (la FSR entrega una corriente `I = V_EXC/R_FSR` que el feedback convierte en
@@ -476,7 +672,7 @@ robots (`XX`, 2 dígitos) + modo de movimiento (`YY`, 1-2 letras: `R` =
 random, `QR` = todos girando a la derecha, `QZ` = todos girando a la
 izquierda — **interpretación de Claude a partir del ejemplo dado, a
 confirmar**), y minutos de medición (`TT`). Ejemplos dados por el usuario:
-`23QR`, `23QZ`, `23R` (23 robots, cada uno de los 3 modos).
+`23AH`, `23QZ`, `23AL` (23 robots, cada uno de los 3 modos).
 
 Los crudos llevan `R_` adelante del código (`R_AAAAMMDD_HHMM_XXYY_TT.csv`)
 y los procesados `P_` (`P_AAAAMMDD_HHMM_XXYY_TT.csv`), generados siempre en
@@ -492,7 +688,7 @@ válido — los 5 crudos ya existentes (`R_20260824_1400_00_07.csv`,
 `R_20260824_1600_27_30.csv`, `R_20260827_1534_26_30.csv`) usan el formato
 viejo, **no tienen el modo registrado** y por lo tanto el script ya **no
 los detecta** hasta que se rebauticen con el modo correspondiente (ej.
-`R_20260824_1430_25QR_30.csv` si esa corrida fue "todos a la derecha").
+`R_20260824_1430_25AH_30.csv` si esa corrida fue "todos a la derecha").
 Falta que el usuario confirme el modo de cada uno para poder renombrarlos.
 
 ## 2026-08-31 — Script de post-procesamiento
@@ -547,8 +743,8 @@ recorrer recursivamente), `INPUT_EXTS`, `EXCLUDE_DIRNAMES`, `CODE_RE` /
 case-insensitive), constantes de calibración, `STEP_S`, `DELTA_MAX_S`,
 `DELTAG_FIXED_S`.
 
-**Validado con:** árbol sintético con el formato nuevo (`23QR`, `23QZ`,
-`23R`, con y sin prefijo `R_`, headers en mayúscula/minúscula mezclados) y
+**Validado con:** árbol sintético con el formato nuevo (`23AH`, `23QZ`,
+`23AL`, con y sin prefijo `R_`, headers en mayúscula/minúscula mezclados) y
 confirmando que un archivo con el formato viejo (sin modo) ya no matchea.
 Ejecutado también contra los 5 crudos reales antes de este cambio de
 formato (ver historial arriba) — sigue corriendo sin errores end-to-end,

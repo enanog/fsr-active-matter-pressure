@@ -22,18 +22,20 @@ Usos previstos:
         convertir a milímetros con su diámetro conocido.
   \item \textbf{Exportar} los datos (CSV de todos los robots, de un robot o un archivo por robot), un
         resumen por robot, el video anotado y la sesión de análisis para retomarla sin volver a procesar.
-  \item \textbf{Reexportar sin interfaz} una sesión guardada (\texttt{tools/reexportar.py}).
+  \item \textbf{Reexportar sin interfaz} una sesión guardada (\texttt{herramientas/reexportar.py}).
   \item \textbf{Generar los informes} de ensayos a partir de los CSV (\cref{sec:procedimiento}).
 \end{itemize}
 
 \subsection{Requisitos y ejecución}
 
 Requiere Python~3.10 o superior y las bibliotecas de \texttt{requirements.txt}
-(\cref{sec:librerias}). Desde la carpeta \texttt{software/vidfetch} del repositorio:
+(\cref{sec:librerias}). Desde la carpeta \texttt{software} del repositorio:
 \begin{verbatim}
 pip install -r requirements.txt
-python main.py
+python vidfetch/app.py
 \end{verbatim}
+También se distribuye como ejecutable de Windows (\texttt{VidFetch.exe}, ver
+\texttt{software/empaquetado/}), que no requiere Python instalado.
 Las tareas largas (análisis, exportaciones) corren en un hilo aparte, con barra de progreso y botón
 de cancelar, de modo que la ventana no se congela.
 
@@ -52,7 +54,7 @@ solo llama a funciones de \texttt{core/} (\cref{tab:archivos}).
     \toprule
     Archivo & Líneas & Función \\
     \midrule
-    \texttt{main.py} & 18 & punto de entrada: crea la aplicación Qt y la ventana principal \\
+    \texttt{app.py} & 32 & punto de entrada: crea la aplicación Qt y la ventana principal \\
     \texttt{core/models.py} & 47 & \texttt{Roi} (rectángulo) y \texttt{TrimRange} (tramo de cuadros) \\
     \texttt{core/video\_io.py} & 169 & lectura de video con acceso aleatorio, exportación de video recortado o anotado \\
     \texttt{core/processing.py} & 94 & operaciones de imagen encadenables (grises, brillo/contraste, desenfoque, umbral, Canny) \\
@@ -71,11 +73,11 @@ solo llama a funciones de \texttt{core/} (\cref{tab:archivos}).
     \texttt{gui/player.py}, \texttt{frame\_view.py} & 362 & reproductor y visor con zoom y edición del rectángulo \\
     \texttt{gui/export\_worker.py} & 35 & hilo de trabajo (\texttt{QThread}) para tareas largas \\
     \midrule
-    \texttt{tools/reexportar.py} & 126 & reexportar una sesión sin interfaz (recinto, CSV, resumen, por robot) \\
-    \texttt{tools/verificar\_giro.py} & 137 & verificación visual de $\theta$ sobre el video \\
-    \texttt{tools/verificar\_cinematica.py} & 312 & verificación visual y numérica de posiciones, ejes y velocidades \\
+    \texttt{herramientas/reexportar.py} & 126 & reexportar una sesión sin interfaz (recinto, CSV, resumen, por robot) \\
+    \texttt{herramientas/verificar\_giro.py} & 137 & verificación visual de $\theta$ sobre el video \\
+    \texttt{herramientas/verificar\_cinematica.py} & 312 & verificación visual y numérica de posiciones, ejes y velocidades \\
     \midrule
-    \multicolumn{3}{@{}l}{\textit{En \texttt{software/analisis\_video/}:}} \\
+    \multicolumn{3}{@{}l}{\textit{En \texttt{software/figuras/}:}} \\
     \texttt{generar\_informe.py} & 637 & sección de resultados de un ensayo a partir de su CSV \\
     \texttt{comparar\_ensayos.py} & 584 & comparación entre ensayos y contraste con el sensor de presión \\
     \bottomrule
@@ -118,7 +120,7 @@ un único objeto de estado (\texttt{gui/state.py}): lo que se define en una se r
     \texttt{\_info.json} & salida & junto a cada CSV: recinto, escala, convenciones, $\kappa$, orientación, $\fr$ \\
     \texttt{.npz} & entrada y salida & sesión de análisis: candidatos, firmas de rotación, anclas manuales,
                                        recinto y parámetros (NumPy comprimido, sin \texttt{pickle}) \\
-    \texttt{.tex}, \texttt{.csv}, \texttt{.png} & salida & secciones de informe generadas por los scripts de \texttt{software/analisis\_video/} \\
+    \texttt{.tex}, \texttt{.csv}, \texttt{.png} & salida & secciones de informe generadas por los scripts de \texttt{software/figuras/} \\
     \bottomrule
   \end{tabular}
 \end{table}

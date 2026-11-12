@@ -3,10 +3,10 @@
 %
 % Data sections are generated from the CSVs exported by VidFetch (see informe_aplicacion.tex,
 % section "Procedimiento"), from the repository root:
-%   python software/vidfetch/tools/reexportar.py datos/video/sesiones/VA_<código>_analisis.npz ...   (optional)
-%   python software/analisis_video/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv \
+%   python software/herramientas/reexportar.py datos/video/sesiones/VA_<código>_analisis.npz ...   (optional)
+%   python software/figuras/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv \
 %          --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
-%   python software/analisis_video/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv"
+%   python software/figuras/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv"
 % Then compile this file twice. Hand-written text: secciones/*.tex.
 % ============================================================================
 \documentclass[11pt, a4paper]{article}
@@ -33,7 +33,7 @@ confirman otras dos mediciones independientes; la escala anterior estaba \SI{15}
 longitudes y velocidades bajan \SI{13}{\percent} respecto de la versión previa. Los tres ensayos dan
 resultados reproducibles: rapidez mediana de \num{0.50} a \SI{0.61}{\milli\metre\per\second} con episodios
 cortos de hasta \SI{7}{\milli\metre\per\second}, rotación propia persistente de unos \SI{3.5}{\degree\per\second}
-(14 de 22 robots giran en sentido antihorario, como está programado en el modo \texttt{QR}) y un
+(14 de 22 robots giran en sentido antihorario, como está programado en el modo \texttt{AH}) y un
 ordenamiento en tres capas concéntricas separadas un diámetro. Las imágenes y los ejes están orientados
 como ve la arena el observador (video rotado \SI{180}{\degree}, no espejado). La principal diferencia entre
 ensayos son los atascos colectivos, en los que todo el grupo se detiene (\SI{17}{\percent},

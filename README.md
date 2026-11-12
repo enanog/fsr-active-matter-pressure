@@ -14,17 +14,25 @@ seguimiento de los robots por video.
 │   ├── pcb/                  placa de adquisición FSR (Altium)
 │   ├── firmware/             sketches de Arduino (lectura de uno o varios FSR)
 │   └── simulacion/           simulaciones LTspice del front-end
-├── software/
-│   ├── vidfetch/             app de escritorio: recorte de video y seguimiento de robots
-│   ├── analisis_video/       scripts que generan el informe de ensayos a partir de los CSV de VidFetch
-│   └── fsrscope/             app de análisis de presión (G, ΔG, asimetría, supervivencia) con video sincronizado
+├── software/                 ver software/README.md
+│   ├── comun/                biblioteca compartida (presión, trayectorias, velocidades, estilo)
+│   ├── vidfetch/             app: recorte de video y seguimiento de robots
+│   ├── fsrscope/             app: presión (G, ΔG, asimetría, supervivencia) con video sincronizado
+│   ├── velocidades/          app: movilidad de un ensayo (V̄, atascos, distribuciones, ocupación)
+│   ├── comparador/           app: superposición de ensayos y figuras exportables
+│   ├── figuras/              scripts de figuras e informes (plantilla para figuras nuevas)
+│   ├── herramientas/         línea de comandos (lote de presión, reexportar, verificaciones)
+│   └── empaquetado/          construcción de los .exe de las cuatro apps
 ├── datos/
+│   ├── resumen_ensayos.csv   una fila por ensayo (Velocidades / Comparador)
 │   ├── presion/
 │   │   ├── crudos/           R_<código>.csv  registros del sensor (20 Hz)
 │   │   ├── procesados/       P_<código>.csv  salida de FSRScope
 │   │   ├── config/           <código>.json   parámetros de FSRScope por ensayo
 │   │   └── referencia/       mediciones sin robots / de calibración
 │   └── video/                videos no versionados (pendrive); sesiones y CSV sí
+│       ├── config/           <código>.json   parámetros de Velocidades por ensayo
+│       ├── cortes.json       hueco entre partes de videos partidos
 │       ├── originales/       VR_<código>.MP4  video original de la cámara, 4K
 │       ├── recortados/       VC_<código>.MP4  recorte a la arena (lo que se analiza)
 │       ├── seguimiento/      VS_<código>_seguimiento.mp4  video con los robots marcados
@@ -40,13 +48,13 @@ seguimiento de los robots por video.
 
 ## Código de ensayo
 
-Todos los archivos de un mismo ensayo comparten el código `AAAADDMM_HHMM_XXYY_TT`:
+Todos los archivos de un mismo ensayo comparten el código `AAAAMMDD_HHMM_XXYY_TT` (ordena cronológicamente: el más nuevo queda último):
 
 | Campo | Ejemplo | Significado |
 |---|---|---|
-| fecha | `20262409` | año, día, mes (24/09/2026) |
+| fecha | `20260924` | año, mes, día (24/09/2026) |
 | hora | `1600` | hora de inicio |
-| robots y modo | `22QR` | 22 robots; modo `R` (aleatorio), `QR` (todos giran a la derecha), `QZ` (a la izquierda) |
+| robots y modo | `22AH` | 22 robots; modo `AH` (todos giran **antihorario**: solo el motor izquierdo), `HO` (todos giran **horario**: solo el motor derecho), `AL` (**aleatorio**) |
 | duración | `60` | duración **nominal** en minutos (la real puede diferir) |
 
 El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` registro procesado,
@@ -55,22 +63,27 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
 ## Flujo de trabajo
 
 1. **Presión**: copiar `R_<código>.csv` a `datos/presion/crudos/` y abrirlo con
-   `python software/fsrscope/main.py` (calibración, recorte, gráficos y video sincronizado;
+   `python software/fsrscope/app.py` (calibración, recorte, gráficos y video sincronizado;
    *Exportar* → `datos/presion/procesados/P_<código>.csv`). Sin interfaz:
-   `python software/fsrscope/procesar_lote.py` procesa todos con la configuración guardada.
+   `python software/herramientas/procesar_lote.py` procesa todos con la configuración guardada.
 2. **Video**: copiar el video a `datos/video/originales/`, recortarlo con VidFetch
-   (`python software/vidfetch/main.py`) a `datos/video/recortados/`, analizarlo (escala de tiempo
+   (`python software/vidfetch/app.py`) a `datos/video/recortados/`, analizarlo (escala de tiempo
    3 cuadros/s, **orientación de la escena: rotada 180°**, robot 33 mm, recinto Ø 185/195 mm, escala desde el
    recinto) y guardar la sesión en `sesiones/` y el CSV en `trayectorias/`. Las posiciones salen con
    origen en el centro del recinto (detectado en cada cuadro o marcado a mano), x a la derecha e y hacia
-   arriba en la vista del observador. Con una sesión ya guardada, `software/vidfetch/tools/reexportar.py` regenera el CSV sin interfaz.
-3. **Informes**: desde la raíz,
+   arriba en la vista del observador. Con una sesión ya guardada, `software/herramientas/reexportar.py` regenera el CSV sin interfaz.
+3. **Velocidades y comparación**: `python software/velocidades/app.py` (un ensayo) y
+   `python software/comparador/app.py` (varios superpuestos, exporta figuras PDF/PNG).
+4. **Informes y figuras**: desde la raíz,
    ```
-   python software/analisis_video/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
-   python software/analisis_video/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv"
+   python software/figuras/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
+   python software/figuras/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv"
    ```
    y compilar `informes/ensayos/informe_ensayos.tex` e `informes/aplicacion/informe_aplicacion.tex`
-   (dos pasadas de `pdflatex` o `latexmk -pdf`).
+   (dos pasadas de `pdflatex` o `latexmk -pdf`). Figuras nuevas: copiar `software/figuras/plantilla.py`.
+
+Las cuatro apps también se pueden usar como `.exe` sin Python: `software/empaquetado/construir.bat`
+(detalle en `software/README.md`).
 
 ## Notas
 
@@ -78,10 +91,10 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
   real, reproducidos a 29,97 fps). **No están espejados.** El observador mira la arena desde el borde
   superior del video (y = 0 px), así que VidFetch, los informes y FSRScope muestran la imagen **rotada
   180°** (opción *Orientación de la escena: rotada 180°*): x a la derecha del observador, y hacia la pared
-  de enfrente, ángulos antihorarios positivos. En el modo `QR` los robots giran en sentido antihorario.
+  de enfrente, ángulos antihorarios positivos. En el modo `AH` los robots giran en sentido antihorario.
 - El registrador del sensor enciende un LED 5 s al comenzar; el video recortado empieza al terminar
   ese pulso, lo que permite sincronizar video y presión.
 - El recinto se desliza unos mm sobre la placa durante la primera media hora y la cámara cambia
   levemente de aumento: VidFetch mide el recinto a lo largo del video y usa el centro y la escala de
   cada cuadro.
-- Requisitos de Python: `software/vidfetch/requirements.txt` y `software/fsrscope/requirements.txt`.
+- Requisitos de Python: `software/vidfetch/requirements.txt` y `software/requirements.txt`.

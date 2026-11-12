@@ -40,9 +40,9 @@ import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 
-from core import orientation as ori
-from core import rotation as rot
-from core.tracking import OBSERVED, STATUS_LABELS, Status, TrackingResult
+from vidfetch.core import orientation as ori
+from vidfetch.core import rotation as rot
+from vidfetch.core.tracking import OBSERVED, STATUS_LABELS, Status, TrackingResult
 
 SCALE_ARENA = "recinto"
 SCALE_PERSPECTIVE = "perspectiva"

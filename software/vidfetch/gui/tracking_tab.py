@@ -10,19 +10,19 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
                                QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
-from core import arena as ar
-from core import orientation as ori
-from core.calibration import GAP_GROWTH_PER_R
-from core.detection import DetectionParams
-from core.kinematics import (ARROW_NOTE, MIRROR_LABELS, MIRROR_NONE, SCALE_ARENA, SCALE_LABELS,
+from vidfetch.core import arena as ar
+from vidfetch.core import orientation as ori
+from vidfetch.core.calibration import GAP_GROWTH_PER_R
+from vidfetch.core.detection import DetectionParams
+from vidfetch.core.kinematics import (ARROW_NOTE, MIRROR_LABELS, MIRROR_NONE, SCALE_ARENA, SCALE_LABELS,
                              KinematicsParams)
-from core.tracking import (CANDIDATE_MIN_COVERAGE, STATUS_COLORS, STATUS_LABELS, Status,
+from vidfetch.core.tracking import (CANDIDATE_MIN_COVERAGE, STATUS_COLORS, STATUS_LABELS, Status,
                            SessionView, TrackerParams, TrackingSession, draw_oriented)
-from core.video_io import VideoInfo
-from gui.frame_view import ClickFrameView
-from gui.player import PlayerWidget
-from gui.side_panel import page, tabbed_panel
-from gui.state import ProjectState
+from vidfetch.core.video_io import VideoInfo
+from vidfetch.gui.frame_view import ClickFrameView
+from vidfetch.gui.player import PlayerWidget
+from vidfetch.gui.side_panel import page, tabbed_panel
+from vidfetch.gui.state import ProjectState
 
 FILTER_ERRORS = "error"
 FILTER_ALL = "all"

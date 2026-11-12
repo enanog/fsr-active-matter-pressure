@@ -40,9 +40,9 @@ from typing import Callable, Optional, Sequence
 import cv2
 import numpy as np
 
-from core import orientation as ori
-from core.models import Roi, TrimRange
-from core.video_io import VideoReader
+from vidfetch.core import orientation as ori
+from vidfetch.core.models import Roi, TrimRange
+from vidfetch.core.video_io import VideoReader
 
 D_IN_MM = 185.0           # inner diameter of the enclosure wall (user data)
 D_OUT_MM = 195.0          # outer diameter

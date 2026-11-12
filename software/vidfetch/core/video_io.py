@@ -8,7 +8,7 @@ from typing import Callable, Optional
 import cv2
 import numpy as np
 
-from core.models import Roi, TrimRange
+from vidfetch.core.models import Roi, TrimRange
 
 # OpenCV-supported codecs per output container (no audio: OpenCV only handles video streams).
 CODECS = {".mp4": "mp4v", ".avi": "MJPG"}

@@ -9,15 +9,15 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout,
                                QInputDialog, QLabel, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
-from core.analysis import FrameProcessor
-from core.detection import METHOD_DIRECT, METHOD_RING, TRACKPY_ERROR, DetectionParams
-from core.models import Roi, TrimRange
-from core.processing import OPERATIONS, Pipeline
-from core.video_io import VideoInfo
-from gui.frame_view import FrameView, RoiFrameView
-from gui.player import PlayerWidget
-from gui.side_panel import VScrollArea
-from gui.state import ProjectState
+from vidfetch.core.analysis import FrameProcessor
+from vidfetch.core.detection import METHOD_DIRECT, METHOD_RING, TRACKPY_ERROR, DetectionParams
+from vidfetch.core.models import Roi, TrimRange
+from vidfetch.core.processing import OPERATIONS, Pipeline
+from vidfetch.core.video_io import VideoInfo
+from vidfetch.gui.frame_view import FrameView, RoiFrameView
+from vidfetch.gui.player import PlayerWidget
+from vidfetch.gui.side_panel import VScrollArea
+from vidfetch.gui.state import ProjectState
 
 PANEL_WIDTH = 300
 

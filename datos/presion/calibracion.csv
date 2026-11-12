@@ -1,0 +1,14 @@
+codigo,r_feedback_ohm,nota
+20260824_1400_00_07,12000,referencia sin robots; valor del firmware
+20260824_1430_25AH_30,12000,valor del firmware
+20260824_1530_26AH_30,12000,valor del firmware
+20260824_1600_27AH_30,12000,valor del firmware
+20260827_1534_26AH_30,12000,equivalente al K del firmware (0.6299 uS/cuenta) con V_EXC = 0.7534 V
+20260924_1600_22AH_60,50000,confirmado por Dylan; el firmware logueo con 5000
+20260925_1230_22AH_60,50000,valor del firmware
+20260925_1500_22AH_60,50000,valor del firmware
+20261030_1100_22AH_60,3700,a confirmar (3k7); el firmware logueo con 1000
+20261030_1200_22AL_60,3700,a confirmar (3k7); el firmware logueo con 1000
+20261030_1430_22AL_60,3700,a confirmar (3k7); el firmware logueo con 1000
+20261030_1600_22AH_60,3700,a confirmar (3k7); el firmware logueo con 1000
+202611,3700,a confirmar (3k7); vale para todo registro de noviembre que no tenga fila propia

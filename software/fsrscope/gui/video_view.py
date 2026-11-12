@@ -10,8 +10,8 @@ from PySide6.QtCore import QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from core.session import TrialData
-from core.video import VideoSource
+from comun.session import TrialData
+from comun.video import PartedVideoSource, VideoSource
 
 SLOW_MM_S = 0.6     # robots below this speed are drawn red (jam threshold used in the reports)
 FAST_MM_S = 3.5
@@ -73,20 +73,24 @@ class VideoPanel(QWidget):
         lay.setContentsMargins(2, 2, 2, 2)
         lay.addWidget(self.view, 1)
         lay.addLayout(bar)
-        self.src: Optional[VideoSource] = None
+        self.src = None                 # VideoSource or PartedVideoSource
         self.td: Optional[TrialData] = None
 
-    def set_source(self, td: Optional[TrialData], path) -> str:
-        """Open `path` (or close if None). Returns an error message ('' if ok)."""
+    def set_source(self, td: Optional[TrialData], path, split=None) -> str:
+        """Open `path` (or close if None); with `split` (comun.cortes.SplitInfo of a split
+        recording) every part is placed on one frame axis. Returns an error message ('' if ok)."""
         self.close_source()
         self.td = td
-        if path is None:
+        if path is None and (split is None or not split.split):
             self.view.set_frame(None, "Este ensayo no tiene video.\nUsá «Abrir video…» si existe en otra carpeta.")
             self.info.setText("—")
             return ""
         try:
-            self.src = VideoSource(path)
-        except (OSError, IOError) as exc:
+            if split is not None and split.split:
+                self.src = PartedVideoSource(split.parts, split.starts)
+            else:
+                self.src = VideoSource(path)
+        except (OSError, IOError, ValueError) as exc:
             self.view.set_frame(None, str(exc))
             return str(exc)
         return ""
@@ -109,8 +113,17 @@ class VideoPanel(QWidget):
                                       f"{td.offset_s + self.src.frame_count / sy.frames_per_s:.1f} s del sensor)")
             self.info.setText(f"{self.src.path.name} · fuera de rango")
             return
+        parted = isinstance(self.src, PartedVideoSource)
         frame = self.src.read(n)
         if frame is None:
+            gap = self.src.gap_at(n) if parted else None
+            if gap is not None:
+                k, missing = gap
+                self.view.set_frame(None, f"Sin video: hueco entre la parte {k} y la {k + 1}\n"
+                                          f"(no se grabó; la parte {k + 1} empieza en "
+                                          f"{missing / sy.frames_per_s:.1f} s)")
+                self.info.setText(f"hueco entre partes · cuadro {n}/{self.src.frame_count - 1} · "
+                                  f"t video = {t_video:.1f} s")
             return
         img = frame.copy() if sy.show_robots and td.robots is not None else frame
         n_slow = None
@@ -120,7 +133,12 @@ class VideoPanel(QWidget):
             img = cv2.rotate(img, cv2.ROTATE_180)
         self.view.set_frame(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         extra = f" · robots lentos (< {SLOW_MM_S} mm/s): {n_slow}" if n_slow is not None else ""
-        self.info.setText(f"{self.src.path.name} · cuadro {n}/{self.src.frame_count - 1} · "
+        if parted:
+            k, local = self.src.locate(n)
+            name = f"{self.src.paths[k].name} (parte {k + 1}/{len(self.src.parts)}, cuadro {local})"
+        else:
+            name = self.src.path.name
+        self.info.setText(f"{name} · cuadro {n}/{self.src.frame_count - 1} · "
                           f"t video = {t_video:.1f} s{extra}")
 
     def _draw_robots(self, img: np.ndarray, frame: int) -> Optional[int]:

@@ -14,17 +14,17 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDockWidget, QFileDialog, QLabel, QMainWindow,
                                QMessageBox, QSlider, QStyle, QTabWidget, QToolBar, QToolButton)
 
-from core import paths
-from core.export import default_columns
-from core.session import TrialData
-from core.settings import TrialSettings, save_settings
-from core.signal import true_runs
-from core.stats import Stats
-from gui.panels import (AnalysisPanel, CalibrationPanel, ExportPanel, PlotsPanel, SyncPanel,
+from comun import cortes, paths
+from comun.export import default_columns
+from comun.session import TrialData
+from comun.settings import TrialSettings, save_settings
+from comun.signal import true_runs
+from comun.stats import Stats
+from fsrscope.gui.panels import (AnalysisPanel, CalibrationPanel, ExportPanel, PlotsPanel, SyncPanel,
                         TrialPanel, dspin)
-from gui.plots import DeltaGPanel, PlotArea, normalized_plot_states
-from gui.video_view import VideoPanel
-from gui.worker import LatestJobRunner
+from fsrscope.gui.plots import DeltaGPanel, PlotArea, normalized_plot_states
+from fsrscope.gui.video_view import VideoPanel
+from comun.qt.worker import LatestJobRunner
 
 SPEEDS = [0.5, 1, 2, 5, 10, 20, 50, 100, 200]
 TICK_MS = 33
@@ -217,6 +217,7 @@ class MainWindow(QMainWindow):
         self.p_ana.excludeSelection.connect(self._exclude_selection)
         self.p_ana.selectionToggled.connect(self._toggle_selection)
         self.p_sync.changed.connect(self._on_sync)
+        self.p_sync.remeasureRequested.connect(self._remeasure_gap)
         self.p_plots.statesChanged.connect(self._on_plot_states)
         self.p_plots.optionChanged.connect(self._on_plot_option)
         self.p_exp.exportRequested.connect(self.export_default)
@@ -280,9 +281,13 @@ class MainWindow(QMainWindow):
         self._saved_json = self._collect_settings().to_json()
         self.setWindowTitle(f"FSRScope — {trial.label}")
         msg = f"Abierto {trial.raw_path.name}"
+        if td.split is not None and td.split.split:
+            sp = td.split
+            gap = ", ".join(f"{g:.1f} s" for g in sp.gaps_s) if sp.measured else "sin medir"
+            msg += f" · video partido en {len(sp.parts)} partes (hueco {gap}; detalle en la pestaña Video)"
         if td.raw.warnings:
             msg += " · " + "; ".join(td.raw.warnings)
-        self.statusBar().showMessage(msg, 8000)
+        self.statusBar().showMessage(msg, 15000)
 
     def _load_panels(self) -> None:
         td, s = self.td, self.td.settings
@@ -292,16 +297,53 @@ class MainWindow(QMainWindow):
         self.p_plots.load(s.plots, td.robots is not None, td.raw.numeric_columns())
         self.p_exp.load(s, td)
 
-    def _open_video(self) -> None:
-        td = self.td
-        manual = Path(td.settings.sync.video_path) if td.settings.sync.video_path else None
+    def _open_video(self, remeasure: bool = False) -> None:
+        td, sy = self.td, self.td.settings.sync
+        manual = Path(sy.video_path) if sy.video_path else None
         path = manual if manual is not None and manual.is_file() else td.trial.video_path
-        err = self.video.set_source(td, path)
+        # split recording? (VC_<code>(1), (2), ...): find the parts and the gap between them. A video
+        # chosen by hand that is one part '(n)' (e.g. the annotated VS_<code>(1)) brings its siblings.
+        gaps = None if sy.gaps_auto else sy.gaps_s
+        if manual is not None and manual.is_file():
+            siblings = cortes.sibling_parts(manual)
+            info = cortes.split_info(td.trial.code, gaps, remeasure=remeasure, parts=siblings) if len(siblings) > 1 else None
+        else:
+            info = cortes.split_info(td.trial.code, gaps, remeasure=remeasure)
+        if info is not None and not info.split:
+            info = None
+        had_robots = td.robots is not None
+        td.apply_split(info)
+        err = self.video.set_source(td, path, info)
         self._video_path = path if not err else None
         n = self.video.src.frame_count if self.video.src is not None else None
+        self.p_sync.show_split(info)
         self.p_sync.update_summary(td, n)
         self.p_trial.show_info(td, self._video_path, err)
-        self.dock_video.setWindowTitle(f"Video — {path.name}" if self._video_path else "Video")
+        title = "Video"
+        if self._video_path:
+            title = (f"Video — {td.trial.code} ({len(info.parts)} partes)" if info is not None
+                     else f"Video — {path.name}")
+        self.dock_video.setWindowTitle(title)
+        if info is not None:
+            if not info.measured:
+                self.statusBar().showMessage("Video partido: no se pudo medir el hueco entre partes "
+                                             "(ingresalo en Video → Video partido).", 15000)
+            else:
+                gaps = ", ".join(f"{g:.1f} s" for g in info.gaps_s)
+                self.statusBar().showMessage(f"Video partido en {len(info.parts)} partes, hueco {gaps} "
+                                             f"({info.source}). Detalle en la pestaña Video.", 15000)
+            if (td.robots is not None) != had_robots and "robots" in self.area.panels:
+                self.area.configure(td.settings.plots, td.robots is not None)
+                for p in self.area.panels.values():
+                    p.td = td
+
+    def _remeasure_gap(self) -> None:
+        if self.td is None:
+            return
+        self.td.settings.sync.gaps_auto = True
+        self.p_sync.gaps_auto.setChecked(True)
+        self._open_video(remeasure=True)
+        self.set_time(self.t_now)
 
     def open_video_dialog(self) -> None:
         if self.td is None:
@@ -312,6 +354,42 @@ class MainWindow(QMainWindow):
             self.td.settings.sync.video_path = path
             self._open_video()
             self.set_time(self.t_now)
+            self._report_parts(Path(path))
+
+    def _report_parts(self, chosen: Path) -> None:
+        """After opening a video by hand: say whether it is one part of a split recording."""
+        info = self.td.split
+        if info is not None and info.split:
+            k = next((i for i, p in enumerate(info.parts) if p.name == chosen.name), 0)
+            others = [p.name for i, p in enumerate(info.parts) if i != k]
+            gap = (", ".join(f"{g:.1f} s" for g in info.gaps_s) + f" ({info.source})") if info.measured \
+                else "sin medir: ingresalo en la pestaña Video → Video partido"
+            QMessageBox.information(
+                self, "Video partido",
+                f"«{chosen.name}» es la parte {k + 1} de {len(info.parts)}.\n\n"
+                f"También se cargó: {', '.join(others)}.\n"
+                f"Hueco sin grabar entre partes: {gap}.\n\n"
+                "Las partes se reproducen seguidas, sincronizadas con la presión y los robots; en el "
+                "hueco se ve «Sin video». El detalle y el ajuste manual están en la pestaña Video.")
+            self._select_sync_tab()
+        elif cortes._PART_RE.search(chosen.stem):
+            QMessageBox.warning(
+                self, "Video partido",
+                f"«{chosen.name}» parece ser una parte de un video cortado, pero no se encontraron las "
+                f"otras partes en {chosen.parent}.\n\nSe muestra solo este archivo. Poné todas las partes "
+                "(…(1), …(2), …) en la misma carpeta y volvé a abrirlo.")
+
+    def _select_sync_tab(self) -> None:
+        w = self.p_sync
+        while w is not None and not isinstance(w, QTabWidget):
+            w = w.parentWidget()
+        if w is None:
+            return
+        for i in range(w.count()):                      # the page may wrap the panel (scroll area)
+            page = w.widget(i)
+            if page is self.p_sync or page.isAncestorOf(self.p_sync):
+                w.setCurrentIndex(i)
+                return
 
     # =========================================================================================
     # parameter changes
@@ -362,7 +440,11 @@ class MainWindow(QMainWindow):
     def _on_sync(self) -> None:
         if self.td is None:
             return
+        sy = self.td.settings.sync
+        old = (sy.gaps_auto, list(sy.gaps_s))
         self.p_sync.store(self.td.settings)
+        if (sy.gaps_auto, list(sy.gaps_s)) != old:   # gap of a split recording changed: re-place the parts
+            self._open_video()
         n = self.video.src.frame_count if self.video.src is not None else None
         self.p_sync.update_summary(self.td, n)
         self.area.panels["robots"].rebuild()
@@ -687,7 +769,7 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "Procesar todos", f"Se van a (re)generar {len(trials)} archivos "
                                 f"P_<código>.csv en {paths.PROC_DIR}. ¿Continuar?") != QMessageBox.StandardButton.Yes:
             return
-        from procesar_lote import run_batch
+        from comun.lote import run_batch
 
         def job():
             lines = []

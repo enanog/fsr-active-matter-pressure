@@ -19,8 +19,8 @@ clear; clc;
 
 %% ===================== Parameters =====================
 carpeta  = "C:\Users\dylan\Desktop\Proyecto_PresionRecintoCircular\datos\video\trayectorias";
-archivos = strings(0);   % e.g. [fullfile(carpeta,"VP_20263010_1200_22R_60_robots.csv"), ...]; empty -> dialog
-ocultar  = strings(0);   % trials hidden at start, by (part of) the code, e.g. ["20263010_1200", "2509_1500"]
+archivos = strings(0);   % e.g. [fullfile(carpeta,"VP_20261030_1200_22AL_60_robots.csv"), ...]; empty -> dialog
+ocultar  = strings(0);   % trials hidden at start, by (part of) the code, e.g. ["20261030_1200", "2509_1500"]
 
 suav_s         = 30;     % moving average of the time plots and of the speed-pressure comparison [s]
 usar_media     = true;   % distributions of: true = V_mean per frame, false = individual |v|
@@ -390,7 +390,7 @@ function alternar_traza(~, evt)
 end
 
 function txt = etiqueta(codigo)
-    % '20263010_1200_22R_60' -> "30/10 12:00 · 22R" (files store AAAADDMM; August logs AAAAMMDD)
+    % '20261030_1200_22AL_60' -> "30/10 12:00 · 22AL" (files store AAAADDMM; August logs AAAAMMDD)
     p = split(codigo, "_");
     d = char(p(1));  hm = char(p(2));
     a = str2double(d(5:6));  b = str2double(d(7:8));

@@ -7,8 +7,8 @@ from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QSlider, QStyle, QToolButton,
                                QVBoxLayout, QWidget)
 
-from core.video_io import VideoReader
-from gui.frame_view import FrameView
+from vidfetch.core.video_io import VideoReader
+from vidfetch.gui.frame_view import FrameView
 
 
 class PlayerWidget(QWidget):

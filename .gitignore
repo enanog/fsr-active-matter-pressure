@@ -49,3 +49,13 @@ __pycache__/
 .venv/
 *.raw
 *.op.raw
+
+# ---------------------------------------------------------------------------
+# Ejecutables (software/empaquetado/construir.py): se generan en cada PC, no se versionan
+# ---------------------------------------------------------------------------
+software/empaquetado/build/
+software/empaquetado/dist/
+*.spec
+
+# Copia rápida de los ensayos que arman los scripts de MATLAB (se regenera sola)
+software/matlab/cache/

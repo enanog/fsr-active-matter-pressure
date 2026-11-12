@@ -23,11 +23,11 @@ import pandas as pd
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 
-from core import arena as arena_mod
-from core import orientation as ori
-from core import detection as det
-from core.analysis import FrameProcessor, scan_video
-from core.models import Roi, TrimRange
+from vidfetch.core import arena as arena_mod
+from vidfetch.core import orientation as ori
+from vidfetch.core import detection as det
+from vidfetch.core.analysis import FrameProcessor, scan_video
+from vidfetch.core.models import Roi, TrimRange
 
 CANDIDATE_MIN_COVERAGE = 0.45   # floor kept in the cache; relaxed levels cannot go below it
 CANDIDATE_SEPARATION_FACTOR = 0.8
@@ -613,7 +613,7 @@ class TrackingSession:
         return res
 
     def compute_kinematics(self, result: Optional[TrackingResult] = None):
-        from core import kinematics as km
+        from vidfetch.core import kinematics as km
         result = result or self.result
         if result is None:
             return None
@@ -654,7 +654,7 @@ class TrackingSession:
         return SessionView(res.slice(a, b), kin, (a, b), msg)
 
     def to_dataframe(self, view: Optional[SessionView] = None) -> pd.DataFrame:
-        from core import kinematics as km
+        from vidfetch.core import kinematics as km
         v = view or self.view()
         if v is None:
             raise RuntimeError("No hay resultados de seguimiento.")
@@ -664,7 +664,7 @@ class TrackingSession:
 
     def robot_dataframe(self, k: int, view: Optional[SessionView] = None) -> pd.DataFrame:
         """Every column of the long table for robot k only (one row per frame)."""
-        from core import kinematics as km
+        from vidfetch.core import kinematics as km
         return km.robot_table(self.to_dataframe(view), k)
 
     def export_info(self, view: Optional[SessionView] = None) -> dict:
@@ -689,7 +689,7 @@ class TrackingSession:
         return info
 
     def summary_dataframe(self, view: Optional[SessionView] = None) -> pd.DataFrame:
-        from core import kinematics as km
+        from vidfetch.core import kinematics as km
         v = view or self.view()
         return km.summary(v.result, v.kin)
 
@@ -747,7 +747,7 @@ class TrackingSession:
 
     @staticmethod
     def load(path: str) -> "TrackingSession":
-        from core import kinematics as km
+        from vidfetch.core import kinematics as km
         with np.load(path, allow_pickle=False) as z:
             meta = json.loads(str(z["meta"]))
             frames = z["frames"].astype(np.int64)

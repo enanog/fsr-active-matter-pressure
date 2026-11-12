@@ -9,19 +9,19 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QFileDialog, QMainWindow, QMessageBox, QProgressDialog, QTabWidget)
 
-from core import arena as ar
-from core.analysis import detect_video, save_tracks_csv
-from core.detection import TRACKPY_ERROR, link_tracks
-from core.calibration import (Calibration, calibrate_frames, calibrate_video, derive_tracker_values,
+from vidfetch.core import arena as ar
+from vidfetch.core.analysis import detect_video, save_tracks_csv
+from vidfetch.core.detection import TRACKPY_ERROR, link_tracks
+from vidfetch.core.calibration import (Calibration, calibrate_frames, calibrate_video, derive_tracker_values,
                               describe, sample_frames)
-from core import kinematics as km
-from core.models import TrimRange
-from core.tracking import TrackingSession, extract_candidates, track
-from core.video_io import VideoReader, export_video
-from gui.export_worker import TaskWorker
-from gui.state import ProjectState
-from gui.tabs import EditTab, OriginalTab, ProcessTab
-from gui.tracking_tab import TrackingTab
+from vidfetch.core import kinematics as km
+from vidfetch.core.models import TrimRange
+from vidfetch.core.tracking import TrackingSession, extract_candidates, track
+from vidfetch.core.video_io import VideoReader, export_video
+from vidfetch.gui.export_worker import TaskWorker
+from vidfetch.gui.state import ProjectState
+from vidfetch.gui.tabs import EditTab, OriginalTab, ProcessTab
+from vidfetch.gui.tracking_tab import TrackingTab
 
 VIDEO_FILTER = "Videos (*.mp4 *.avi *.mov *.mkv *.m4v *.wmv);;Todos los archivos (*)"
 SAVE_FILTERS = {"MP4 (*.mp4)": ".mp4", "AVI – MJPG (*.avi)": ".avi"}
@@ -582,7 +582,7 @@ def _axes_note(kin, out) -> str:
         txt = "Recinto sin definir: origen en el centro del recorte; x a la derecha, y hacia arriba. "
     txt += "vel_dir_deg, phi_deg, θ y ω: antihorarios. "
     if "orientacion" in out.columns:
-        from core import orientation as ori
+        from vidfetch.core import orientation as ori
         txt += f"Escena: {ori.DESCRIPTION[ori.from_frame(out)]} (columna 'orientacion'). "
     elif "espejo" in out.columns:
         txt += "Video espejado corregido (columna 'espejo'). "

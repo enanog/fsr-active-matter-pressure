@@ -118,7 +118,7 @@ abajo del centro del recinto queda, con $s = \SI{0.323}{\milli\metre\per px}$, e
 $x = +\SI{32.3}{\milli\metre}$, $y = +\SI{32.3}{\milli\metre}$: a la derecha del observador y hacia la
 pared de enfrente. Una rotación conserva el sentido de giro, así que $\theta$ y $\omega$ no cambian de
 signo; un espejado lo invierte ($\sigma_\theta = -1$): un giro antihorario se vería horario. Por eso la
-opción correcta se comprueba con el sentido de giro conocido de los robots: en el modo \texttt{QR} giran
+opción correcta se comprueba con el sentido de giro conocido de los robots: en el modo \texttt{AH} giran
 en sentido antihorario visto desde arriba (\cref{sec:verif_cin}), y así se ven en el video original, de
 modo que la cámara no espeja. Elegir \texttt{rot180} o \texttt{no} solo rota los ejes $180^\circ$: no
 cambia rapideces, distancias, capas ni sentidos de giro. El CSV lleva la columna \texttt{orientacion} y
@@ -275,7 +275,7 @@ del contraste medido entre anillo y disco, por lo que no dependen de la exposici
   \caption{Calibración: plantilla sobre un robot y respuesta en función del radio de prueba. Todas las
     figuras de esta sección usan el primer minuto del ensayo 24/09 y muestran la escena como la ve el
     observador (imagen rotada \SI{180}{\degree}, \cref{sec:orientacion}); las regenera
-    \texttt{software/analisis\_video/figuras\_metodo.py}.}
+    \texttt{software/figuras/figuras\_metodo.py}.}
   \label{fig:calib}
 \end{figure}
 
@@ -537,7 +537,7 @@ Con enlaces largos el sistema deja de ser de banda y se resuelve con gradiente c
 unas diez veces más rápido que \texttt{spsolve}; cuesta $\sim\SI{3}{\second}$ por robot. Validado
 con bloques de cuadros retenidos: error a \SI{10}{\minute} de \SI{0.9}{\degree} (mediana) y
 \SI{3}{\degree} (percentil 90), contra \num{30}--\SI{44}{\degree} sin estos enlaces. La herramienta
-\texttt{tools/verificar\_giro.py} lo verifica sobre el video (\cref{sec:procedimiento}). Finalmente
+\texttt{herramientas/verificar\_giro.py} lo verifica sobre el video (\cref{sec:procedimiento}). Finalmente
 $\omega=\mathrm{d}\theta/\mathrm{d}t = \fr\,\mathrm{d}\theta/\mathrm{d}n$ con el mismo
 Savitzky--Golay (\cref{fig:rotacion}). La
 \cref{fig:desrotacion} verifica la medición: al girar cada imagen por $-\theta$, los LEDs y los puntos

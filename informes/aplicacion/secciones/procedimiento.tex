@@ -11,7 +11,7 @@ PowerShell) una línea se continúa con \verb|^| (cmd) o \verb|`| (PowerShell); 
 
 \begin{verbatim}
 pip install -r software/vidfetch/requirements.txt
-pip install -r software/fsrscope/requirements.txt     (solo para FSRScope)
+pip install -r software/requirements.txt     (solo para FSRScope)
 \end{verbatim}
 Requiere Python~3.10 o superior. Para compilar los informes hace falta una distribución de \LaTeX\
 (MiKTeX o TeX Live) con \texttt{pgfplots}, \texttt{siunitx} y \texttt{listings}.
@@ -19,7 +19,7 @@ Requiere Python~3.10 o superior. Para compilar los informes hace falta una distr
 \subsection{Analizar un video con la interfaz}
 
 \begin{verbatim}
-python software/vidfetch/main.py
+python software/vidfetch/app.py
 \end{verbatim}
 \begin{enumerate}
   \item \textbf{Abrir} el \texttt{VC\_<código>.MP4} (menú \emph{Archivo}, pestaña \emph{1 · Original}).
@@ -153,7 +153,7 @@ configurado en español conviene importarlos con \emph{Datos $\to$ Desde texto/C
 como separador decimal; abrirlos con doble clic puede leer \texttt{0.52} como texto o fecha. En Python:
 \begin{lstlisting}[caption={Lectura de un CSV exportado (un robot y solo puntos detectados).}]
 import pandas as pd
-df = pd.read_csv("datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv")
+df = pd.read_csv("datos/video/trayectorias/VP_20260924_1600_22AH_60_robots.csv")
 r7 = df[(df.particle == 7) & (df.status == "detectado")]       # robot 7, observed points only
 print(r7[["t_s", "x_mm", "y_mm", "speed_mm_s", "omega_deg_s"]].describe())
 wall = df.r_mm >= df.r_mm.quantile(0.995) - 33 / 2               # wall layer (D = 33 mm)
@@ -164,12 +164,12 @@ wall = df.r_mm >= df.r_mm.quantile(0.995) - 33 / 2               # wall layer (D
 Carga una sesión \texttt{.npz}, rehace el seguimiento y la cinemática con las opciones indicadas y
 escribe los mismos archivos que la interfaz. Es la forma de regenerar las trayectorias de un ensayo:
 \begin{verbatim}
-python software/vidfetch/tools/reexportar.py ^
-       datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
-       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+python software/herramientas/reexportar.py ^
+       datos/video/sesiones/VA_20260924_1600_22AH_60_analisis.npz ^
+       --video datos/video/recortados/VC_20260924_1600_22AH_60.MP4 ^
        --orientacion rot180 --ventana 5 --diametro-robot 33 --escala recinto ^
        --cuadros-por-segundo 3 ^
-       --salida datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
+       --salida datos/video/trayectorias/VP_20260924_1600_22AH_60_robots.csv ^
        --resumen --guardar-sesion
 \end{verbatim}
 
@@ -201,9 +201,9 @@ python software/vidfetch/tools/reexportar.py ^
 Recorta algunos robots del video cada pocos minutos y los muestra tal como se grabaron y girados por
 $-\theta$ (método anterior y actual). Si $\theta$ es correcto, las marcas del robot quedan quietas:
 \begin{verbatim}
-python software/vidfetch/tools/verificar_giro.py ^
-       datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
-       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+python software/herramientas/verificar_giro.py ^
+       datos/video/sesiones/VA_20260924_1600_22AH_60_analisis.npz ^
+       --video datos/video/recortados/VC_20260924_1600_22AH_60.MP4 ^
        --robots 3,7,12 --inicio 0 --cada 2.5 --duracion 15
 \end{verbatim}
 Escribe \nolinkurl{datos/video/verificacion/giro_<código>.png} (o \texttt{-{}-salida}).
@@ -214,9 +214,9 @@ Es el equivalente de \texttt{verificar\_giro.py} para la traslación. Trabaja so
 (y su \texttt{\_info.json}) y el video, es decir, verifica los datos tal como los usan los informes.
 Necesita solo OpenCV, NumPy y pandas y tarda unos segundos:
 \begin{verbatim}
-python software/vidfetch/tools/verificar_cinematica.py ^
-       datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
-       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
+python software/herramientas/verificar_cinematica.py ^
+       datos/video/trayectorias/VP_20260924_1600_22AH_60_robots.csv ^
+       --video datos/video/recortados/VC_20260924_1600_22AH_60.MP4 ^
        [--cuadro 6000] [--robots 3,7,12] [--delta 5] [--centros 0,4,9]
 \end{verbatim}
 En PowerShell el comando va en una sola línea o con acento grave (\texttt{`}) al final de cada línea en
@@ -261,7 +261,7 @@ la posición de cualquier robot y se compara con el CSV. Qué mirar:
         (3) velocidad exportada contra una diferencia finita cruda de los píxeles del video
         ($\pm 3$~cuadros, sin Savitzky--Golay): la pendiente da el signo y la escala de los ejes; (4) radio
         de contacto contra $R_{\mathrm{int}}-D/2$ y signo de $\overline{\omega}$ contra el giro programado
-        (modo \texttt{QR}: antihorario; otro modo, \texttt{-{}-giro-esperado}): si no coincide, la orientación
+        (modo \texttt{AH}: antihorario; otro modo, \texttt{-{}-giro-esperado}): si no coincide, la orientación
         está mal elegida (un espejado invierte el sentido); (5) el centro del borde
         del panel C sobre todos los robots detectados de 20 cuadros: distancia al centro exportado
         (mediana y p90; \texttt{OK} si la mediana es menor que \SI{1}{\milli\metre}), diámetro del cuerpo
@@ -286,7 +286,7 @@ altura, unos segundos de:
 
 \subsection{Generar el informe de ensayos}
 
-Dos scripts de \nolinkurl{software/analisis_video/} arman \nolinkurl{informes/ensayos/informe_ensayos.tex}
+Dos scripts de \nolinkurl{software/figuras/} arman \nolinkurl{informes/ensayos/informe_ensayos.tex}
 a partir de los CSV (y sus \texttt{\_info.json}). Por defecto escriben en
 \nolinkurl{informes/ensayos/generado/} y leen el registro de presión de \nolinkurl{datos/presion/crudos/}.
 
@@ -294,10 +294,10 @@ a partir de los CSV (y sus \texttt{\_info.json}). Por defecto escriben en
 con la tabla de datos (incluido el recinto), la captura anotada (con el recinto y los ejes), los gráficos y
 un párrafo automático, y actualiza \nolinkurl{generado/lista_ensayos.tex}:
 \begin{verbatim}
-python software/analisis_video/generar_informe.py ^
-       datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
-       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4 ^
-       --nombre 20262409_1600_22QR_60
+python software/figuras/generar_informe.py ^
+       datos/video/trayectorias/VP_20260924_1600_22AH_60_robots.csv ^
+       --video datos/video/recortados/VC_20260924_1600_22AH_60.MP4 ^
+       --nombre 20260924_1600_22AH_60
 \end{verbatim}
 Opciones:
 \begin{itemize}
@@ -320,7 +320,7 @@ movimiento del recinto y zoom), series temporales con los atascos, distribucione
 desplazamiento cuadrático medio, mapas de ocupación con la pared y el radio de contacto, densidad radial
 y, si encuentra los registros, el contraste con el sensor de presión:
 \begin{verbatim}
-python software/analisis_video/comparar_ensayos.py ^
+python software/figuras/comparar_ensayos.py ^
        "datos/video/trayectorias/VP_*_robots.csv"
 \end{verbatim}
 El umbral de atasco (percentil 90 de la rapidez suavizado en \SI{30}{\second} menor que
@@ -347,10 +347,10 @@ Con los videos copiados en \nolinkurl{datos/video/recortados/}, para cada \textt
   \item Las figuras de método de este informe (\nolinkurl{informes/aplicacion/figuras/metodo/f1}--\texttt{f9}),
         en la vista del observador:
 \begin{verbatim}
-python software/analisis_video/figuras_metodo.py ^
-       --csv datos/video/trayectorias/VP_20262409_1600_22QR_60_robots.csv ^
-       --sesion datos/video/sesiones/VA_20262409_1600_22QR_60_analisis.npz ^
-       --video datos/video/recortados/VC_20262409_1600_22QR_60.MP4
+python software/figuras/figuras_metodo.py ^
+       --csv datos/video/trayectorias/VP_20260924_1600_22AH_60_robots.csv ^
+       --sesion datos/video/sesiones/VA_20260924_1600_22AH_60_analisis.npz ^
+       --video datos/video/recortados/VC_20260924_1600_22AH_60.MP4
 \end{verbatim}
   \item Compilar los dos informes.
 \end{enumerate}

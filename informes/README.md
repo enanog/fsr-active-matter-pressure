@@ -8,7 +8,7 @@
 | `comun/` | `preambulo.tex`, `config.tex` | Paquetes, macros y configuración compartida (título, autor, diámetro del robot, diámetros del recinto, escala de tiempo). |
 
 En `ensayos/`, el texto escrito a mano está en `secciones/` y el contenido calculado en
-`generado/` (no editar: lo reescriben `software/analisis_video/generar_informe.py` y
+`generado/` (no editar: lo reescriben `software/figuras/generar_informe.py` y
 `comparar_ensayos.py`). Las observaciones propias de cada ensayo van en
 `generado/<código>/notas.tex`, que los scripts nunca sobrescriben.
 
