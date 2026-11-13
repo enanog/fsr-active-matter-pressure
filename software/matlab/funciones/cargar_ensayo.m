@@ -23,6 +23,7 @@ function D = cargar_ensayo(codigo)
         S = load(cache);
         if isfield(S, 'firma') && isequal(S.firma, firma) && isfield(S, 'version') && S.version == 4
             D = S.D;
+            D.etiqueta = etiqueta_ensayo(codigo);   % label rules may change after the cache was written
             return
         end
     end

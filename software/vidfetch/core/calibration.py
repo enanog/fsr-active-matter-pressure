@@ -14,6 +14,12 @@ measure that size first and derive the rest from it:
 
 Reference geometry (measured on DJI_0196, 4K): r_out = 48 px, r_in = 36 px (ratio 0.75),
 max speed ~13 px/frame (0.28 r_out).
+
+Size prior from the enclosure: robots and wall are fixed in size (robot 33 mm, wall 185 mm), so when the
+enclosure is found in the crop the radius search is limited to ROBOT_PER_ARENA * r_wall * [0.6, 1.6].
+Without it, small bright details (metal tab, glints, LEDs) win at low resolution: on a 1080p crop of
+380 px the score keeps growing towards the smallest radius and the robot (r ~ 28 px) loses. As a second
+guard, a maximum at the edge of the radius grid is not accepted when an interior maximum exists.
 """
 from __future__ import annotations
 
@@ -23,6 +29,7 @@ from typing import Callable, Optional
 import cv2
 import numpy as np
 
+from vidfetch.core import arena as arena_mod
 from vidfetch.core import detection as det
 from vidfetch.core.models import Roi, TrimRange
 from vidfetch.core.processing import Pipeline
@@ -36,6 +43,8 @@ GAP_GROWTH_PER_R = 0.0625    # tracker gate growth per missing frame / r_out
 PIXEL_DARK_FRAC = 0.14       # ring pixel threshold = ring + frac * (disc - ring)
 RING_MAX_FRAC = 0.50         # ring mean gate     = ring + frac * (disc - ring)
 MIN_R_OUT = 4.0              # px, below this a ring cannot be resolved
+ROBOT_PER_ARENA = 0.164      # robot r_out / inner wall radius (4K: 46.7 / 285 px; 1080p crop: 28 / 181)
+PRIOR_RANGE = (0.6, 1.6)     # radius search window around the enclosure prior
 
 
 @dataclass(frozen=True)
@@ -48,6 +57,7 @@ class Calibration:
     n_per_frame: tuple[int, ...]
     radius_spread: float      # relative spread (max-min)/median of per-frame radius estimates
     frame_size: tuple[int, int]  # (w, h) analysed
+    arena_r_in: float = float("nan")  # inner wall radius used as size prior [px]; nan = not found
 
     @property
     def diameter(self) -> float:
@@ -91,7 +101,9 @@ def _score(g: np.ndarray, r: float, gate_max: float, k: int) -> float:
 
 def _best_on_grid(g: np.ndarray, rs: np.ndarray, gate_max: float, k: int, step: float) -> float:
     sc = np.array([_score(g, r, gate_max, k) for r in rs])
-    i = int(np.argmax(sc))
+    # Best interior local maximum: a maximum on the edge of the grid is a trend, not a size
+    interior = [j for j in range(1, len(sc) - 1) if sc[j] >= sc[j - 1] and sc[j] >= sc[j + 1]]
+    i = max(interior, key=lambda j: sc[j]) if interior else int(np.argmax(sc))
     if 0 < i < len(sc) - 1:
         y0, y1, y2 = sc[i - 1:i + 2]
         den = y0 - 2 * y1 + y2
@@ -107,8 +119,11 @@ def _resize(gray: np.ndarray, f: float) -> np.ndarray:
     return cv2.resize(gray, None, fx=f, fy=f, interpolation=interp).astype(np.float32)
 
 
-def estimate_radius(gray: np.ndarray, k: int = 10) -> tuple[float, float]:
-    """Returns (r_out in input px, Otsu threshold) for one grayscale frame."""
+def estimate_radius(gray: np.ndarray, k: int = 10, r_prior: Optional[float] = None) -> tuple[float, float]:
+    """Returns (r_out in input px, Otsu threshold) for one grayscale frame.
+
+    r_prior: expected r_out [input px] (from the enclosure); limits the coarse search to PRIOR_RANGE.
+    """
     h, w = gray.shape
     otsu, _ = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     gate = max(float(otsu) * 1.1, 1.0)
@@ -117,6 +132,10 @@ def estimate_radius(gray: np.ndarray, k: int = 10) -> tuple[float, float]:
     g0 = _resize(gray, f0)
     rs = MIN_R_OUT * 1.15 ** np.arange(60)
     rs = rs[rs <= min(g0.shape) / 4]
+    if r_prior:
+        cerca = rs[(rs >= PRIOR_RANGE[0] * r_prior * f0) & (rs <= PRIOR_RANGE[1] * r_prior * f0)]
+        if len(cerca) >= 3:
+            rs = cerca
     if len(rs) < 3:
         raise ValueError("La imagen es demasiado chica para estimar el tamaño de los robots.")
     r0 = _best_on_grid(g0, rs, gate, k, 1.15) / f0
@@ -145,13 +164,30 @@ def _to_gray(img: np.ndarray) -> np.ndarray:
     return img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 
+def arena_radius(frames: list[np.ndarray]) -> float:
+    """Median inner wall radius [px] over the colour frames where the enclosure is found; nan if none."""
+    vals = []
+    for f in frames:
+        if f.ndim != 3:
+            continue                      # the wall is found by its colour
+        try:
+            a = arena_mod.detect_one(f)
+        except Exception:
+            a = None
+        if a is not None and np.isfinite(a[2]) and a[5] >= arena_mod.MIN_COVERAGE_RELIABLE:
+            vals.append(a[2])
+    return float(np.median(vals)) if vals else float("nan")
+
+
 def calibrate_frames(frames: list[np.ndarray], base: det.DetectionParams,
                      n_hint: Optional[int] = None) -> tuple[Calibration, det.DetectionParams]:
     if not frames:
         raise ValueError("No hay cuadros para calibrar.")
     k = n_hint if n_hint else 10
     grays = [_to_gray(f) for f in frames]
-    radii, otsus = zip(*(estimate_radius(g, k) for g in grays))
+    r_wall = arena_radius(frames)
+    r_prior = ROBOT_PER_ARENA * r_wall if np.isfinite(r_wall) else None
+    radii, otsus = zip(*(estimate_radius(g, k, r_prior) for g in grays))
     r_out = float(np.median(radii))
     spread = float((max(radii) - min(radii)) / r_out) if r_out > 0 else 1.0
     gate = max(float(np.median(otsus)) * 1.1, 1.0)
@@ -162,7 +198,7 @@ def calibrate_frames(frames: list[np.ndarray], base: det.DetectionParams,
     counts = tuple(len(det.locate(f, params)) for f in frames) if det.tp is not None else ()
     n_est = int(np.median(counts)) if counts else None
     h, w = grays[0].shape
-    cal = Calibration(r_out, RING_RATIO * r_out, ring, disc, n_est, counts, spread, (w, h))
+    cal = Calibration(r_out, RING_RATIO * r_out, ring, disc, n_est, counts, spread, (w, h), r_wall)
     return cal, params
 
 
@@ -225,6 +261,8 @@ def describe(cal: Calibration) -> str:
     n = f"N ≈ {cal.n_estimate} (por cuadro: {', '.join(map(str, cal.n_per_frame))})" \
         if cal.n_estimate is not None else "N no estimado"
     warn = "" if cal.reliable else " — revisar: calibración poco confiable"
+    previo = (f" · acotado por el recinto (r int {cal.arena_r_in:.0f} px → ≈ {2 * ROBOT_PER_ARENA * cal.arena_r_in:.0f} px)"
+              if np.isfinite(cal.arena_r_in) else " · recinto no encontrado: tamaño sin acotar")
     return (f"Imagen {cal.frame_size[0]}×{cal.frame_size[1]} px · diámetro robot ≈ {cal.diameter:.1f} px "
-            f"(dispersión {100 * cal.radius_spread:.1f} %) · gris anillo {cal.ring_gray:.0f} / "
+            f"(dispersión {100 * cal.radius_spread:.1f} %){previo} · gris anillo {cal.ring_gray:.0f} / "
             f"disco {cal.disc_gray:.0f} · {n}{warn}")

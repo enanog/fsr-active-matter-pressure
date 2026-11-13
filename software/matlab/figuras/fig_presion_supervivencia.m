@@ -4,11 +4,11 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos    = {'20260824_1430', '20260824_1530', '20260824_1600'};   % part of the code; 'todos'; {} = pick from a list
+ensayos    = ensayos_base();   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres    = {};           % legend texts; {} = automatic. Tip: {'25 robots', '26 robots', '27 robots'}
 colores    = {};           % {} = project palette | 'modo' | {'#2a78d6', ...}
 normalizar = false;        % X = G / <G> (each trial divided by its mean): compares the shape only
-log_x = true;  log_y = true;
+log_x = false;  log_y = true;
 lim_x = [];  lim_y = [];
 titulo  = '';
 texto_x = '';              % '' = automatic

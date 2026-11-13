@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = 'todos';        % 'todos' | {'20260924', ...} part of the code | {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 umbral   = 0.35;           % jam threshold [mm/s]
 suavizado_s = 30;          % smoothing for rho(V, G) [s]
 masa_g   = 0;              % robot mass [g]; 0 = energies per unit mass [uJ/kg]

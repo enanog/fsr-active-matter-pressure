@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; 'todos'; {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % panel titles; {} = automatic
 celda_mm = 5;              % cell size [mm]
 subconjunto = 'todo';      % 'todo' | 'atasco' | 'fluido'
@@ -62,7 +62,7 @@ for i = 1:n
         a = linspace(0, 2 * pi, 200);
         plot(ax, R_int / 10 * cos(a), R_int / 10 * sin(a), 'Color', [0.9 0.9 0.9], 'LineWidth', 0.8);
     end
-    title(ax, nombres{i});
+    title(ax, texto_tex(nombres{i}));
     xlabel(ax, 'x [cm]');
     if mod(i - 1, columnas) == 0, ylabel(ax, 'y [cm]'); end
     if ~misma_escala || i == n

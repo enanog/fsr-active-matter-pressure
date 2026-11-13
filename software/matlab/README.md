@@ -9,8 +9,27 @@ software/matlab/
 ├── figuras/      un script por figura (abrir y correr)
 ├── funciones/    lectura de datos y utilidades que usan los scripts
 ├── cache/        copia rápida de cada ensayo (se crea sola, no se versiona)
+├── comparar_todo.m      corre las figuras principales de cada tema con una sola elección de ensayos
 └── comparar_ensayos.m   versión anterior: todas las figuras juntas
 ```
+
+## Comparar todo de una vez: `comparar_todo.m`
+
+Corre en tanda las figuras principales de cada tema (velocidad, giro, movimiento colectivo, presión,
+velocidad vs presión y resumen) sobre **los mismos ensayos**: la lista para elegirlos aparece una sola vez
+(con `ensayos_base` marcado) y se impone a todos los scripts. Cada figura conserva los SETTINGS de su
+propio script en `figuras/` (colores, suavizado, límites, tamaño); para cambiar una figura se edita su script.
+
+| Ajuste | Qué hace |
+|---|---|
+| `ensayos` | `{}` = lista para elegir; `'todos'`; o parte del código `{'20261030', '20261106'}` |
+| `figuras` | tabla script / `true`-`false`: qué figuras corren (las secundarias están en `false`) |
+| `por_ensayo_VG` | agrega `fig_velocidad_y_presion` (V y G vs t), una figura por ensayo |
+| `guardar`, `formatos` | guarda todas en `informes/figuras/matlab/comparacion_<AAAAMMDD_HHMM>/`, cada archivo con los códigos de sus mediciones |
+| `agrupar` | junta las ventanas como pestañas de una sola (después de guardar, así el PDF conserva el tamaño en cm) |
+| `cerrar_previas` | cierra las figuras abiertas antes de empezar |
+
+Si una figura falla, sigue con las demás y al final lista las que fallaron.
 
 ## Figuras
 
@@ -64,23 +83,25 @@ Campos del resumen (`funciones/resumen_ensayo.m`), para barras, modos y tabla: `
 |---|---|---|
 | `fig_velocidad_y_presion.m` | **un** ensayo: V arriba y G abajo, mismo eje t | colores, atascos sombreados, límites de cada panel |
 | `fig_presion_vs_velocidad.m` | G mediana por clase de V | clases, mínimo de cuadros por clase, banda 25–75 %, nube de puntos, ρ |
+| `fig_hexbin_velocidad_presion.m` | densidad de V media (o \|v\| de cada robot) vs G, un punto por cuadro | `tipo` = `'histogram2'` (`histogram2` de MATLAB) o `'hexbin'`, celdas, G log, normalización probability/count, escala de color log, un panel por ensayo o juntos, ρ bajo el título. **Solo MATLAB R2020b+** (`tiledlayout`) |
 
 ## Ajustes que se repiten en todos
 
 | Ajuste | Qué hace |
 |---|---|
-| `ensayos` | parte del código de cada ensayo: `{'20260924_1600', '20261030'}` (el segundo trae los cuatro del 30/10); `{}` abre una lista para elegir; `'todos'` = todos |
+| `ensayos` | por defecto `{}`: abre una lista con **todos** los ensayos para elegir, con el conjunto de `funciones/ensayos_base.m` ya marcado (hoy 30/10 11:00, 12:00, 14:30, 16:00 y 06/11 16:00; se cambia ahí para todas las figuras y `comparar_ensayos.m`). También acepta parte del código de cada ensayo: `{'20260924_1600', '20261030'}` (el segundo trae los cuatro del 30/10), o `'todos'` sin preguntar |
 | | Cada ensayo tiene el mismo color en todas las figuras; con más de 8 ensayos los colores se repiten: usar `'modo'` o una lista propia |
-| `nombres` | textos de la leyenda en el mismo orden; `{}` = automáticos (`24/09 16:00 · 22AH`) |
+| `nombres` | textos de la leyenda en el mismo orden; `{}` = el código de cada medición (`20260924_1600_22AH_60`, igual que `R_`/`VP_`) |
 | `colores` | `{}` = paleta del proyecto (cada ensayo siempre del mismo color); `'modo'` = AH azul, HO naranja, AL verde; o una lista propia `{'#2a78d6', [1 0 0], 'k'}` |
 | `suavizado_s` | media móvil en segundos (0 = datos crudos) |
 | `lim_x`, `lim_y` | límites de los ejes, ej. `[0 60]`; `[]` = automáticos |
 | `titulo`, `texto_x`, `texto_y` | textos (admiten `_{sub}`, `^{sup}`, `\mu`, `\omega`) |
 | `leyenda` | posición: `'northeast'`, `'best'`, `'eastoutside'`, `'southoutside'`, …, `'ninguna'` |
 | `ancho_cm`, `alto_cm`, `fuente`, `grosor` | tamaño real de la figura en el PDF (17 cm = ancho de página; 8,6 cm = una columna) |
-| `guardar`, `archivo`, `formatos` | `guardar = true` escribe `informes/figuras/matlab/<archivo>.pdf` y `.png` |
+| `guardar`, `archivo`, `formatos` | `guardar = true` escribe `informes/figuras/matlab/<archivo>__<códigos>.pdf` y `.png`, ej. `velocidad_tiempo__20261030_1100_22AH_60-20261106_1600_22AH_60.png` (con más de ~5 ensayos: `<archivo>__8ensayos_<primero>_a_<último>`); ensayos distintos no se pisan |
 
-En MATLAB, clic en una entrada de la leyenda oculta o muestra esa curva.
+En MATLAB, clic en una entrada de la leyenda oculta o muestra esa curva. La ventana de cada figura se llama
+`<figura> - <códigos>`; las de presión dicen G (lo medido es conductancia [µS]), ej. `G vs tiempo`.
 
 ## Datos
 

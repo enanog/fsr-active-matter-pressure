@@ -16,10 +16,12 @@
 % - Time plots show only the moving average; distributions use the raw (unsmoothed) data.
 
 clear; clc;
+addpath(fullfile(fileparts(mfilename('fullpath')), 'funciones'));   % ensayos_base
 
 %% ===================== Parameters =====================
 carpeta  = "C:\Users\dylan\Desktop\Proyecto_PresionRecintoCircular\datos\video\trayectorias";
-archivos = strings(0);   % e.g. [fullfile(carpeta,"VP_20261030_1200_22AL_60_robots.csv"), ...]; empty -> dialog
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | {'...'} part of the code
+archivos = strings(0);   % e.g. [fullfile(carpeta,"VP_20261030_1200_22AL_60_robots.csv"), ...]; overrides `ensayos`
 ocultar  = strings(0);   % trials hidden at start, by (part of) the code, e.g. ["20261030_1200", "2509_1500"]
 
 suav_s         = 30;     % moving average of the time plots and of the speed-pressure comparison [s]
@@ -45,13 +47,28 @@ guardar_figuras = false; % true: export every figure as vector PDF
 carpeta_figuras = "C:\Users\dylan\Desktop\Proyecto_PresionRecintoCircular\informes\comparacion_matlab";
 
 %% ===================== Choose files =====================
+if isempty(archivos) && isempty(ensayos)               % pick list: every trial, base set preselected
+    f = dir(fullfile(carpeta, "VP_*_robots.csv"));
+    todos = unique(regexprep({f.name}, '^VP_(.+?)(\(\d+\))?_robots\.csv$', '$1'));
+    if isempty(todos), error("No hay VP_*_robots.csv en %s", carpeta); end
+    preselec = ensayos_base();
+    marcados = find(cellfun(@(c) any(cellfun(@(b) contains(c, b), preselec)), todos));
+    if isempty(marcados), marcados = 1; end
+    [sel, ok] = listdlg("ListString", todos, "SelectionMode", "multiple", "InitialValue", marcados, ...
+                        "PromptString", "Ensayos a comparar:", "ListSize", [300 300]);
+    if ~ok || isempty(sel), error("No se eligió ningún ensayo."); end
+    ensayos = todos(sel);
+end
 if isempty(archivos)
-    [nom, ruta] = uigetfile(fullfile(carpeta, "*_robots.csv"), ...
-                            "Elegí uno o más VP_..._robots.csv", "MultiSelect", "on");
-    if isequal(nom, 0)
-        error("No se eligió ningún archivo.");
+    if ischar(ensayos) || isstring(ensayos), ensayos = cellstr(ensayos); end
+    for k = 1:numel(ensayos)                             % (1)/(2) parts match the same pattern
+        f = dir(fullfile(carpeta, "VP_" + string(ensayos{k}) + "*_robots.csv"));
+        if isempty(f)
+            error("No hay VP_%s*_robots.csv en %s", ensayos{k}, carpeta);
+        end
+        archivos = [archivos; reshape(fullfile(carpeta, string({f.name})), [], 1)]; %#ok<AGROW>
     end
-    archivos = string(fullfile(ruta, string(nom)));
+    archivos = unique(archivos);                         % one code may contain another
 end
 archivos = archivos(:);
 
@@ -283,7 +300,7 @@ leyenda(leg);
 % --- 8. G vs V_mean (all trials) -------------------------------------------------------
 con_G = find(arrayfun(@(d) any(isfinite(d.G_s)), D));
 if ~isempty(con_G)
-    figs(end+1) = nueva_fig('Presion vs velocidad');
+    figs(end+1) = nueva_fig('G vs V media');
     vmax_s = max(arrayfun(@(d) max(d.v_s), D(con_G)));
     ev = linspace(0, vmax_s, n_clases_vg + 1);
     cv = 0.5 * (ev(1:end-1) + ev(2:end));
@@ -316,7 +333,7 @@ end
 
 % --- 9. V_mean and G vs time, one window per trial (twin axes) ----------------------------
 for c = con_G(:)'
-    figs(end+1) = nueva_fig(['V media y presion - ' D(c).tag]); %#ok<SAGROW>
+    figs(end+1) = nueva_fig(['V media y G - ' D(c).tag]); %#ok<SAGROW>
     yyaxis left
     [x, y] = romper_huecos(D(c).t, D(c).v_s);
     hv = plot(x/60, y, '-', 'LineWidth', 1.8, 'Color', [0.16 0.50 0.38]);
@@ -338,7 +355,7 @@ for c = con_G(:)'
     ylabel('G [\muS]');  ax.YColor = [0.12 0.37 0.66];  ax.YScale = 'log';
     grid on;
     title(sprintf('%s: V_{media} y G (%s; violeta = atasco, %.1f %% del tiempo; \\rho = %.2f)', ...
-                  D(c).tag, txt_mm, D(c).resumen(8), D(c).resumen(14)));
+                  tex(D(c).tag), txt_mm, D(c).resumen(8), D(c).resumen(14)));
     xlabel('t video [min]');
     leyenda({'V_{media} (izq.)', 'G (der.)'}, [hv; hg]);
 end
@@ -354,10 +371,17 @@ end
 if guardar_figuras
     if ~isfolder(carpeta_figuras), mkdir(carpeta_figuras); end
     for i = 1:numel(figs)
-        nombre = matlab.lang.makeValidName(figs(i).Name);
+        nombre = string(matlab.lang.makeValidName(figs(i).Name));
+        if ~any(contains(figs(i).Name, cod_unicos))       % figures of every trial: + their codes
+            sufijo = strjoin(cod_unicos, "-");
+            if strlength(sufijo) > 110
+                sufijo = sprintf("%densayos_%s_a_%s", numel(cod_unicos), cod_unicos(1), cod_unicos(end));
+            end
+            nombre = nombre + "__" + sufijo;
+        end
         exportgraphics(figs(i), fullfile(carpeta_figuras, nombre + ".pdf"), 'ContentType', 'vector');
     end
-    writetable(R, fullfile(carpeta_figuras, "resumen_matlab.csv"), 'WriteRowNames', true);
+    writetable(R, fullfile(carpeta_figuras, "resumen_matlab__" + strjoin(cod_unicos, "-") + ".csv"), 'WriteRowNames', true);
     fprintf("Figuras y resumen guardados en %s\n", carpeta_figuras);
 end
 
@@ -369,9 +393,9 @@ end
 function lg = leyenda(textos, objetos)
     % Legend whose entries show / hide their curves on click
     if nargin > 1
-        lg = legend(objetos, textos, 'Location', 'best');
+        lg = legend(objetos, tex(textos), 'Location', 'best');
     else
-        lg = legend(textos, 'Location', 'best');
+        lg = legend(tex(textos), 'Location', 'best');
     end
     lg.Title.String = 'clic: mostrar / ocultar';
     lg.ItemHitFcn = @alternar_traza;
@@ -390,16 +414,8 @@ function alternar_traza(~, evt)
 end
 
 function txt = etiqueta(codigo)
-    % '20261030_1200_22AL_60' -> "30/10 12:00 · 22AL" (files store AAAADDMM; August logs AAAAMMDD)
-    p = split(codigo, "_");
-    d = char(p(1));  hm = char(p(2));
-    a = str2double(d(5:6));  b = str2double(d(7:8));
-    if a <= 12 && b > 12
-        dia = b;  mes = a;
-    else
-        dia = a;  mes = b;
-    end
-    txt = string(sprintf('%02d/%02d %s:%s · %s', dia, mes, hm(1:2), hm(3:4), char(p(3))));
+    % Label = measurement code, the same as the data files (e.g. '20261030_1200_22AL_60')
+    txt = string(codigo);
 end
 
 function hueco = hueco_corte(archivo, codigo, k)
@@ -541,4 +557,9 @@ function [x, y] = romper_huecos(t, y)
         x = [x(1:j); (x(j) + x(j+1)) / 2; x(j+1:end)];
         y = [y(1:j); NaN; y(j+1:end)];
     end
+end
+
+function s = tex(s)
+    % Escape the underscores of the codes for TeX text; keeps subscripts written as _{...}
+    s = regexprep(s, '(?<!\\)_(?!\{)', '\\_');
 end

@@ -4,25 +4,8 @@ function R = cargar_presion(filtros)
 %   R(i).codigo, .etiqueta, .modo, .robots (number from the code), .P (see leer_presion)
     todos = buscar_registros();
     if isempty(todos), error('No hay registros en datos/presion/crudos.'); end
-    if nargin >= 1 && ischar(filtros) && strcmpi(filtros, 'todos')
-        codigos = todos;
-    elseif nargin < 1 || isempty(filtros)
-        textos = cellfun(@etiqueta_ensayo, todos, 'UniformOutput', false);
-        [sel, ok] = listdlg('ListString', textos, 'SelectionMode', 'multiple', ...
-                            'PromptString', 'Registros de presión:', 'ListSize', [260 300]);
-        if ~ok || isempty(sel), error('No se eligió ningún registro.'); end
-        codigos = todos(sel);
-    else
-        if ischar(filtros), filtros = {filtros}; end
-        usar = false(size(todos));
-        for k = 1:numel(filtros)
-            usar = usar | ~cellfun(@isempty, strfind(todos, filtros{k}));
-        end
-        codigos = todos(usar);
-        if isempty(codigos)
-            error('Ningún registro coincide con %s. Disponibles:\n  %s', strjoin(filtros, ', '), strjoin(todos, '\n  '));
-        end
-    end
+    if nargin < 1, filtros = {}; end
+    codigos = elegir_codigos(todos, filtros, 'Registros de presión:');
     raiz = raiz_proyecto();
     for i = 1:numel(codigos)
         p = strsplit(codigos{i}, '_');

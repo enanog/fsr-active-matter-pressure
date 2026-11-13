@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = 'todos';        % 'todos' | {'20260924', ...} part of the code | {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 magnitud = 'Phi_circulacion';   % any field of resumen_ensayo.m:
 %   V_media, V_desvio, v_mediana_indiv, omega_media, omega_media_signo, robots_antihorario,
 %   robots_horario, Phi_circulacion, Omega_grupo, pared_pct, alfa_msd, atasco_pct, n_atascos,
@@ -13,7 +13,7 @@ orden_modos = {'AH', 'HO', 'AL'};
 nombres_modos = {'AH (antihorario)', 'HO (horario)', 'AL (aleatorio)'};   % axis labels in the same order
 umbral   = 0.35;  suavizado_s = 30;
 mostrar_media = true;      % horizontal line at the mean of each mode
-etiquetas = true;          % trial date next to each point
+etiquetas = true;          % date and time of the measurement (AAAAMMDD_HHMM) next to each point
 linea_cero = true;
 log_y = false;
 lim_y = [];
@@ -40,7 +40,7 @@ for k = 1:numel(orden_modos)
         plot(ax, k + dx(j), y(i), 'o', 'MarkerSize', tam_marcador, 'MarkerFaceColor', C(i, :), ...
              'MarkerEdgeColor', 'w', 'LineStyle', 'none');
         if etiquetas
-            text(ax, k + dx(j), y(i), ['  ' D(i).etiqueta(1:5)], 'FontSize', fuente - 2, 'Color', [0.32 0.32 0.31]);
+            text(ax, k + dx(j), y(i), ['  ' texto_tex(D(i).etiqueta(1:13))], 'FontSize', fuente - 2, 'Color', [0.32 0.32 0.31]);
         end
     end
     if mostrar_media

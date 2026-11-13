@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos     = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; {} = pick from a list
+ensayos     = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres     = {};          % legend texts in the same order; {} = automatic
 colores     = {};          % {} = project palette | 'modo' | {'#2a78d6', [1 0 0], ...}
 suavizado_s = 30;          % moving average [s]; 0 = raw data

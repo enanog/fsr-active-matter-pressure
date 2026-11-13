@@ -4,14 +4,14 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = 'todos';        % 'todos' | {'20260824', ...} part of the code | {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 excluir  = {'20260824_1400'};   % codes left out (e.g. the empty-room reference)
 colores  = 'modo';         % 'modo' (AH blue, HO orange, AL green) | {} = per trial | {'#2a78d6', ...}
 estadistico = 'mediana';   % 'mediana' | 'media'
 barras   = true;           % interquartile range (25-75 %) as error bars
 eje_x    = 'robots';       % 'robots' = N | 'fraccion' = area fraction N (D/2)^2 / R^2
 diametro_robot_mm = 33;  diametro_recinto_mm = 185;
-etiquetas = false;         % trial date next to each point (they overlap when several trials share N)
+etiquetas = false;         % date and time of the measurement (AAAAMMDD_HHMM) next to each point (they overlap when several trials share N)
 log_y    = true;
 lim_x = [];  lim_y = [];
 titulo  = '';
@@ -29,7 +29,7 @@ for k = 1:numel(excluir)
 end
 R = R(quedan);
 C = colores_ensayos(R, colores);
-[fig, ax] = nueva_figura(ancho_cm, alto_cm, fuente, 'Presion vs robots');
+[fig, ax] = nueva_figura(ancho_cm, alto_cm, fuente, 'G vs robots');
 x = [R.robots];
 if strcmp(eje_x, 'fraccion'), x = x * (diametro_robot_mm / diametro_recinto_mm) ^ 2; end
 modos_vistos = {};  h = [];  txt = {};
@@ -43,7 +43,7 @@ for i = 1:numel(R)
     hi = plot(ax, x(i), y, 'o', 'MarkerSize', tam_marcador, 'MarkerFaceColor', C(i, :), ...
               'MarkerEdgeColor', 'w', 'LineStyle', 'none');
     if etiquetas
-        text(ax, x(i), y, ['  ' R(i).etiqueta(1:5)], 'FontSize', fuente - 2, 'Color', [0.32 0.32 0.31]);
+        text(ax, x(i), y, ['  ' texto_tex(R(i).etiqueta(1:13))], 'FontSize', fuente - 2, 'Color', [0.32 0.32 0.31]);
     end
     m = R(i).modo;  if isempty(m), m = '-'; end
     if ischar(colores) && strcmpi(colores, 'modo')

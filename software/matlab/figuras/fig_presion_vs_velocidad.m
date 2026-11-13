@@ -3,13 +3,13 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % legend texts in the same order; {} = automatic (adds rho)
 colores  = {};             % {} = project palette | 'modo' | {'#2a78d6', ...}
-suavizado_s = 30;          % moving average of V and G [s]
+suavizado_s = 15;          % moving average of V and G [s]
 clases      = 25;          % V classes (same edges for every trial)
 min_cuadros = 30;          % a class needs at least this many frames (30 = 10 s)
-banda       = true;        % shaded interquartile range (25-75 %)
+banda       = false;        % shaded interquartile range (25-75 %)
 nube        = false;       % also every frame as a faint point
 mostrar_rho = true;        % Spearman correlation in the legend
 log_y = true;
@@ -35,11 +35,11 @@ end
 v_max = max(cellfun(@(v, g) max(v(isfinite(g))), V, G));
 bordes = linspace(0, v_max, clases + 1);
 centros = (bordes(1:end - 1) + bordes(2:end)) / 2;
-[fig, ax] = nueva_figura(ancho_cm, alto_cm, fuente, 'Presion vs velocidad');
+[fig, ax] = nueva_figura(ancho_cm, alto_cm, fuente, 'G vs V media');
 h = [];  txt = {};
 for i = 1:numel(D)
     ok = isfinite(V{i}) & isfinite(G{i});
-    if ~any(ok), fprintf('%s: sin presión\n', D(i).codigo); continue; end
+    if ~any(ok), fprintf('%s: sin registro de G\n', D(i).codigo); continue; end
     v = V{i}(ok);  g = G{i}(ok);
     [~, k] = histc(v, bordes);  k(k == clases + 1) = clases;
     med = nan(1, clases);  q1 = med;  q3 = med;

@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; 'todos'; {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 deltaT_s = 2.5;            % one window [s] -> one curve per trial
                            % several windows, e.g. [0.5 2.5 10], with ONE trial -> one curve per window
 nombres  = {};             % legend texts; {} = automatic

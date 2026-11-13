@@ -16,6 +16,157 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-12 — `matlab_figuras`: base de tiempo real del video (2,997 cuadros/s) y recorte de 60 min
+
+- Verificado: cada R_ tiene **un solo** pulso de LED de 5 s (101 filas); desfase = fin del LED (30,75 / 17,05 / 21,45 / 8,00 /
+  30,65 s para 30/10 11:00, 12:00, 14:30, 16:00 y 06/11). Todos tienen ≥ 60 min de video y de sensor tras el LED (el más
+  justo 30/10 11:00: 60,9 min de video). Las 3 filas SYNC del 06/11 no son pulsos.
+- Los VP_ se exportaron con `cuadros_por_segundo_real` = 3.0 (t_s = frame/3, verificado en 30/10 11:00); la cámara da 2,997 ⇒
+  el video se atrasaba 0,1 % respecto del sensor (3,6 s al minuto 60). `cargar_datos.leer_trayectoria`: f = fr_exportado/2,997
+  (lee el `_info.json`), t·f, v/f, ω/f; imprime la corrección por archivo. El hueco del video partido usa `fr_real()`.
+  La ventana de 60 min queda en tiempo real. FSRScope/Velocidades/Comparador y `software/matlab` siguen con 3,0 y video completo.
+
+## 2026-11-12 — `matlab_figuras`: vuelve al Statistics Toolbox
+
+- El usuario instaló Statistics and Machine Learning Toolbox ⇒ `skewness(x,0)`, `corr(...,'Type','Spearman')`, `normpdf`,
+  `prctile` nativos; se quitó el modo `cargar_datos('estadistica')` y las funciones propias (asimetria/spearman/rango/percentil).
+  El resto de la corrección anterior (tema claro, ocupación, `G_minimo`, `VariableNamingRule`) se mantiene.
+
+## 2026-11-12 — `matlab_figuras`: sin toolboxes, tema claro, ocupación y piso de G
+
+**Primera corrida del usuario (MATLAB sin Statistics Toolbox, tema oscuro):** error en `skewness`; figuras con borde negro y
+leyendas/rótulos casi invisibles; ocupación casi uniforme azul (tope 2,5 por los robots quietos del atasco 30/10 16:00) con
+agujeros blancos; P(G≥g) con eje desde 1e-20 (G de redondeo ~1e-14); histograma de G serruchado < 1e-2 µS (escalones del ADC).
+- `cargar_datos('estadistica')` → `est.asimetria` (= skewness(x,0)), `est.spearman` (rangos promedio con empates), `est.percentil`
+  (interpolación lineal). Verificadas contra scipy/numpy con empates y NaN: idénticas (1.382505 / 0.559998 / 6.706000).
+  `normpdf` → fórmula. Ya no hace falta ningún toolbox.
+- Tema: `set(groot,'defaultFigureCreateFcn', @(f,~) theme(f,'light'))` si existe `theme` (R2025a+); `exportgraphics(...,
+  'BackgroundColor','white')`.
+- Ocupación: tope de color = percentil 99 de todas las celdas de todos los ensayos; transparente solo fuera de la pared
+  (`AlphaData` = r ≤ 9,25 cm); pared en gris oscuro.
+- `G_minimo = 1e-2` µS en Ajustes: piso de G(t), P(G≥g), histograma de G, G vs V y histogram2.
+- `readtable(..., 'VariableNamingRule','preserve')` en los R_ (sin advertencias; columna `timestamp(ms)`).
+- Solo sintaxis verificada (y las funciones estadísticas en Octave); falta la corrida del usuario.
+
+## 2026-11-12 — VidFetch: calibración de tamaño en videos 1080p
+
+**Problema:** grabación nueva en 1080p (no 4K), recorte de 380×384 px, robots de ~50–58 px de diámetro; la calibración automática
+daba 10,2 px y N ≈ 89. La puntuación del filtro disco/anillo crecía hacia el radio mínimo de la grilla (detalles brillantes chicos:
+lengüeta metálica, reflejos, LEDs) y superaba al pico real del robot (r ≈ 28 px). En 4K el robot es lo bastante grande para ganar.
+- `core/calibration.py`: (1) prior por el recinto: `arena.detect_one` en los cuadros de muestra (color, cobertura ≥ 0,5) →
+  r_previo = 0,164 · r_int del recinto (4K: 46,7/285; 1080: 28/181) y la búsqueda gruesa se limita a [0,6; 1,6]·r_previo;
+  (2) `_best_on_grid` elige el mejor máximo **interior** (un máximo en el borde de la grilla es tendencia, no tamaño).
+  `Calibration.arena_r_in` nuevo; `describe` indica si quedó acotado por el recinto.
+- **Verificado** (Python, OpenCV 5, trackpy): cuadro de la captura de pantalla reescalado a 380×384 → diámetro 58,2 px, búsqueda
+  18 px, 19 detecciones bien centradas (las 3 faltantes tienen encima los rótulos de la captura); VC 4K (`VC1_ultimo.jpg`,
+  `VC2_primero.jpg`) → 93,5 / 93,2 px, igual que antes. Cada regla por separado ya da el resultado correcto.
+- **Confirmado por el usuario** con `salida_80x_recorte.mp4` real: la calibración y el seguimiento funcionan bien.
+
+## 2026-11-12 — `matlab_figuras`: R_FEEDBACK solo de la lista, 60 min, fondo claro
+
+- `cargar_datos`: K = V_REF·1e6/(ADC_FS·V_EXC·R) con R **solo** de `calibracion.csv` (error si el registro no tiene fila); el factor
+  del firmware ya no se usa, solo se reporta (`E.R_firmware`). `cargar_datos('R_feedback')` → tabla de todos los R_ en `crudos/` y
+  `Viejos/` (los de agosto se movieron a `datos/presion/Viejos/`). `cargar_datos(ensayos, duracion_s)`: trayectorias con
+  t − t_inicio ≤ duracion_s y G solo con t_video ∈ [inicio, inicio + duracion_s].
+- `figuras.m`: `duracion_min = 60`; sección 0 = tabla R lista vs firmware; Datos imprime R y el factor de G por ensayo;
+  `defaultFigureTheme` light (R2025a+, try) + `defaultAxesColor` w; ocupación con `AlphaData` (celdas vacías blancas).
+- **Comparación R lista vs R del firmware** (V_EXC de la config o 0,7534 V): 24/08 ×4 = 12 000 / 12 000 (coincide);
+  27/08 lista 12 000 vs firmware 6 797 (la nota de la lista dice «equivalente al K del firmware» = 6 797); 24/09 50 000 vs 5 000
+  (confirmado 50 k); 25/09 12:30 y 15:00 lista 50 000 vs firmware 1 000 (la nota dice «valor del firmware»: no coincide);
+  30/10 ×4 y 06/11 lista 10 000 vs firmware 1 000 (nota «a confirmar (3k7)»). El valor del firmware es la constante programada,
+  no mide la resistencia real.
+- Solo sintaxis verificada; no probado en MATLAB.
+
+## 2026-11-12 — `software/matlab_figuras/`: versión simple (2 archivos, herramientas de MATLAB)
+
+**Pedido:** dejar `software/matlab/` como está y hacer en otra carpeta algo más simple, con herramientas integradas de MATLAB,
+pocos archivos y fácil de ver.
+- `figuras.m`: un script, una sección `%%` por figura (Ctrl+Enter = una, F5 = todas). Ajustes arriba (ensayos, suav, umbral, deltaT,
+  guardar) + estilo con `set(groot, 'default...')`; sección Datos lee una vez (E queda en el workspace, se relee si cambia `ensayos`).
+  12 figuras: V(t), P(V) (`histogram` pdf stairs), 1−F(V/⟨V⟩), ω (`histogram`), ocupación (`histcounts2` + `imagesc`, `tiledlayout`,
+  barra común), G(t), P(G≥g), histograma de G, asimetría de ΔG vs ΔT (`skewness(...,0)`), ΔG/σ vs `normpdf`, G mediana por clase
+  de V (`discretize` + `accumarray`, `corr` Spearman), `histogram2` V vs G. Colores `lines(n)` iguales en todas; leyendas con
+  Interpreter none; guardado `exportgraphics` → `informes/figuras/matlab_figuras/<figura>__<códigos>.png/.pdf`.
+- `cargar_datos.m`: `readtable`/`detectImportOptions`, `groupsummary` (V media por cuadro), une partes (1)/(2) con `cortes.json`
+  (sin emparejar identidades: no hace falta para estas figuras), sensor igual que FSRScope/`leer_presion` (unidades, filas basura,
+  t0, fin del LED, K: calibracion.csv > manual > firmware, grilla `step_s`, recorte/exclusiones/saturación, desfase manual).
+- Requiere MATLAB R2020b+ y Statistics and Machine Learning Toolbox. **No probado** (Octave no tiene readtable/histogram/
+  tiledlayout/groupsummary); solo sintaxis verificada. `software/matlab/` sin cambios.
+
+## 2026-11-12 — MATLAB: `fig_hexbin_velocidad_presion` reescrito con herramientas nativas
+
+**Pedido:** usar todo lo integrado de MATLAB para simplificar.
+- Rectángulos con `histogram2(ax, x, y, xe, ye, 'DisplayStyle','tile', 'ShowEmptyBins','off', 'Normalization', ...)`; paneles con
+  `tiledlayout` + `nexttile`, barra de color compartida `cb.Layout.Tile = 'east'`, rótulos compartidos `xlabel(t)`/`ylabel(t)`,
+  `yline` para el umbral, `ax.ColorScale = 'log'`, `CLim` común, `movmean(..., 'SamplePoints', t)`, título con `Interpreter none` y ρ
+  en Unicode. Hexbin sigue con `funciones/hexbin.m` + `patch` (MATLAB no trae hexbin).
+- Opciones simplificadas: `celdas = [nG nV]`, `normalizacion` = probability | count (se quitaron 'tiempo', 'porcentaje' y `min_cuentas`).
+  Distribución manual en cm y arreglos de barra de color eliminados. 164 → 122 líneas.
+- **Ya no corre en Octave** (sin `tiledlayout`/`histogram2`); requiere R2020b+. `funciones/histograma2d.m` quedó sin uso (se puede borrar).
+- Solo verificada la sintaxis (parser de Octave); **no probado en MATLAB**.
+
+## 2026-11-12 — MATLAB: hexbin de V vs G
+
+- `figuras/fig_hexbin_velocidad_presion.m` (nuevo): un punto por cuadro, x = G en el cuadro (`presion_en_cuadros`, máscara FSRScope), y = V media
+  (o |v| de cada robot observado, `fuente_v = 'individual'`); color = % de los puntos del ensayo (o tiempo, cuadros), escala log
+  (`ColorScale` en MATLAB, log10 en Octave). Hexágonos y escala de color comunes a todos los paneles; G log por defecto (binning en
+  log10 G); suavizado 0 por defecto (suavizar convierte la nube en trayectorias); ρ de Spearman en 2.ª línea del título; `juntar`.
+- `funciones/hexbin.m` (nuevo): algoritmo de matplotlib (dos redes intercaladas, métrica du²+3dw²); filas = nx·(alto/ancho)/√3 para
+  hexágonos regulares en pantalla. Se dibuja con un solo `patch` (Faces/Vertices).
+- Agregado a `comparar_todo` en `false`. Verificado en Octave 8.4 (Qt/Xvfb) con 3 ensayos sintéticos, modos media e individual.
+- `tipo = 'histogram2'`: celdas rectangulares (`funciones/histograma2d.m`, misma salida que `hexbin`, dibujo común con `patch`; no usa
+  `histogram2` de MATLAB para compartir escala de color y correr en Octave). `celdas` reemplaza a `hexagonos`; `archivo = ''` →
+  `hexbin_velocidad_presion` / `hist2_velocidad_presion`. Distribución manual de paneles en cm (márgenes para título de 2 líneas);
+  barra de color en el margen derecho con `cb.Position` en MATLAB (Octave la ignora: queda la automática).
+
+## 2026-11-12 — MATLAB: nombres de gráficos = códigos de medición
+
+**Pedido:** leyendas, archivos, ventanas y títulos coherentes con las mediciones; G en vez de «presión».
+- `etiqueta_ensayo` devuelve el código (`20261030_1200_22AL_60`) en vez de `30/10 12:00 · 22AL`: leyendas, títulos de panel, listas.
+- `texto_tex.m` (nuevo): escapa `_` → `\_` salvo `_{...}` (TeX); usado en `poner_leyenda`, títulos de `fig_ocupacion`, `fig_deltaG_tiempo`,
+  `fig_velocidad_y_presion`, ticks de `fig_barras_resumen`, rótulos de punto de `fig_comparar_modos`/`fig_presion_vs_robots` (ahora
+  `AAAAMMDD_HHMM`, antes `etiqueta(1:5)`).
+- `elegir_codigos` guarda la selección (`appdata(0,'codigos_actuales')`); `nueva_figura` nombra la ventana `<figura> - <códigos>` y
+  guarda los códigos en la figura; `guardar_figura` agrega `__<c1>-<c2>-...` (`nombre_con_codigos.m`, nuevo; > 110 caracteres →
+  `__Nensayos_<primero>_a_<último>`; no repite códigos ya presentes en el nombre).
+- Ventanas: `Presion vs tiempo/robots/velocidad` → `G vs tiempo`, `G vs robots`, `G vs V media`. Ejes ya decían G [µS].
+  Nombres de script y de `archivo` (`presion_*`) sin cambios.
+- `comparar_ensayos.m` (versión anterior): `etiqueta` = código (**corrige** la heurística vieja día/mes que mostraba el 06/11 como
+  «11/06»), leyendas escapadas, ventanas con G, archivos exportados `<nombre>__<códigos>`.
+- **Verificado en Octave 8.4** con 3 ensayos sintéticos y los 12 scripts marcados en `comparar_todo` (renderer Qt bajo Xvfb, que
+  interpreta TeX como MATLAB): leyendas y títulos `20261030_1100_22AH_60`, ventanas con códigos, 12 PNG `<figura>__<códigos>.png`.
+  (gnuplot muestra `\_` como subíndice: es limitación de ese toolkit.) No probado en MATLAB.
+
+## 2026-11-12 — MATLAB: `comparar_todo.m` (figuras principales en tanda)
+
+**Pedido:** un script que corra las figuras más importantes de cada tema para comparar.
+- `software/matlab/comparar_todo.m`: elige ensayos una vez (`elegir_codigos` sobre `buscar_ensayos`) y corre la tabla `figuras`
+  (script, true/false). Activas: velocidad_tiempo, ccdf_velocidad, omega_distribucion, giro_robots, circulacion_tiempo, msd,
+  densidad_radial, presion_tiempo, presion_supervivencia, asimetria_deltaT, deltaG_distribucion, presion_vs_velocidad,
+  barras_resumen, comparar_modos, tabla_resumen; el resto en false. `por_ensayo_VG` = fig_velocidad_y_presion por ensayo.
+  `guardar` → `informes/figuras/matlab/comparacion_<fecha>/<script sin fig_>[_k].pdf/png`; `agrupar` = docked después de guardar.
+  Un error no corta la tanda (lista al final; errores de guardado aparte).
+- `funciones/correr_figura.m` (nuevo): impone los ensayos con `setappdata(0,'lote_ensayos')` + `onCleanup` (se borra aunque falle o
+  Ctrl+C); corre el script con `run` dentro de una subfunción para que su `clear` no borre las variables del maestro; devuelve las
+  figuras nuevas ordenadas. Los scripts de `figuras/` no se tocaron.
+- `funciones/elegir_codigos.m` (nuevo): lógica de selección común ('todos' | {} lista con ensayos_base | filtro) + override por
+  `lote_ensayos`; `cargar_ensayos` y `cargar_presion` la usan (se quitó la `coincide` duplicada).
+- **Verificado en Octave 8.4** con datos vacíos y scripts de prueba (con `clear` y uno que falla a propósito): selección impuesta a
+  los 17 scripts (presión resuelve el mismo código en `buscar_registros`), un ensayo por figura en V-G, variables del maestro
+  intactas, `lote_ensayos` borrado al final, 16 figuras guardadas, la que falla queda listada. Filtros y 'todos' sin tanda: iguales.
+  **No probado en MATLAB ni con los scripts reales**.
+
+## 2026-11-12 — MATLAB: lista de ensayos con selección por defecto (`ensayos_base`)
+
+**Pedido:** que todos los scripts trabajen con 20261030_1100, _1200, _1430, _1600 y 20261106_1600, pero pudiendo elegir entre todos.
+- `funciones/ensayos_base.m` (nuevo): única definición de esos 5 códigos.
+- Los 24 scripts de `figuras/` (salvo `fig_velocidad_y_presion`, que grafica un solo ensayo) usan `ensayos = {}` ⇒ `listdlg` con **todos**
+  los ensayos (`cargar_ensayos`) o registros (`cargar_presion`, incluye agosto y la referencia de 0 robots), con `ensayos_base` ya marcado
+  (`InitialValue`). Función local `coincide` (filtro por parte del código) en ambos cargadores. `'todos'` y `{'...'}` siguen funcionando.
+- `comparar_ensayos.m`: `addpath(funciones)`; `ensayos = {}` ⇒ `listdlg` de los códigos de `VP_*_robots.csv` (partes (1)/(2) como uno),
+  con `ensayos_base` marcado; `{'...'}` busca `VP_<código>*_robots.csv`; `archivos` explícito tiene prioridad. Se quitó `uigetfile`.
+- README de `software/matlab` actualizado. **No probado** en MATLAB ni Octave.
+
 ## 2026-11-12 — MATLAB: R_FEEDBACK por registro en `datos/presion/calibracion.csv`
 
 **Pedido:** el 24/09 sí fue con 50 kΩ (confirmado por el usuario); poder editar R de cada ensayo en una lista.

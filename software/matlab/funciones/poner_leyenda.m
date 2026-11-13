@@ -4,7 +4,7 @@ function lg = poner_leyenda(ax, h, textos, ubicacion)
     if nargin < 4 || isempty(ubicacion), ubicacion = 'best'; end
     lg = [];
     if strcmpi(ubicacion, 'ninguna') || isempty(h), return; end
-    lg = legend(ax, h, textos, 'Location', ubicacion, 'Box', 'off');
+    lg = legend(ax, h, texto_tex(textos), 'Location', ubicacion, 'Box', 'off');
     try
         lg.ItemHitFcn = @alternar;          % not available in Octave: ignored
     catch

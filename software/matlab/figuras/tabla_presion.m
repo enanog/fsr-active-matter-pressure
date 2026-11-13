@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = 'todos';        % 'todos' | {'20260824', ...} part of the code | {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 deltaT_s = 2.5;            % window for the skewness / kurtosis of dG [s]
 guardar_csv = false;  archivo = 'presion_ensayos_matlab.csv';   % -> informes/figuras/matlab/
 %% ==================================================================

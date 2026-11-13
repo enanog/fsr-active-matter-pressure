@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; 'todos'; {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % legend texts; {} = automatic (adds alpha)
 colores  = {};             % {} = project palette | 'modo' | {'#2a78d6', ...}
 tau_max_s = [];            % largest lag [s]; [] = 1/4 of the trial (max 20 min)
@@ -15,7 +15,7 @@ texto_x = '\tau [s]';
 texto_y = 'MSD [mm^2]';
 leyenda = 'northwest';
 ancho_cm = 12;  alto_cm = 9;  fuente = 10;  grosor = 1.4;
-guardar = false;  archivo = 'msd';  formatos = {'pdf', 'png'};
+guardar = false;  archivo = 'msd';  formatos = {'png'};
 %% ==================================================================
 
 D = cargar_ensayos(ensayos);

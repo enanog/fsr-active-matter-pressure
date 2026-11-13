@@ -4,7 +4,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos     = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; 'todos'; {} = pick from a list
+ensayos     = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres     = {};          % legend texts in the same order; {} = automatic
 colores     = {};          % {} = project palette | 'modo' | {'#2a78d6', ...}
 eje_tiempo  = 'video';     % 'video' = minutes of video (same axis as the speed plots; t = t_sensor - desfase)
@@ -26,7 +26,7 @@ guardar = false;  archivo = 'presion_tiempo';  formatos = {'pdf', 'png'};
 R = cargar_presion(ensayos);
 C = colores_ensayos(R, colores);
 if isempty(nombres), nombres = {R.etiqueta}; end
-[fig, ax] = nueva_figura(ancho_cm, alto_cm, fuente, 'Presion vs tiempo');
+[fig, ax] = nueva_figura(ancho_cm, alto_cm, fuente, 'G vs tiempo');
 h = [];
 for i = 1:numel(R)
     P = R(i).P;

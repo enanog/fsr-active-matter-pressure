@@ -4,7 +4,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20261030_1100', '20261030_1200', '20261030_1430', '20261030_1600', '20261106_1600'};   % part of the code; 'todos'; {} = pick from a list
+ensayos  = ensayos_base();   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % legend texts; {} = automatic. Tip: {'25 robots', '26 robots', '27 robots'}
 colores  = {};             % {} = project palette | 'modo' | {'#2a78d6', ...}
 que      = 'asimetria';    % 'asimetria' | 'curtosis' | 'ambas' (two panels)
@@ -18,7 +18,7 @@ texto_asim = 'asimetría de \DeltaG';
 texto_curt = 'curtosis de \DeltaG';
 leyenda = 'best';
 ancho_cm = 17;  alto_cm = 8;  fuente = 10;  grosor = 1.4;
-guardar = false;  archivo = 'asimetria_deltaT';  formatos = {'pdf', 'png'};
+guardar = true;  archivo = 'asimetria_deltaT';  formatos = {'png'};
 %% ==================================================================
 
 R = cargar_presion(ensayos);

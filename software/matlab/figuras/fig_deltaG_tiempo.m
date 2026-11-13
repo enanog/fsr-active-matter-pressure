@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20260924_1600'};  % part of the code; 'todos'; {} = pick from a list (better 1 or 2 trials)
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % legend texts in the same order; {} = automatic
 colores  = {};             % {} = project palette | 'modo' | {'#2a78d6', ...}
 deltaT_s = 2.5;            % window [s]; [] = the one saved in FSRScope for each trial
@@ -44,7 +44,7 @@ for i = 1:n
     if ~isempty(lim_y), ylim(ax, lim_y); end
     ylabel(ax, texto_y);
     if paneles
-        if strcmp(titulo, 'auto'), title(ax, sprintf('%s  (\\DeltaT = %g s)', nombres{i}, dT)); end
+        if strcmp(titulo, 'auto'), title(ax, sprintf('%s  (\\DeltaT = %g s)', texto_tex(nombres{i}), dT)); end
         if i < n, set(ax, 'XTickLabel', []); end
     end
 end

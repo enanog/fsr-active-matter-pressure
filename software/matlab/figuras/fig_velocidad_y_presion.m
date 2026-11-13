@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayo      = '20260924_1600';   % ONE trial (part of the code)
+ensayo      = '20261106_1600';   % ONE trial (part of the code)
 suavizado_s = 30;                % moving average of both series [s]
 crudo_gris  = true;              % raw V in grey behind
 umbral      = 0.35;              % jam threshold [mm/s]; [] = no line and no shading
@@ -20,7 +20,7 @@ guardar = false;  archivo = 'velocidad_y_presion';  formatos = {'pdf', 'png'};
 D = cargar_ensayos({ensayo});
 if numel(D) > 1, error('"%s" coincide con %d ensayos: escribí más del código.', ensayo, numel(D)); end
 c = colores_ensayos(repmat(D, 1, 3), {color_V, color_G, color_atasco});
-[fig, ax1] = nueva_figura(ancho_cm, alto_cm, fuente, ['V y G - ' D.etiqueta]);
+[fig, ax1] = nueva_figura(ancho_cm, alto_cm, fuente, 'V y G');
 delete(ax1);
 ax1 = subplot(2, 1, 1);  ax2 = subplot(2, 1, 2);
 for a = [ax1 ax2]
@@ -58,6 +58,6 @@ end
 ylabel(ax1, texto_V);  ylabel(ax2, texto_G);  xlabel(ax2, texto_x);
 set(ax1, 'XTickLabel', []);
 if strcmp(titulo, 'auto'), titulo = D.etiqueta; end
-title(ax1, titulo);
+title(ax1, texto_tex(titulo));
 fprintf('rho de Spearman entre V y G suavizadas: %.2f\n', spearman(suavizar(D.t, D.V, suavizado_s), G));
 if guardar, guardar_figura(fig, archivo, formatos); end

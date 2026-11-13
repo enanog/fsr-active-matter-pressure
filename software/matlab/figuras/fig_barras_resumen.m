@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = 'todos';        % 'todos' | {'20260924', ...} part of the code | {} = pick from a list
+ensayos  = {};   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % bar labels in the same order; {} = automatic
 colores  = 'modo';         % 'modo' (AH blue, HO orange, AL green) | {} = per trial | {'#2a78d6', ...}
 magnitud = 'atasco_pct';   % any field of resumen_ensayo.m:
@@ -48,12 +48,12 @@ for i = 1:numel(D)
     end
 end
 if horizontal
-    set(ax, 'YTick', 1:numel(D), 'YTickLabel', nombres, 'YDir', 'reverse', 'YGrid', 'off');
+    set(ax, 'YTick', 1:numel(D), 'YTickLabel', texto_tex(nombres), 'YDir', 'reverse', 'YGrid', 'off');
     xlabel(ax, texto_y);
     if log_y, set(ax, 'XScale', 'log'); end
     if ~isempty(lim_y), xlim(ax, lim_y); end
 else
-    set(ax, 'XTick', 1:numel(D), 'XTickLabel', nombres, 'XGrid', 'off');
+    set(ax, 'XTick', 1:numel(D), 'XTickLabel', texto_tex(nombres), 'XGrid', 'off');
     try, set(ax, 'XTickLabelRotation', 30); catch, end
     ylabel(ax, texto_y);
     if log_y, set(ax, 'YScale', 'log'); end

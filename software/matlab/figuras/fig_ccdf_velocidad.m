@@ -3,7 +3,7 @@
 clear; addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'funciones'));
 
 %% ============================ SETTINGS ============================
-ensayos  = {'20260924_1600', '20261030_1200', '20261030_1600'};  % part of the code; {} = pick from a list
+ensayos  = ensayos_base();   % {} = pick from a list of every trial (funciones/ensayos_base.m preselected) | 'todos' | {'...'} part of the code
 nombres  = {};             % legend texts in the same order; {} = automatic
 colores  = {};             % {} = project palette | 'modo' | {'#2a78d6', ...}
 fuente_v = 'media';        % 'media' = V of the group per frame | 'individual' = |v| of each robot
@@ -17,7 +17,7 @@ texto_x = '';              % '' = automatic
 texto_y = '1 - F';
 leyenda = 'northeast';
 ancho_cm = 17;  alto_cm = 8;  fuente = 10;  grosor = 1.4;
-guardar = false;  archivo = 'ccdf_velocidad';  formatos = {'pdf', 'png'};
+guardar = true;  archivo = 'ccdf_velocidad';  formatos = {'png'};
 %% ==================================================================
 
 D = cargar_ensayos(ensayos);
