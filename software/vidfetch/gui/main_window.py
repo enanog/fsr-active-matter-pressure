@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._worker: Optional[TaskWorker] = None
         self._last_dir = os.path.expanduser("~")
         self._retrack_pending = False
+        self._after_worker = None    # next step of a chain, run once the worker is released
         self._arena_pending = False
 
         self.tab_original = OriginalTab(self.state)
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         tt = self.tab_tracking
         tt.analyzeRequested.connect(self.analyze_tracking)
         tt.retrackRequested.connect(self.retrack)
+        tt.prepareRequested.connect(self.prepare_results)
         tt.csvRequested.connect(self.export_tracking_csv)
         tt.videoRequested.connect(self.export_tracking_video)
         tt.saveRequested.connect(self.save_session)
@@ -248,7 +250,9 @@ class MainWindow(QMainWindow):
                        arena_step=ar.DEFAULT_STEP if tt.chk_arena_auto.isChecked() else 0,
                        d_in=d_in, d_out=d_out, manual=tt.arena)
 
-    def retrack(self) -> None:
+    def retrack(self, then=None) -> None:
+        """Tracking only (~seconds). Velocities and rotation are left pending and computed on demand
+        (export, Resultados tab, button): rotation is the slow part and corrections come in bursts."""
         session = self.tab_tracking.session
         if session is None:
             return
@@ -258,18 +262,39 @@ class MainWindow(QMainWindow):
         det = session.detection
         session.params = self.tab_tracking.tracker_params(det)
         session.kin_params = self.tab_tracking.kinematics_params()
+        anchors = dict(session.anchors)
 
         def done(res):
             if self.tab_tracking.session is session:
-                session.result, session.kin = res
+                session.result, _ = res
+                session.kin = None
+                session.applied_anchors = anchors
                 self.tab_tracking.on_result_updated()
+                self._after_worker = then
 
         self._run_task("Recalculando seguimiento…", _track_task, done,
-                       cands=session.candidates, params=session.params, anchors=dict(session.anchors),
+                       cands=session.candidates, params=session.params, anchors=anchors,
                        fps=session.fps, kin_params=session.kin_params, r_out=det.r_out,
-                       arena=session.arena, crop=_crop(session))
+                       arena=session.arena, crop=_crop(session), with_kin=False)
 
-    def recompute_kinematics(self) -> None:
+    def _needs_update(self, retry) -> bool:
+        """Applies pending corrections and computes pending kinematics, then calls `retry`.
+        Returns True if work was launched (the caller must return and wait for `retry`)."""
+        s = self.tab_tracking.session
+        if s is None or s.result is None or self._worker is not None:
+            return False
+        if s.pending_anchors:
+            self.retrack(then=retry)
+            return True
+        if s.kin is None:
+            self.recompute_kinematics(then=retry)
+            return True
+        return False
+
+    def prepare_results(self) -> None:
+        self._needs_update(lambda: None)
+
+    def recompute_kinematics(self, then=None) -> None:
         session = self.tab_tracking.session
         if session is None or session.result is None:
             return
@@ -282,6 +307,7 @@ class MainWindow(QMainWindow):
             if self.tab_tracking.session is session:
                 session.kin = kin
                 self.tab_tracking.on_result_updated()
+                self._after_worker = then
 
         self._run_task("Calculando velocidades y rotación…", _kin_task, done,
                        result=session.result, sig=session.candidates.sig, fps=session.fps,
@@ -349,6 +375,8 @@ class MainWindow(QMainWindow):
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
         if s is None or v is None or self._worker is not None:
             return
+        if self._needs_update(self.export_tracking_csv):
+            return
         base = os.path.splitext(os.path.basename(s.src_path))[0]
         suggested = os.path.join(self._last_dir, f"{base}_robots.csv")
         path, flt = QFileDialog.getSaveFileName(self, "Guardar CSV (todos los robots)", suggested,
@@ -381,6 +409,8 @@ class MainWindow(QMainWindow):
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
         if s is None or v is None or self._worker is not None:
             return
+        if self._needs_update(lambda: self.export_robot_csv(k)):
+            return
         path = self._ask_save_path(f"Guardar robot #{k}", f"robot{k:02d}", {"CSV (*.csv)": ".csv"})
         if not path:
             return
@@ -399,6 +429,8 @@ class MainWindow(QMainWindow):
         """One CSV per robot in a folder (<video>_robot00.csv, …)."""
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
         if s is None or v is None or self._worker is not None:
+            return
+        if self._needs_update(self.export_all_robots):
             return
         folder = QFileDialog.getExistingDirectory(self, "Carpeta para los CSV por robot", self._last_dir)
         if not folder:
@@ -422,6 +454,8 @@ class MainWindow(QMainWindow):
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
         if s is None or v is None or self._worker is not None:
             return
+        if self._needs_update(self.export_summary_csv):
+            return
         path = self._ask_save_path("Guardar resumen por robot", "resumen_robots", {"CSV (*.csv)": ".csv"})
         if not path:
             return
@@ -436,6 +470,8 @@ class MainWindow(QMainWindow):
     def export_tracking_video(self) -> None:
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
         if s is None or v is None or self._worker is not None:
+            return
+        if self._needs_update(self.export_tracking_video):
             return
         self._stop_all_players()
         path = self._ask_save_path("Guardar video con seguimiento", "seguimiento", SAVE_FILTERS)
@@ -495,6 +531,7 @@ class MainWindow(QMainWindow):
 
         def done(res):
             s.result, s.kin = res
+            s.applied_anchors = dict(s.anchors)
             self.tab_process.det_panel.apply_params(s.detection)
             self.tab_tracking.arena = None
             self.tab_tracking.set_session(s)
@@ -513,7 +550,8 @@ class MainWindow(QMainWindow):
                                     "Velocidades disponibles; para θ y ω volvé a analizar el video.")
         self._run_task("Recalculando seguimiento…", _track_task, done,
                        cands=s.candidates, params=s.params, anchors=dict(s.anchors), fps=s.fps,
-                       kin_params=s.kin_params, r_out=s.detection.r_out, arena=s.arena, crop=_crop(s))
+                       kin_params=s.kin_params, r_out=s.detection.r_out, arena=s.arena, crop=_crop(s),
+                       with_kin=False)
 
     def _run_task(self, text: str, func, on_success, **kwargs) -> None:
         self._worker = TaskWorker(func, self, **kwargs)
@@ -536,12 +574,15 @@ class MainWindow(QMainWindow):
         self._worker.deleteLater()
         self._worker = None
         self.act_open.setEnabled(True)
+        then, self._after_worker = self._after_worker, None
         if self._retrack_pending:
             self._retrack_pending = False
             self.retrack()
         elif self._arena_pending:
             self._arena_pending = False
             self.detect_arena()
+        elif then is not None:
+            then()
 
     # --- helpers ---
     def _all_tabs(self):
@@ -623,15 +664,17 @@ def _analyze_task(src, trim, roi, processor, tparams, autocal, progress, should_
         arena.manual_points, arena.follow_motion = manual.manual_points, manual.follow_motion
     session = TrackingSession(src, roi, trim, time_fps or fps, processor.detection, cands, tparams,
                               kin_params=kin_params, arena=arena)
-    res = session.run(progress=lambda v: progress(95 + v // 20), should_cancel=should_cancel)
+    res = session.run(progress=lambda v: progress(95 + v // 20), should_cancel=should_cancel, kinematics=False)
     return (None, True) if res is None else ((session, cal), False)
 
 
 def _track_task(cands, params, anchors, progress, should_cancel, fps=30.0, kin_params=None, r_out=1.0,
-                arena=None, crop=None):
+                arena=None, crop=None, with_kin=True):
     res = track(cands, params, anchors, progress=progress, should_cancel=should_cancel)
     if res is None:
         return None, True
+    if not with_kin:
+        return (res, None), False
     kin = km.compute(res, cands.sig, fps, kin_params or km.KinematicsParams(), r_out, arena, crop)
     return (res, kin), False
 

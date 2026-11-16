@@ -33,6 +33,8 @@ Without enclosure the origin is the centre of the analysed crop and the scale co
 """
 from __future__ import annotations
 
+import hashlib
+from collections import OrderedDict
 from dataclasses import dataclass, replace
 from typing import Optional
 
@@ -167,6 +169,58 @@ def _rotation(result: TrackingResult, cand_sig: Optional[list]) -> tuple[np.ndar
     return theta.copy(), st.copy()
 
 
+# Per-robot theta cache. A robot's theta depends only on which candidate it was assigned in each
+# observed row, so after a manual correction (which usually changes one robot) the other robots reuse
+# their previous solution instead of re-running the global angle solver (~4 s per robot).
+_THETA_CACHE: dict = {"sig": None, "cols": OrderedDict()}
+_THETA_CACHE_MAX = 256          # columns kept (F floats each)
+
+
+def _theta_cols(cand_sig: list) -> OrderedDict:
+    if _THETA_CACHE["sig"] is not cand_sig:
+        _THETA_CACHE["sig"] = cand_sig
+        _THETA_CACHE["cols"] = OrderedDict()
+    return _THETA_CACHE["cols"]
+
+
+def _robot_rows(result: TrackingResult, cand_sig: list, k: int) -> tuple[np.ndarray, bytes]:
+    """Observed rows with an image signature for robot k, and a digest of (rows, candidates)."""
+    obs_codes = [int(Status.DETECTED), int(Status.RELAXED)]  # manual points have no image signature
+    ci = result.cand_idx[:, k]
+    rows = np.flatnonzero((ci >= 0) & np.isin(result.status[:, k], obs_codes))
+    rows = np.array([r for r in rows if len(cand_sig[r]) > ci[r]], dtype=np.int64)
+    h = hashlib.blake2b(digest_size=16)
+    h.update(np.int64(len(result.frames)).tobytes())
+    h.update(rows.tobytes())
+    h.update(ci[rows].astype(np.int64).tobytes())
+    return rows, h.digest()
+
+
+def cached_theta(result: Optional[TrackingResult], cand_sig: Optional[list]) -> tuple[np.ndarray, np.ndarray]:
+    """Cached theta columns of `result` (no computation): keys (n, 16) uint8 and columns (F, n)."""
+    keys, cols = [], []
+    if result is not None and cand_sig is not None and result.cand_idx is not None \
+            and _THETA_CACHE["sig"] is cand_sig:
+        cache = _THETA_CACHE["cols"]
+        for k in range(result.n_objects):
+            _, key = _robot_rows(result, cand_sig, k)
+            if key in cache:
+                keys.append(np.frombuffer(key, np.uint8))
+                cols.append(cache[key])
+    F = len(result.frames) if result is not None else 0
+    return (np.array(keys, np.uint8).reshape(-1, 16),
+            np.column_stack(cols) if cols else np.zeros((F, 0)))
+
+
+def seed_theta(cand_sig: Optional[list], keys: np.ndarray, cols: np.ndarray) -> None:
+    """Restore theta columns saved with a session (see cached_theta)."""
+    if cand_sig is None or keys is None or cols is None or cols.ndim != 2 or len(keys) != cols.shape[1]:
+        return
+    cache = _theta_cols(cand_sig)
+    for j in range(len(keys)):
+        cache[bytes(np.asarray(keys[j], np.uint8))] = np.asarray(cols[:, j], float)
+
+
 def _rotation_uncached(result: TrackingResult, cand_sig: Optional[list],
                        long_range: bool = True) -> tuple[np.ndarray, np.ndarray]:
     F, N = result.x.shape
@@ -174,17 +228,24 @@ def _rotation_uncached(result: TrackingResult, cand_sig: Optional[list],
     st = np.full((F, N), ROT_UNAVAILABLE, np.int8)
     if cand_sig is None or result.cand_idx is None:
         return theta, st
-    obs_codes = [int(Status.DETECTED), int(Status.RELAXED)]  # manual points have no image signature
+    cache = _theta_cols(cand_sig) if long_range else None
     rows_all = np.arange(F)
     for k in range(N):
-        ci = result.cand_idx[:, k]
-        rows = np.flatnonzero((ci >= 0) & np.isin(result.status[:, k], obs_codes))
-        rows = np.array([r for r in rows if len(cand_sig[r]) > ci[r]], dtype=np.int64)
+        rows, key = _robot_rows(result, cand_sig, k)
         if len(rows) == 0:
             continue
-        sig = np.stack([cand_sig[r][ci[r]] for r in rows])
-        ang, _ = rot.solve_angles(sig, long_range=long_range)
-        theta[:, k] = np.interp(rows_all, rows, ang)   # holds the end values outside the range
+        col = cache.get(key) if cache is not None else None
+        if col is None or len(col) != F:
+            sig = np.stack([cand_sig[r][result.cand_idx[r, k]] for r in rows])
+            ang, _ = rot.solve_angles(sig, long_range=long_range)
+            col = np.interp(rows_all, rows, ang)   # holds the end values outside the range
+            if cache is not None:
+                cache[key] = col
+                while len(cache) > _THETA_CACHE_MAX:
+                    cache.popitem(last=False)
+        elif cache is not None:
+            cache.move_to_end(key)
+        theta[:, k] = col
         st[:, k] = ROT_INTERPOLATED
         st[rows, k] = ROT_MEASURED
     return theta, st

@@ -66,7 +66,7 @@ def set_repo_root(root: Path, remember: bool = False) -> None:
     `from comun.paths import RAW_DIR`) keep the old value: GUI entry points call this before
     importing their windows."""
     global REPO_ROOT, REPO_FOUND, RAW_DIR, PROC_DIR, CONFIG_DIR, VIDEO_CROP_DIR, VIDEO_ORIG_DIR
-    global TRAJ_DIR, VEL_CONFIG_DIR, SUMMARY_PATH, CUTS_PATH
+    global TRAJ_DIR, CUTS_PATH
     REPO_ROOT = Path(root).resolve()
     REPO_FOUND = is_repo(REPO_ROOT)
     RAW_DIR = REPO_ROOT / "datos" / "presion" / "crudos"
@@ -75,9 +75,7 @@ def set_repo_root(root: Path, remember: bool = False) -> None:
     VIDEO_CROP_DIR = REPO_ROOT / "datos" / "video" / "recortados"
     VIDEO_ORIG_DIR = REPO_ROOT / "datos" / "video" / "originales"
     TRAJ_DIR = REPO_ROOT / "datos" / "video" / "trayectorias"
-    VEL_CONFIG_DIR = REPO_ROOT / "datos" / "video" / "config"      # settings of Velocidades
     CUTS_PATH = REPO_ROOT / "datos" / "video" / "cortes.json"      # gaps of split recordings
-    SUMMARY_PATH = REPO_ROOT / "datos" / "resumen_ensayos.csv"
     if remember:
         try:
             USER_CONFIG.write_text(json.dumps({"repo": str(REPO_ROOT)}, ensure_ascii=False), encoding="utf-8")

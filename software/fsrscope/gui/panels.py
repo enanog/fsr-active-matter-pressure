@@ -16,7 +16,7 @@ from comun import paths
 from comun.export import COLUMNS, header
 from comun.session import TrialData
 from comun.settings import TrialSettings
-from comun.qt.widgets import dspin, note  # noqa: F401  (re-exported)
+from comun.widgets import dspin, note  # noqa: F401  (re-exported)
 from fsrscope.gui.plots import RAW_COLUMNS, SPEC_BY_ID
 
 NONE_SENTINEL = -1.0

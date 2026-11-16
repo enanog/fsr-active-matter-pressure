@@ -10,8 +10,7 @@ start = creation time written by the DJI camera in the MP4 header (1 s resolutio
 the 'mvhd' box: no ffprobe needed), frames = frames of the ORIGINAL file VR_<code>(k) and
 f_r = 2.997 real frames per second (time-lapse x10). The cropped VC_ files lose the creation time
 and VC_(1) is trimmed at its start (sync LED), so the originals are required to measure; the
-result is stored in datos/video/cortes.json and reused afterwards (also by Velocidades, MATLAB
-and comparar_modos.py).
+result is stored in datos/video/cortes.json and reused afterwards (also by MATLAB).
 
 Frame axis (same rule as comun.robots): part k+1 starts at
     start_frame(k+1) = start_frame(k) + frames_VC(k) - 1 + round(gap * f_r)

@@ -16,6 +16,89 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-16 — Menos carpetas en todo el repo
+
+- Borrado: `datos/video/config/` y `datos/resumen_ensayos.csv` (Velocidades), `informes/figuras/matlab/`,
+  `datos/presion/procesados/` (P_; FSRScope/`procesar_lote` lo recrean al exportar), intermedios de LaTeX, `.raw/.log`
+  de LTspice, `poster.tex.bak_userparams`.
+- Unido: `datos/presion/{Viejos,referencia}` → `crudos/` (`cargar_datos('R_feedback')` lee solo `crudos/`, sin columna
+  `carpeta`; JSON de LabPlotter del póster apuntan a `crudos/Medicion Vacio.csv`); `software/docs/*.xlsx` →
+  `informes/aplicacion/`; `comun/qt/{repo,widgets,worker}.py` → `comun/` (imports `comun.repo`, `comun.worker`,
+  `comun.widgets`); `empaquetado/{lanzadores,iconos}/*` → `empaquetado/`; `informes/comun/*.tex` → `informes/`
+  (`\input{../preambulo.tex}`, `\input{../config.tex}`).
+- Verificado: py_compile OK; no se corrió FSRScope ni MATLAB ni LaTeX.
+
+## 2026-11-16 — Limpieza de software/: los gráficos quedan solo en `matlab_figuras`
+
+- **Borrado** (recuperable desde git, último commit antes de esta fecha): `software/matlab/` (versión MATLAB de 70
+  archivos + caché), `comparador/`, `velocidades/`, `figuras/` (Python: generar_informe, comparar_ensayos/modos,
+  figuras_metodo, plantilla), `comun/{mobility,summary,estilo}.py`, lanzadores e íconos de Comparador/Velocidades,
+  `empaquetado/dist` y `build` (1,8 GB, no versionados), `__pycache__`.
+- Ajustados: `empaquetado/construir.py` (solo vidfetch, fsrscope), `generar_iconos.py`, `comun/paths.py` (sin
+  `VEL_CONFIG_DIR`/`SUMMARY_PATH`), `requirements.txt`, READMEs (raíz, software, fsrscope). Compilación de los .py OK.
+- Queda: `vidfetch/` (genera VP_), `fsrscope/`, `comun/`, `herramientas/`, `matlab_figuras/` (sin cambios).
+- Sin regenerar posible: `informes/*/generado/` y figuras de método f1–f9 (los .tex de informes siguen citando
+  `software/figuras/...`). Datos de las apps borradas siguen en `datos/video/config/` y `datos/resumen_ensayos.csv`.
+- `matlab_figuras` de FSRScope solo usa `datos/presion/config/<código>.json`: en los 7 configs offset automático,
+  sin exclusiones, sin saturación excluida, step 0,05 s ⇒ hoy da lo mismo que los valores por defecto.
+
+## 2026-11-13 — Ensayo `20261112_1600_22AH_60` (antes carpeta `raro/`)
+
+- Código confirmado por el usuario: 12/11 16:00, 22 robots, **AH**, 60 min. `raro/` borrada.
+  `hyperlapse_final.mp4` → `datos/video/originales/VR_20261112_1600_22AH_60.mp4`; `hyperlapse_final_recorte.mp4` →
+  `datos/video/recortados/VC_20261112_1600_22AH_60.mp4`.
+- `datos/video/sesiones/VA_20261112_1600_22AH_60.npz` = última sesión del usuario (`hyperlapse_final_analisis.npz`, 02:42:
+  cuadros 0–11198, 156 correcciones, 0 cuadros con error, θ de 20 robots guardado); `..._completo.npz` = sesión completa
+  0–12040 con 232 correcciones (incluye el tramo posterior al corte del cuadro 11199). `src_path` → VC_ nuevo en ambas.
+- **Ojo:** el giro medido no parece AH: ω media por robot 8 antihorario / 8 horario (|ω̄| > 0,5 °/s), media −0,17 °/s
+  (en los AH anteriores la mayoría gira antihorario). Pendiente confirmar el programa cargado.
+- Pendiente: registro `R_20261112_1600_22AH_60.csv` (no está en `datos/presion/crudos/`); exportar `VP_` (VidFetch o
+  `herramientas/reexportar.py`). En las entradas de abajo, `raro/...` = este ensayo.
+
+## 2026-11-13 — Video `raro/hyperlapse_final`: corte en el cuadro 11199 y `herramientas/recortar_sesion.py`
+
+- `hyperlapse_final.mp4`: 1080p, 30 fps nominal, 12 081 cuadros, re-codificado con libx264 (handler DJI.AVC, sin
+  creation_time ni saltos de pts ⇒ partes unidas con ffmpeg; el hueco no se puede medir con el archivo). El recorte tiene
+  40 cuadros menos al inicio. **Un solo corte**: diferencia entre cuadros 11198→11199 con z = 16 (ningún otro > 4 salvo
+  el final, 12031–12039). Desplazamiento mínimo a través del corte (asignación húngara): mediana 5,2 mm, máx. 64,8 mm
+  (vs 0,67 mm en 8 cuadros normales) ⇒ la identidad a través del corte no es confiable por posición.
+- 454 de los 478 cuadros con error del seguimiento están desde el corte; antes: 24 (robots 11 y 17, 3788–5257).
+- Corte a 11199/2,997 = 62,3 min del inicio del recorte ⇒ fuera de la ventana de 60 min (si el recorte arranca al fin del LED).
+- `software/herramientas/recortar_sesion.py <npz> [--desde a] [--hasta b] [--salida]`: recorta candidatos, correcciones
+  y tramo sin releer el video; re-sigue y resuelve θ solo con ese tramo (nada posterior al corte entra en las derivadas ni en
+  el θ global); no toca la entrada. Generado `raro/hyperlapse_final_recorte_analisis_hasta_corte.npz` (0–11198, 5 de las 14
+  correcciones; carga 3,6 s, v y θ 0,2 s).
+- Sesión del usuario (02:29, 232 correcciones) → `raro/hyperlapse_final_recorte_analisis_0-11198.npz`: 189 correcciones,
+  0 cuadros con error. Robot 17 corregido cuadro a cuadro en 5234–5373: paso entre cuadros manual 1,36 mm (p90 2,71) vs
+  0,23 mm detectado ⇒ |v| del 17 en ese tramo 0,81 mm/s vs 0,38 fuera (ruido del clic). En 5300 hay candidato a 5,3 px con
+  cobertura 0,70. Propuesto: ajustar el clic al candidato más cercano (no implementado).
+- Pendiente: sin registro R_ identificado para este video; si hace falta el tramo posterior, medir el hueco con los
+  archivos DJI originales (creation_time, `comun/cortes.py`) o por correlación con G.
+
+## 2026-11-13 — VidFetch: correcciones manuales rápidas (θ por robot en caché, cinemática diferida, lote)
+
+**Problema (video `raro/hyperlapse_final_recorte`, 12 041 cuadros, 22 robots, ~500 correcciones):** cada clic de corrección
+recalculaba seguimiento (3,2 s) + cinemática completa (92 s, casi todo el giro θ con enlaces largos de los 22 robots).
+Una corrección cambia la trayectoria de 1 robot (verificado: anchor en el cuadro 6000 → solo cambia el robot 5).
+- `core/kinematics.py`: caché de θ por robot (`_THETA_CACHE`, clave blake2b de F + filas observadas + candidato asignado;
+  256 columnas, se reinicia si cambia `cand_sig`). `cached_theta`/`seed_theta`. Recalcular tras 1 corrección: 3,3 s.
+- `core/tracking.py`: `TrackingSession.applied_anchors` (anchors con que se calculó `result`) y `pending_anchors`;
+  `save` guarda `theta_keys` (n×16 uint8) + `theta_cols` (F×n) si están en caché; `load` los siembra
+  (reabrir: 88 s → 2,9 s; archivo +1 MB). Versión de archivo sigue en 3 (claves opcionales).
+- `gui/main_window.py`: `retrack` = solo seguimiento (`_track_task(with_kin=False)`, `kin = None`); `_needs_update(retry)`
+  aplica correcciones pendientes y calcula la cinemática antes de los 5 exportadores; `prepare_results`;
+  `_after_worker` encadena pasos tras liberar el worker (el `succeeded` llega antes de `finished`).
+- `gui/tracking_tab.py`: casilla «Recalcular el seguimiento en cada corrección» (desmarcada = lote; cruz magenta en las
+  pendientes), botón «Aplicar correcciones (R)» + tecla R, estado y botón «Calcular velocidades y giro» en Resultados;
+  abrir la pestaña Resultados calcula lo pendiente.
+- **Verificado:** θ y vx idénticos bit a bit al código anterior (sesión de `raro`); GUI offscreen (PySide6 6.12): corrección
+  2,8 s, lote de 2 + R 2,8 s, Resultados 12,8 s (3 robots), exportar con 1 pendiente 12,7 s (34 columnas con ω).
+- **Carga y análisis nuevo también sin cinemática** (`_track_task(with_kin=False)` en `load_session`, `session.run(...,
+  kinematics=False)` en `_analyze_task`): abrir el `.npz` de `raro` sin θ guardado 88 s → 3,9 s; v y θ se calculan en
+  Resultados/al exportar (90 s la primera vez si el archivo no trae θ, 0,1 s si lo trae).
+- `raro/hyperlapse_final_recorte_analisis_con_giro.npz` (nuevo, mismas 14 correcciones + θ). El original no se tocó.
+- Pendiente: reconstruir el .exe de VidFetch (`empaquetado/construir.py vidfetch`).
+
 ## 2026-11-12 — `matlab_figuras`: base de tiempo real del video (2,997 cuadros/s) y recorte de 60 min
 
 - Verificado: cada R_ tiene **un solo** pulso de LED de 5 s (101 filas); desfase = fin del LED (30,75 / 17,05 / 21,45 / 8,00 /

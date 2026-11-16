@@ -1,9 +1,9 @@
 """Build one Windows executable per app with PyInstaller.
 
     pip install -r software/requirements.txt -r software/empaquetado/requirements-build.txt
-    python software/empaquetado/construir.py                      # las cuatro apps
-    python software/empaquetado/construir.py fsrscope velocidades # solo esas
-    python software/empaquetado/construir.py comparador --onefile # un único .exe (arranca más lento)
+    python software/empaquetado/construir.py                      # las dos apps
+    python software/empaquetado/construir.py fsrscope             # solo esa
+    python software/empaquetado/construir.py vidfetch --onefile    # un único .exe (arranca más lento)
 
 Output: software/empaquetado/dist/<App>/<App>.exe (one folder per app: copy the whole folder).
 Leaving the folder inside the repository lets the app find datos/ on its own; anywhere else it asks
@@ -34,22 +34,20 @@ APPS = {
     # name: (exe name, extra excludes, extra PyInstaller args)
     "vidfetch": ("VidFetch", ["pyqtgraph"], ["--collect-submodules", "trackpy"]),
     "fsrscope": ("FSRScope", ["trackpy", "matplotlib"], []),
-    "velocidades": ("Velocidades", ["trackpy", "matplotlib"], []),
-    "comparador": ("Comparador", ["trackpy"], []),
 }
 
 
 def build(app: str, onefile: bool, clean: bool) -> Path:
     import PyInstaller.__main__
     exe, excludes, extra = APPS[app]
-    args = [str(HERE / "lanzadores" / f"lanzar_{app}.py"),
+    args = [str(HERE / f"lanzar_{app}.py"),
             "--name", exe, "--windowed", "--noconfirm",
             "--paths", str(SOFTWARE),
             "--distpath", str(HERE / "dist"),
             "--workpath", str(HERE / "build"),
             "--specpath", str(HERE / "build"),
             "--onefile" if onefile else "--onedir"]
-    icon = HERE / "iconos" / f"{app}.ico"
+    icon = HERE / f"{app}.ico"
     if icon.is_file():
         args += ["--icon", str(icon)]
     if clean:

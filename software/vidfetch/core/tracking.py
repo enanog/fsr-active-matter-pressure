@@ -604,12 +604,21 @@ class TrackingSession:
     kin_params: Optional[object] = None   # core.kinematics.KinematicsParams
     kin: Optional[object] = None          # core.kinematics.Kinematics (full range)
     arena: Optional[arena_mod.ArenaTrack] = None   # enclosure (origin and scale of the exports)
+    applied_anchors: dict[tuple[int, int], tuple[float, float]] = field(default_factory=dict)  # used by `result`
 
-    def run(self, progress=None, should_cancel=None) -> Optional[TrackingResult]:
-        res = track(self.candidates, self.params, self.anchors, progress, should_cancel)
+    @property
+    def pending_anchors(self) -> int:
+        """Corrections added, moved or removed since `result` was computed."""
+        a, b = self.anchors, self.applied_anchors
+        return sum(1 for k in a if b.get(k) != a[k]) + sum(1 for k in b if k not in a)
+
+    def run(self, progress=None, should_cancel=None, kinematics: bool = True) -> Optional[TrackingResult]:
+        anchors = dict(self.anchors)
+        res = track(self.candidates, self.params, anchors, progress, should_cancel)
         if res is not None:
             self.result = res
-            self.kin = self.compute_kinematics(res)
+            self.applied_anchors = anchors
+            self.kin = self.compute_kinematics(res) if kinematics else None
         return res
 
     def compute_kinematics(self, result: Optional[TrackingResult] = None):
@@ -743,6 +752,10 @@ class TrackingSession:
         sig = self.candidates.signature_rows()
         if sig is not None:
             arrays["sig"] = sig.astype(np.complex64)
+            from vidfetch.core import kinematics as km
+            keys, cols = km.cached_theta(self.result, self.candidates.sig)   # avoids re-solving on load
+            if len(keys):
+                arrays["theta_keys"], arrays["theta_cols"] = keys, cols
         np.savez_compressed(path, **arrays)
 
     @staticmethod
@@ -755,6 +768,8 @@ class TrackingSession:
             anchors_arr = z["anchors"]
             sig = z["sig"] if "sig" in z.files else None
             arena_arr = z["arena"] if "arena" in z.files else None
+            th_keys = z["theta_keys"] if "theta_keys" in z.files else None
+            th_cols = z["theta_cols"] if "theta_cols" in z.files else None
         if meta.get("version") not in (1, 2, 3):
             raise ValueError("Versión de archivo de análisis no soportada.")
         cdf = pd.DataFrame(cand, columns=["frame", "x", "y", "mass", "ring_cov"])
@@ -767,10 +782,13 @@ class TrackingSession:
         if kp:
             known = set(km.KinematicsParams.__dataclass_fields__)
             kp = {k: v for k, v in kp.items() if k in known}
-        return TrackingSession(
+        session = TrackingSession(
             src_path=meta["src_path"], roi=Roi(**meta["roi"]), trim=TrimRange(**meta["trim"]),
             fps=float(meta["fps"]), detection=det.DetectionParams(**meta["detection"]),
             candidates=CandidateSet.from_dataframe(cdf, frames, sig), params=TrackerParams(**params),
             anchors={(int(f), int(k)): (float(x), float(y)) for f, k, x, y in anchors_arr},
             kin_params=km.KinematicsParams(**kp) if kp else None,
             arena=arena_mod.ArenaTrack.from_saved(arena_arr, meta.get("arena")))
+        if th_keys is not None and th_cols is not None and len(th_cols) == len(frames):
+            km.seed_theta(session.candidates.sig, th_keys, th_cols)
+        return session

@@ -54,6 +54,7 @@ class TrackingTab(QWidget):
     saveRequested = Signal()
     loadRequested = Signal()
     kinematicsRequested = Signal()
+    prepareRequested = Signal()        # apply pending corrections + compute pending kinematics
     summaryCsvRequested = Signal()
     arenaDetectRequested = Signal()
     arenaChanged = Signal()
@@ -77,6 +78,8 @@ class TrackingTab(QWidget):
         self.view.clicked.connect(self._on_click)
         esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self, lambda: self._select(None))
         esc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        apply_sc = QShortcut(QKeySequence(Qt.Key.Key_R), self, self._apply_corrections)
+        apply_sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
         tp = TrackerParams()
         # --- parameters
@@ -152,10 +155,21 @@ class TrackingTab(QWidget):
         self.lbl_hint.setWordWrap(True)
         self.btn_clear = QPushButton("Quitar correcciones de este cuadro")
         self.lbl_anchors = QLabel("Correcciones: 0")
+        self.lbl_anchors.setWordWrap(True)
+        self.chk_auto_retrack = QCheckBox("Recalcular el seguimiento en cada corrección")
+        self.chk_auto_retrack.setChecked(True)
+        self.chk_auto_retrack.setToolTip(
+            "Desmarcado: las correcciones se acumulan (cruz magenta) sin recalcular nada; se aplican todas "
+            "juntas con 'Aplicar correcciones' o la tecla R. Conviene para muchas correcciones seguidas. "
+            "Ojo: hasta aplicarlas, las trayectorias que se ven son las anteriores.")
+        self.btn_apply = QPushButton("Aplicar correcciones (R)")
+        self.btn_apply.setEnabled(False)
         cor_box = QGroupBox("Corrección manual del centro")
         g = QFormLayout(cor_box)
         g.addRow("Robot", self.cb_robot)
         g.addRow(self.lbl_hint)
+        g.addRow(self.chk_auto_retrack)
+        g.addRow(self.btn_apply)
         g.addRow(self.btn_clear)
         g.addRow(self.lbl_anchors)
 
@@ -237,6 +251,12 @@ class TrackingTab(QWidget):
         self.chk_rot = QCheckBox("Mostrar orientación"); self.chk_rot.setChecked(True)
         self.lbl_kin = QLabel(ARROW_NOTE)
         self.lbl_kin.setWordWrap(True)
+        self.lbl_kin_state = QLabel()
+        self.lbl_kin_state.setWordWrap(True)
+        self.lbl_kin_state.setTextFormat(Qt.TextFormat.RichText)
+        self.btn_kin = QPushButton("Calcular velocidades y giro")
+        self.btn_kin.setToolTip("Aplica las correcciones pendientes y calcula v, θ y ω. Solo se recalcula el "
+                                "giro de los robots cuya trayectoria cambió.")
         kin_box = QGroupBox("Cinemática")
         kf = QFormLayout(kin_box)
         kf.addRow("Suavizado", self.sp_window)
@@ -249,6 +269,8 @@ class TrackingTab(QWidget):
                                  "(recomendado). Perspectiva: además lleva el radio de contacto de los robots "
                                  "con la pared a R_int − D/2. Robot: diámetro real / diámetro medido (constante).")
         kf.addRow("Escala desde", self.cb_scale)
+        kf.addRow(self.lbl_kin_state)
+        kf.addRow(self.btn_kin)
         kf.addRow(self.chk_vel)
         kf.addRow(self.chk_rot)
         kf.addRow(self.lbl_kin)
@@ -330,6 +352,11 @@ class TrackingTab(QWidget):
         self.btn_next.clicked.connect(lambda: self._jump_issue(+1))
         self.cb_robot.currentIndexChanged.connect(self._on_robot_combo)
         self.btn_clear.clicked.connect(self._clear_frame_anchors)
+        self.btn_apply.clicked.connect(self._apply_corrections)
+        self.chk_auto_retrack.toggled.connect(lambda on: on and self._apply_corrections())
+        self.btn_kin.clicked.connect(self.prepareRequested)
+        self.side_tabs.currentChanged.connect(
+            lambda i: i == TAB_RESULTS and self.session is not None and self.prepareRequested.emit())
 
         state.loaded.connect(self._on_loaded)
         state.roiChanged.connect(lambda _: self._update_stale())
@@ -434,7 +461,8 @@ class TrackingTab(QWidget):
         if s is None or s.result is None:
             return
         self._fill_robot_combo(s.result.n_objects)
-        self.lbl_anchors.setText(f"Correcciones: {len(s.anchors)}")
+        self._update_anchor_label()
+        self._update_kin_state()
         self._update_hint()
         self._refresh_view()
 
@@ -449,7 +477,9 @@ class TrackingTab(QWidget):
         ok = c[Status.DETECTED] + c[Status.RELAXED] + c[Status.MANUAL]
         f = res.frames
         kin_txt = ""
-        if v.kin is not None:
+        if v.kin is None:
+            kin_txt = "<br>Velocidades y giro: pendientes (pestaña Resultados o al exportar)"
+        else:
             sp = v.kin.speed
             unit = "px/s"
             scale = 1.0
@@ -469,7 +499,8 @@ class TrackingTab(QWidget):
 
     def _set_session_enabled(self, on: bool) -> None:
         for w in (self.cb_filter, self.list_issues, self.btn_prev, self.btn_next, self.cb_robot,
-                  self.btn_clear, self.btn_csv, self.btn_csv_robot, self.btn_video, self.btn_save,
+                  self.btn_clear, self.btn_kin, self.chk_auto_retrack, self.btn_csv, self.btn_csv_robot,
+                  self.btn_video, self.btn_save,
                   self.cb_export_robot, self.btn_csv_one, self.btn_csv_each):
             w.setEnabled(on)
 
@@ -606,16 +637,46 @@ class TrackingTab(QWidget):
             return
         s.set_anchor(frame, self._selected, fx, fy)
         self._select(None)
-        self.lbl_anchors.setText(f"Correcciones: {len(s.anchors)}")
-        self.retrackRequested.emit()
+        self._after_anchor_change()
 
     def _clear_frame_anchors(self) -> None:
         s = self.session
         if s is None:
             return
         if s.remove_anchors(self.player.current_index, None):
-            self.lbl_anchors.setText(f"Correcciones: {len(s.anchors)}")
+            self._after_anchor_change()
+
+    def _after_anchor_change(self) -> None:
+        self._update_anchor_label()
+        if self.chk_auto_retrack.isChecked():
             self.retrackRequested.emit()
+        else:
+            self.player.refresh()
+
+    def _apply_corrections(self) -> None:
+        s = self.session
+        if s is not None and s.result is not None and s.pending_anchors:
+            self.retrackRequested.emit()
+
+    def _update_anchor_label(self) -> None:
+        s = self.session
+        if s is None:
+            return
+        n = s.pending_anchors
+        self.lbl_anchors.setText(f"Correcciones: {len(s.anchors)}"
+                                 + (f" · <b>{n} sin aplicar</b>" if n else ""))
+        self.btn_apply.setEnabled(n > 0)
+
+    def _update_kin_state(self) -> None:
+        s = self.session
+        if s is None or s.result is None:
+            self.lbl_kin_state.clear()
+            return
+        if s.kin is None or s.pending_anchors:
+            self.lbl_kin_state.setText("<span style='color:#c80'>Velocidades y giro pendientes</span>: se "
+                                       "calculan al exportar, al abrir esta pestaña o con el botón.")
+        else:
+            self.lbl_kin_state.setText("Velocidades y giro al día.")
 
     # ------------------------------------------------------------------ rendering
     def _transform(self, frame: np.ndarray) -> np.ndarray:
@@ -653,7 +714,27 @@ class TrackingTab(QWidget):
         xy = np.stack([res.x[i], res.y[i]], 1) - np.array([roi.x, roi.y])
         vel = np.stack([kin.vx[i], kin.vy[i]], 1) if (kin is not None and self.chk_vel.isChecked()) else None
         ang = kin.theta[i] if (kin is not None and self.chk_rot.isChecked() and s.has_rotation) else None
-        return draw_oriented(crop, key, xy, res.status[i], s.detection.r_out, self._selected, vel, ang, fps=s.fps)
+        out = draw_oriented(crop, key, xy, res.status[i], s.detection.r_out, self._selected, vel, ang, fps=s.fps)
+        return self._draw_pending(out, roi, key)
+
+    def _draw_pending(self, img: np.ndarray, roi, key: str) -> np.ndarray:
+        """Magenta cross on corrections of this frame not yet applied to the tracking."""
+        s = self.session
+        frame = self.player.current_index
+        pend = [(k, xy) for (f, k), xy in s.anchors.items()
+                if f == frame and s.applied_anchors.get((f, k)) != xy]
+        if not pend:
+            return img
+        img = np.ascontiguousarray(img)
+        size = max(8, int(round(s.detection.r_out)))
+        for k, (x, y) in pend:
+            px, py = ori.points(np.array([x - roi.x]), np.array([y - roi.y]), roi.w, roi.h, key)
+            p = (int(round(float(px[0]))), int(round(float(py[0]))))
+            for col, th in (((0, 0, 0), 4), ((255, 0, 255), 2)):
+                cv2.drawMarker(img, p, col, cv2.MARKER_CROSS, size, th)
+            cv2.putText(img, str(k), (p[0] + 4, p[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1,
+                        cv2.LINE_AA)
+        return img
 
     # ------------------------------------------------------------------ enclosure
     def diameters(self) -> tuple[float, float]:

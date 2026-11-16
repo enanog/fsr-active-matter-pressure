@@ -46,7 +46,7 @@
   },
   "signals": [
     {
-      "source_path": "D:/Documentos/ITBA/Proyecto_PresionRecintoCircular/datos/presion/referencia/Medicion Vacio.csv",
+      "source_path": "D:/Documentos/ITBA/Proyecto_PresionRecintoCircular/datos/presion/crudos/Medicion Vacio.csv",
       "x_col": "deltaT",
       "y_col": "skewness",
       "name": "Medicion Vacio",
@@ -68,7 +68,7 @@
       "secondary_y": false,
       "visible": true,
       "line_width": 2.5,
-      "source_rel": "..\\..\\..\\datos\\presion\\referencia\\Medicion Vacio.csv"
+      "source_rel": "..\\..\\..\\datos\\presion\\crudos\\Medicion Vacio.csv"
     },
     {
       "source_path": "D:/Documentos/ITBA/Proyecto_PresionRecintoCircular/Mediciones/Procesado/Medicion 25 Robots 30 Min.csv",

@@ -15,23 +15,18 @@ seguimiento de los robots por video.
 │   ├── firmware/             sketches de Arduino (lectura de uno o varios FSR)
 │   └── simulacion/           simulaciones LTspice del front-end
 ├── software/                 ver software/README.md
-│   ├── comun/                biblioteca compartida (presión, trayectorias, velocidades, estilo)
+│   ├── comun/                biblioteca compartida de las apps (presión, trayectorias, cortes de video)
 │   ├── vidfetch/             app: recorte de video y seguimiento de robots
 │   ├── fsrscope/             app: presión (G, ΔG, asimetría, supervivencia) con video sincronizado
-│   ├── velocidades/          app: movilidad de un ensayo (V̄, atascos, distribuciones, ocupación)
-│   ├── comparador/           app: superposición de ensayos y figuras exportables
-│   ├── figuras/              scripts de figuras e informes (plantilla para figuras nuevas)
+│   ├── matlab_figuras/       figuras de comparación en MATLAB (figuras.m + cargar_datos.m)
 │   ├── herramientas/         línea de comandos (lote de presión, reexportar, verificaciones)
-│   └── empaquetado/          construcción de los .exe de las cuatro apps
+│   └── empaquetado/          construcción de los .exe de las dos apps
 ├── datos/
-│   ├── resumen_ensayos.csv   una fila por ensayo (Velocidades / Comparador)
 │   ├── presion/
-│   │   ├── crudos/           R_<código>.csv  registros del sensor (20 Hz)
-│   │   ├── procesados/       P_<código>.csv  salida de FSRScope
+│   │   ├── crudos/           R_<código>.csv  todos los registros del sensor (20 Hz), también agosto y arena vacía
 │   │   ├── config/           <código>.json   parámetros de FSRScope por ensayo
-│   │   └── referencia/       mediciones sin robots / de calibración
+│   │   └── calibracion.csv   R_FEEDBACK de cada registro (la usa MATLAB)
 │   └── video/                videos no versionados (pendrive); sesiones y CSV sí
-│       ├── config/           <código>.json   parámetros de Velocidades por ensayo
 │       ├── cortes.json       hueco entre partes de videos partidos
 │       ├── originales/       VR_<código>.MP4  video original de la cámara, 4K
 │       ├── recortados/       VC_<código>.MP4  recorte a la arena (lo que se analiza)
@@ -39,7 +34,8 @@ seguimiento de los robots por video.
 │       ├── sesiones/         VA_<código>_analisis.npz  sesiones de VidFetch
 │       └── trayectorias/     VP_<código>_robots.csv    posiciones, velocidades y giros exportados
 ├── informes/
-│   ├── comun/                preámbulo y configuración LaTeX compartidos
+│   ├── preambulo.tex, config.tex   LaTeX compartido por los dos informes
+│   ├── figuras/matlab_figuras/     salida de software/matlab_figuras
 │   ├── aplicacion/           informe de la app VidFetch (uso, librerías, código)
 │   └── ensayos/              informe de resultados de los ensayos filmados
 └── difusion/
@@ -64,7 +60,7 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
 
 1. **Presión**: copiar `R_<código>.csv` a `datos/presion/crudos/` y abrirlo con
    `python software/fsrscope/app.py` (calibración, recorte, gráficos y video sincronizado;
-   *Exportar* → `datos/presion/procesados/P_<código>.csv`). Sin interfaz:
+   *Exportar* → `datos/presion/procesados/P_<código>.csv`, se crea al exportar). Sin interfaz:
    `python software/herramientas/procesar_lote.py` procesa todos con la configuración guardada.
 2. **Video**: copiar el video a `datos/video/originales/`, recortarlo con VidFetch
    (`python software/vidfetch/app.py`) a `datos/video/recortados/`, analizarlo (escala de tiempo
@@ -72,17 +68,14 @@ El prefijo indica el tipo de archivo: `R_` registro crudo del sensor, `P_` regis
    recinto) y guardar la sesión en `sesiones/` y el CSV en `trayectorias/`. Las posiciones salen con
    origen en el centro del recinto (detectado en cada cuadro o marcado a mano), x a la derecha e y hacia
    arriba en la vista del observador. Con una sesión ya guardada, `software/herramientas/reexportar.py` regenera el CSV sin interfaz.
-3. **Velocidades y comparación**: `python software/velocidades/app.py` (un ensayo) y
-   `python software/comparador/app.py` (varios superpuestos, exporta figuras PDF/PNG).
-4. **Informes y figuras**: desde la raíz,
-   ```
-   python software/figuras/generar_informe.py datos/video/trayectorias/VP_<código>_robots.csv --video datos/video/recortados/VC_<código>.MP4 --nombre <código>
-   python software/figuras/comparar_ensayos.py "datos/video/trayectorias/VP_*_robots.csv"
-   ```
-   y compilar `informes/ensayos/informe_ensayos.tex` e `informes/aplicacion/informe_aplicacion.tex`
-   (dos pasadas de `pdflatex` o `latexmk -pdf`). Figuras nuevas: copiar `software/figuras/plantilla.py`.
+3. **Figuras**: abrir `software/matlab_figuras/figuras.m` en MATLAB (R2020b+, Statistics Toolbox),
+   elegir los ensayos en *Ajustes* y correr (F5 todas, Ctrl+Enter una sección). Lee directamente
+   `VP_*_robots.csv`, `R_*.csv`, `datos/presion/calibracion.csv` y `datos/video/cortes.json`.
+4. **Informes**: compilar `informes/ensayos/informe_ensayos.tex` e `informes/aplicacion/informe_aplicacion.tex`
+   (dos pasadas de `pdflatex` o `latexmk -pdf`). Los scripts Python que generaban `informes/*/generado/` y
+   las figuras de método se eliminaron el 16/11/2026 (recuperables desde git, commit anterior).
 
-Las cuatro apps también se pueden usar como `.exe` sin Python: `software/empaquetado/construir.bat`
+Las dos apps también se pueden usar como `.exe` sin Python: `software/empaquetado/construir.bat`
 (detalle en `software/README.md`).
 
 ## Notas

@@ -1,5 +1,5 @@
 """Measure the unrecorded gap between the parts of a video that was cut while recording and store it
-in datos/video/cortes.json (FSRScope and Velocidades also do it on their own when it is missing).
+in datos/video/cortes.json (FSRScope also does it on their own when it is missing).
 
     python software/herramientas/medir_corte.py 20261030_1600_22AH_60
     python software/herramientas/medir_corte.py            # every split trial found

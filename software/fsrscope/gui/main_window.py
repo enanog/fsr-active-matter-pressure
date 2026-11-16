@@ -24,7 +24,7 @@ from fsrscope.gui.panels import (AnalysisPanel, CalibrationPanel, ExportPanel, P
                         TrialPanel, dspin)
 from fsrscope.gui.plots import DeltaGPanel, PlotArea, normalized_plot_states
 from fsrscope.gui.video_view import VideoPanel
-from comun.qt.worker import LatestJobRunner
+from comun.worker import LatestJobRunner
 
 SPEEDS = [0.5, 1, 2, 5, 10, 20, 50, 100, 200]
 TICK_MS = 33

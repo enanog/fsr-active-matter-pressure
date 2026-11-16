@@ -13,9 +13,7 @@ python software/herramientas/procesar_lote.py        # genera todos los P_<códi
 ```
 
 Ejecutable: `software/empaquetado/dist/FSRScope/FSRScope.exe` (ver `software/README.md`).
-Las velocidades de los robots están en la app **Velocidades** (`software/velocidades/`) y la
-superposición de varios ensayos en el **Comparador** (`software/comparador/`); las tres comparten
-`software/comun/`.
+Las figuras de comparación entre ensayos están en `software/matlab_figuras/` (MATLAB).
 
 ## Qué hace cada pestaña
 
@@ -44,7 +42,7 @@ cursor rojo en un gráfico de tiempo salta a ese instante. Clic derecho sobre un
 - ΔG(t) = G(t) − G(t − ΔT) se anula (NaN) cuando cualquiera de los dos extremos cae fuera del
   recorte o en un tramo excluido; la estadística usa solo esas diferencias válidas.
 - Asimetría y curtosis: estimadores insesgados de Fisher–Pearson (iguales a `pandas` y a
-  `SKEW()`/`KURT()` de Excel; ver `software/docs/Metodologia_calculo_presion.xlsx`).
+  `SKEW()`/`KURT()` de Excel; ver `informes/aplicacion/Metodologia_calculo_presion.xlsx`).
 
 ## Archivos
 
@@ -62,7 +60,7 @@ hueco muestra «Sin video», y los robots de VidFetch y la presión siguen sincr
 
 - **Hueco entre partes:** se toma de `datos/video/cortes.json`; si el ensayo no figura, se mide en el
   momento con los originales `VR_<código>(n)` (hora de inicio que graba la cámara en cada MP4, con 1 s de
-  resolución, y cantidad de cuadros) y se guarda ahí para Velocidades, MATLAB y los informes.
+  resolución, y cantidad de cuadros) y se guarda ahí para MATLAB.
 - **Pestaña Video → «Video partido»:** muestra las partes, el hueco y avisos (parte recortada, cierre
   anormal de la cámara). Se puede desmarcar «Hueco automático» y escribir el hueco a mano (se guarda en la
   configuración del ensayo) o volver a medirlo con «Medir de nuevo en los originales».
@@ -77,4 +75,4 @@ gui/               ventana, paneles, gráficos y video sincronizado
 
 La lógica sin interfaz está en `software/comun/` (rutas y ensayos, configuración, lectura de
 registros, señal, estadística, trayectorias, lote); la planilla con la metodología de cálculo, en
-`software/docs/Metodologia_calculo_presion.xlsx`.
+`informes/aplicacion/Metodologia_calculo_presion.xlsx`.

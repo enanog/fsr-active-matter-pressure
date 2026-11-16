@@ -14,7 +14,7 @@ if __package__ in (None, ""):          # run as a script: put software/ on the p
 def main(argv=None) -> int:
     argv = sys.argv if argv is None else argv
     from PySide6.QtWidgets import QApplication
-    from comun.qt.repo import ensure_repo
+    from comun.repo import ensure_repo
 
     app = QApplication(argv)
     app.setApplicationName("FSRScope")

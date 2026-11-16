@@ -1,31 +1,22 @@
 # Software
 
-Cuatro aplicaciones de escritorio independientes (cada una con su `.exe`), una biblioteca común,
-scripts de figuras y herramientas de línea de comandos.
+Dos aplicaciones de escritorio (cada una con su `.exe`) que generan los datos, una biblioteca común,
+herramientas de línea de comandos y las figuras en MATLAB.
 
 ```
 software/
-├── comun/          biblioteca compartida, sin interfaz (+ comun/qt: widgets comunes)
-│   ├── paths.py        carpeta del proyecto, búsqueda de ensayos por código, rutas de datos/
-│   ├── settings.py     configuración de FSRScope por ensayo (datos/presion/config/)
-│   ├── log_io.py, signal.py, stats.py, export.py, session.py, lote.py   presión
-│   ├── robots.py, mobility.py, summary.py                                trayectorias y velocidades
-│   ├── video.py        lectura de cuadros
-│   └── estilo.py       colores por ensayo/modo y estilo de matplotlib para informes
-├── vidfetch/       App: recorte de video y seguimiento de robots (core/ propio + gui/)
-├── fsrscope/       App: presión (G, ΔG, asimetría, supervivencia) con video sincronizado
-├── velocidades/    App: movilidad de un ensayo (V̄, atascos, distribuciones, ocupación, energía)
-├── comparador/     App: superposición de varios ensayos con parámetros comunes + figuras exportables
-├── figuras/        scripts de figuras e informes (plantilla.py para figuras nuevas)
-├── herramientas/   línea de comandos: procesar_lote, reexportar, verificar_*, medir_corte
-├── empaquetado/    construcción de los .exe (PyInstaller)
-├── docs/           planilla con la metodología de cálculo de la presión
-├── matlab/         figuras en MATLAB: un script por figura con sus ajustes arriba (ver matlab/README.md)
+├── vidfetch/        App: recorte de video y seguimiento de robots → datos/video/trayectorias/VP_*.csv
+├── fsrscope/        App: presión con video sincronizado (calibración, recorte, exclusiones → datos/presion/config/)
+├── comun/           biblioteca de FSRScope y herramientas (paths, log_io, signal, stats, cortes, video, robots…)
+├── herramientas/    línea de comandos: medir_corte, procesar_lote, reexportar, recortar_sesion, verificar_*
+├── matlab_figuras/  figuras de comparación: figuras.m (una sección por figura) + cargar_datos.m
+├── empaquetado/     construcción de los .exe (PyInstaller)
 └── requirements.txt
 ```
 
-Dependencias entre paquetes (sin ciclos): `vidfetch` es autónoma; `fsrscope`, `velocidades` y
-`comparador` dependen solo de `comun`; `figuras` y `herramientas` usan `comun` y `vidfetch.core`.
+Dependencias (sin ciclos): `vidfetch` es autónoma; `fsrscope` depende de `comun`; `herramientas` usa
+`comun` y `vidfetch.core`. `matlab_figuras` no usa Python: lee `VP_*_robots.csv`, `R_*.csv`,
+`datos/presion/calibracion.csv`, `datos/presion/config/<código>.json` (si existe) y `datos/video/cortes.json`.
 
 ## Instalar y correr desde Python
 
@@ -33,11 +24,15 @@ Dependencias entre paquetes (sin ciclos): `vidfetch` es autónoma; `fsrscope`, `
 pip install -r software/requirements.txt
 python software/vidfetch/app.py [video]
 python software/fsrscope/app.py [código]
-python software/velocidades/app.py [código]
-python software/comparador/app.py
 ```
 
-(o, desde `software/`: `python -m vidfetch`, `python -m fsrscope`, …)
+(o, desde `software/`: `python -m vidfetch`, `python -m fsrscope`)
+
+## Figuras (MATLAB)
+
+Abrir `software/matlab_figuras/figuras.m` (R2020b+, Statistics and Machine Learning Toolbox), elegir los
+ensayos y opciones en *Ajustes* y correr: F5 = todas, Ctrl+Enter = una sección. `guardar = true` exporta a
+`informes/figuras/matlab_figuras/`.
 
 ## Ejecutables (.exe)
 
@@ -45,8 +40,8 @@ En la PC con Windows, doble clic en `software/empaquetado/construir.bat`, o:
 
 ```
 pip install -r software/requirements.txt -r software/empaquetado/requirements-build.txt
-python software/empaquetado/construir.py                       # las cuatro
-python software/empaquetado/construir.py fsrscope comparador   # algunas
+python software/empaquetado/construir.py                       # las dos
+python software/empaquetado/construir.py fsrscope              # una
 ```
 
 Resultado: `software/empaquetado/dist/<App>/<App>.exe`, una carpeta por app (300–600 MB, se copia
@@ -60,13 +55,13 @@ entera; no se versiona). Cada `.exe` funciona sin Python instalado.
   ~400 MB a una carpeta temporal (10–30 s). Disponible igual: `construir.py --onefile`.
 - Hay que reconstruir el `.exe` después de cambiar el código (la configuración y los datos no: se leen de
   `datos/` en cada arranque).
-- Íconos: `empaquetado/iconos/*.ico` (regenerables con `generar_iconos.py`).
+- Íconos: `empaquetado/*.ico` (regenerables con `generar_iconos.py`).
 
 ## Convenciones
 
 - Código de ensayo `AAAAMMDD_HHMM_XXYY_TT` (ordena cronológicamente); `paths.code_label` lo formatea.
   Modo `YY`: `AH` antihorario (motor izquierdo), `HO` horario (motor derecho), `AL` aleatorio.
-- Imports absolutos desde `software/` (`from comun.mobility import …`, `from vidfetch.core import …`).
-  Los scripts de `figuras/` y `herramientas/` agregan `software/` al path, así que se corren con
+- Imports absolutos desde `software/` (`from comun.stats import …`, `from vidfetch.core import …`).
+  Los scripts de `herramientas/` agregan `software/` al path, así que se corren con
   `python software/<carpeta>/<script>.py` desde la raíz del repositorio.
 - Comentarios del código en inglés; textos de la interfaz en español.
