@@ -6,6 +6,8 @@ function E = cargar_datos(ensayos, duracion_s)
 %   E.t, E.V    tiempo de video de cada cuadro [s reales] y V media del conjunto en ese cuadro [mm/s]
 %   E.nf        cantidad de cuadros
 %   E.omega     ω de cada robot observado en cada cuadro [°/s] (> 0 antihorario; sin interpolados)
+%   E.v2, E.w2  media sobre los robots de v² [mm²/s²] y ω² [rad²/s²] en cada cuadro (todos los robots, como V)
+%   E.N         robots en cada cuadro (filas del CSV); energía cinética = E.N · media de ½v² (o ½kR²ω²)
 %   E.x, E.y    posición de cada robot en cada cuadro [mm], origen en el centro del recinto
 %   E.ts, E.G   sensor: grilla de tiempo [s del sensor] y G [µS], NaN fuera de lo analizado ([] si no hay log)
 %   E.G_cuadro  G en el instante de cada cuadro [µS] (t_sensor = desfase + t_video)
@@ -83,7 +85,8 @@ function e = leer_ensayo(raiz, codigo, duracion_s)
         T = [T; Tk]; %#ok<AGROW>
     end
     T = T(T.t_s >= 0 & T.t_s <= duracion_s, :);                       % video t = 0 is the end of the LED
-    S = groupsummary(T, 'frame', 'mean', {'t_s', 'speed_mm_s'});      % one row per frame, NaN left out
+    T.v2 = T.speed_mm_s .^ 2;  T.w2 = deg2rad(T.omega) .^ 2;           % for the kinetic energy (omega in rad/s)
+    S = groupsummary(T, 'frame', 'mean', {'t_s', 'speed_mm_s', 'v2', 'w2'});   % one row per frame, NaN left out
     observado = ismember(T.status, ["detectado", "detectado (umbral relajado)", "manual"]);
 
     % --- sensor
@@ -104,6 +107,7 @@ function e = leer_ensayo(raiz, codigo, duracion_s)
     [modo, modo_nombre] = modo_de(codigo);
     e = struct('codigo', codigo, 'modo', modo, 'modo_nombre', modo_nombre, ...
                'raiz', raiz, 't', S.mean_t_s, 'V', S.mean_speed_mm_s, 'nf', height(S), ...
+               'v2', S.mean_v2, 'w2', S.mean_w2, 'N', S.GroupCount, ...
                'omega', T.omega(observado & isfinite(T.omega)), 'x', T.x_mm, 'y', T.y_mm, ...
                'ts', ts, 'G', G, 'G_cuadro', G_cuadro, 'paso', paso, 'desfase', desfase, 'K', K, ...
                'R_lista', R_lista, 'R_firmware', R_firmware);

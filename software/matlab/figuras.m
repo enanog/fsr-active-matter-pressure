@@ -8,7 +8,7 @@
 % tiene un encabezado por modo y en los paneles (5 y 13) cada modo ocupa su propia fila.
 % Requiere MATLAB R2020b+ y Statistics and Machine Learning Toolbox (skewness, corr, normpdf, prctile).
 
-clc; clear;
+clc; clear; close all;
 
 %% Ajustes
 ensayos = {};
@@ -21,8 +21,14 @@ rango_deltaT_asim = [0.05 15];   % where that window is searched [s] (the asymme
 normalizar_dG_asim = false;      % figure 8b: false = dG in uS; true = (dG - mean) / sigma (shape only)
 duracion_min = 60; % minutes after the end of the LED (the video starts there; the sensor is cut to the same span); Inf = all
 linea_por_modo = true;  % true: line style per mode (AH -, HO -., AL --) besides the colour family; false: all solid
+masa_g = 0;        % mass of one robot [g] for figure 4b; 0 = kinetic energy per unit mass [mm^2/s^2 = uJ/kg]
+diametro_mm = 33;  % robot body diameter [mm] (R = diametro_mm / 2 in E_rot)
+k_inercia = 0.5;   % moment of inertia I = k m R^2 (0.5 = uniform disc)
+energia_log = false;  % figure 4b on a log axis (jams bring E_tras down by orders of magnitude)
+energia_normalizada = false;  % figure 4c: false = E in energy units; true = E / <E> of each trial (shape only)
+energia_dist_juntas = true;   % figure 4c: true = translation, rotation and total on one axes; false = one panel each
 G_minimo = 1e-2;   % G below this [uS] is not drawn on log axes: there G is just a few ADC steps (quantisation)
-guardar = true;   %#ok<*UNRCH> (if guardar ... is not dead code) true: every figure -> informes/figuras/matlab_figuras/<figura>__<códigos>.<formato>
+guardar = false;   %#ok<*UNRCH> (if guardar ... is not dead code) true: every figure -> informes/figuras/matlab_figuras/<figura>__<códigos>.<formato>
 formatos = {                   % one per line; put % in front of a line to switch that format off (Ctrl+R / Ctrl+T)
     '.png'                     % image (uses "resolucion")
     % '.pdf'                     % vector
@@ -45,7 +51,7 @@ set(groot, 'defaultFigureColor', 'w', 'defaultFigureUnits', 'centimeters', 'defa
 % (not 'best': with hundreds of thousands of points MATLAB takes very long to place the legend)
 
 %% Datos (se leen de nuevo solo si cambió "ensayos" o "duracion_min")
-if ~exist('E', 'var') || ~exist('E_pedido', 'var') || ~isequal(E_pedido, {ensayos, duracion_min}) || ~isfield(E, 'etiqueta')
+if ~exist('E', 'var') || ~exist('E_pedido', 'var') || ~isequal(E_pedido, {ensayos, duracion_min}) || ~isfield(E, 'etiqueta') || ~isfield(E, 'w2')
     E = cargar_datos(ensayos, duracion_min * 60);
     E_pedido = {ensayos, duracion_min};
 end
@@ -64,6 +70,11 @@ for i = 1:n
     fprintf('%s: R_FEEDBACK %g ohm (calibracion.csv); el firmware calculó con %.0f ohm -> G x%.3g del log; desfase %.2f s\n', ...
             nombres{i}, E(i).R_lista, E(i).R_firmware, E(i).R_firmware / E(i).R_lista, E(i).desfase);
 end
+% Kinetic energy per frame, summed over the robots (figures 4b and 4c). masa_g = 0 -> per unit mass:
+% mm^2/s^2 = uJ/kg; with masa_g, m[g] * mm^2/s^2 = nJ
+if masa_g > 0, fe = masa_g;  u_tex = 'nJ';  u_txt = 'nJ'; else, fe = 1;  u_tex = '\muJ/kg';  u_txt = 'µJ/kg'; end
+Ec_tras = arrayfun(@(e) fe * e.N .* e.v2 / 2, E, 'UniformOutput', false);
+Ec_rot  = arrayfun(@(e) fe * e.N .* k_inercia * (diametro_mm / 2) ^ 2 .* e.w2 / 2, E, 'UniformOutput', false);
 % Asymmetry of dG vs window for every trial (figures 8b and 9). Only recomputed when the trials change.
 if ~exist('asim', 'var') || ~isequal(asim.clave, {nombres, duracion_min})
     t0 = tic;  fprintf('Asimetría de ΔG vs ΔT... ');
@@ -82,12 +93,12 @@ if guardar && ~isfolder(salida), mkdir(salida); end
 exportar = cargar_datos('exportar');               % saves one figure in every format of "formatos"
 guardar_fig = @(nombre) exportar(gcf, fullfile(salida, [nombre sufijo]), formatos, resolucion);
 
-%% 0. R_FEEDBACK: calibracion.csv vs la que usó el firmware, en todos los registros de crudos/
-t0 = tic;  fprintf('%s... ', '0. R_FEEDBACK');
-% G_lista_sobre_G_firmware = by how much G changes with respect to the G the firmware logged.
-% The firmware value is the constant it was programmed with: it does not measure the resistor on the board.
-if ~exist('R_feedback', 'var'), R_feedback = cargar_datos('R_feedback'); end   % "clear R_feedback" to read the logs again
-fprintf('%.1f s\n', toc(t0));  disp(R_feedback)
+% %% 0. R_FEEDBACK: calibracion.csv vs la que usó el firmware, en todos los registros de crudos/
+% t0 = tic;  fprintf('%s... ', '0. R_FEEDBACK');
+% % G_lista_sobre_G_firmware = by how much G changes with respect to the G the firmware logged.
+% % The firmware value is the constant it was programmed with: it does not measure the resistor on the board.
+% if ~exist('R_feedback', 'var'), R_feedback = cargar_datos('R_feedback'); end   % "clear R_feedback" to read the logs again
+% fprintf('%.1f s\n', toc(t0));  disp(R_feedback)
 
 %% 1. V media vs tiempo
 t0 = tic;  fprintf('%s... ', '1. V media vs tiempo');
@@ -125,16 +136,106 @@ set(gca, 'YScale', 'log');  xlabel('V / \langle V \rangle');  ylabel('P(V \geq v
 if guardar, guardar_fig('ccdf_velocidad'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
-%% 4. Distribución de ω (> 0 antihorario)
-t0 = tic;  fprintf('%s... ', '4. Distribución de ω');
-figure('Name', 'Distribucion de omega');  hold on
+% %% 4. Distribución de ω (> 0 antihorario)
+% t0 = tic;  fprintf('%s... ', '4. Distribución de ω');
+% figure('Name', 'Distribucion de omega');  hold on
+% for i = 1:n
+%     histogram(E(i).omega, -60:2:60, 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
+%               'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+%     fprintf('%s (%s): ω media %.2f °/s, %.0f %% del tiempo antihorario\n', nombres{i}, E(i).modo_nombre, mean(E(i).omega), 100 * mean(E(i).omega > 0));
+% end
+% xline(0, 'HandleVisibility', 'off');  xlabel('\omega [°/s]');  ylabel('densidad [s/°]');  leyenda(gca);
+% if guardar, guardar_fig('distribucion_omega'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
+
+% %% 4b. Energía cinética vs tiempo: traslación, rotación y total
+% t0 = tic;  fprintf('%s... ', '4b. Energía cinética');
+% % Per frame, summed over the robots (König: the orbit of a robot around the arena is already inside its v):
+% %   E_tras = sum(1/2 m v^2),  E_rot = sum(1/2 k m R^2 w^2),  E_total = E_tras + E_rot
+% % Every robot of the frame enters (interpolated rows too), as in V media. masa_g = 0 -> per unit mass:
+% % mm^2/s^2 = uJ/kg; with masa_g, m[g] * mm^2/s^2 = nJ. The three panels share both axes so that the size of
+% % rotation and translation can be compared directly.
+% figure('Name', 'Energia cinetica', 'Position', [2 2 17 18]);
+% tl = tiledlayout(3, 1, 'TileSpacing', 'compact');
+% titulos = {'Traslación', 'Rotación', 'Total'};  ax = gobjects(1, 3);
+% for p = 1:3, ax(p) = nexttile(tl);  hold(ax(p), 'on');  title(ax(p), titulos{p}); end
+% for i = 1:n
+%     Et = Ec_tras{i};  Er = Ec_rot{i};               % from the Datos section
+%     curvas = {Et, Er, Et + Er};
+%     for p = 1:3
+%         plot(ax(p), E(i).t / 60, movmean(curvas{p}, suav, 'omitnan', 'SamplePoints', E(i).t), ...
+%              'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+%     end
+%     fprintf('%s: E_tras %.3g, E_rot %.3g, E_total %.3g %s (medias); E_rot/E_tras = %.2f\n', nombres{i}, ...
+%             mean(Et, 'omitnan'), mean(Er, 'omitnan'), mean(Et + Er, 'omitnan'), u_txt, mean(Er, 'omitnan') / mean(Et, 'omitnan'));
+% end
+% if energia_log, set(ax, 'YScale', 'log'); end
+% linkaxes(ax, 'xy');  xlim(ax(1), [0 min(duracion_min, max(vertcat(E.t)) / 60)]);
+% xticklabels(ax(1:2), {});
+% xlabel(tl, 't [min]');  ylabel(tl, sprintf('E_c [%s]', u_tex));
+% leyenda(ax(1));  ax(1).Legend.Layout.Tile = 'east';
+% if guardar, guardar_fig('energia_cinetica'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
+
+%% 4c. Distribución de la energía cinética por cuadro (sin el tiempo)
+t0 = tic;  fprintf('%s... ', '4c. Distribución de la energía cinética');
+% Every frame is one sample, without the moving average (smoothing would narrow the distribution). Log-spaced bins
+% common to every trial and panel (0.1-99.9 percentiles of all the values); 'probability' = fraction of the frames
+% in each bin, so with log bins the curves read as frames per decade. energia_normalizada = true: E / <E> of each
+% trial and component, which removes the overall energy level (it changes between dates) and leaves only the shape.
+% energia_dist_juntas = true: the three components on one axes (colour = trial, line = component: translation
+% dotted, rotation dashed, total solid; here the line style no longer marks the mode, the colour family still does);
+% false: one panel per component.
+comp = {'Traslación', 'Rotación', 'Total'};  X = cell(3, n);
+trazo_comp = {':', '--', '-'};
 for i = 1:n
-    histogram(E(i).omega, -60:2:60, 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
-              'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
-    fprintf('%s (%s): ω media %.2f °/s, %.0f %% del tiempo antihorario\n', nombres{i}, E(i).modo_nombre, mean(E(i).omega), 100 * mean(E(i).omega > 0));
+    X(:, i) = {Ec_tras{i}; Ec_rot{i}; Ec_tras{i} + Ec_rot{i}};
+    if energia_normalizada, X(:, i) = cellfun(@(x) x / mean(x, 'omitnan'), X(:, i), 'UniformOutput', false); end
+    q = cellfun(@(x) prctile(x, [10 50 90]), X(:, i), 'UniformOutput', false);
+    fprintf('%s: mediana [p10 p90]  tras %.3g [%.3g %.3g]  rot %.3g [%.3g %.3g]  total %.3g [%.3g %.3g]\n', ...
+            nombres{i}, q{1}([2 1 3]), q{2}([2 1 3]), q{3}([2 1 3]));
 end
-xline(0, 'HandleVisibility', 'off');  xlabel('\omega [°/s]');  ylabel('densidad [s/°]');  leyenda(gca);
-if guardar, guardar_fig('distribucion_omega'); end
+todo = vertcat(X{:});  todo = todo(todo > 0 & isfinite(todo));
+bordes_E = logspace(log10(prctile(todo, 0.1)), log10(prctile(todo, 99.9)), 61);
+if energia_dist_juntas
+    figure('Name', 'Distribucion de energia cinetica');  hold on
+    for i = 1:n
+        for p = 1:3
+            x = X{p, i};
+            h = histogram(x(x > 0), bordes_E, 'Normalization', 'probability', 'DisplayStyle', 'stairs', 'LineWidth', 1.4, ...
+                          'EdgeColor', colores(i, :), 'LineStyle', trazo_comp{p}, 'Tag', nombres{i}, ...
+                          'DisplayName', sprintf('%s · %s', et{i}, comp{p}));
+            if p < 3, h.HandleVisibility = 'off'; end  % one legend entry per trial (the total); components below
+        end
+        h.DisplayName = et{i};
+    end
+    for p = 1:3   % legend keys for the line styles (not trials: leyenda puts them last)
+        plot(NaN, NaN, 'k', 'LineStyle', trazo_comp{p}, 'LineWidth', 1.4, 'DisplayName', comp{p});
+    end
+    set(gca, 'XScale', 'log');
+    if energia_normalizada, xlabel('E_c / \langle E_c \rangle'); else, xlabel(sprintf('E_c [%s]', u_tex)); end
+    ylabel('fracción de los cuadros');  leyenda(gca);
+    nombre_fig = 'energia_distribucion_juntas';
+else
+    figure('Name', 'Distribucion de energia cinetica', 'Position', [2 2 17 18]);
+    tl = tiledlayout(3, 1, 'TileSpacing', 'compact');
+    ax = gobjects(1, 3);
+    for p = 1:3
+        ax(p) = nexttile(tl);  hold(ax(p), 'on');  title(ax(p), comp{p});
+        for i = 1:n
+            x = X{p, i};
+            histogram(ax(p), x(x > 0), bordes_E, 'Normalization', 'probability', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
+                      'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+        end
+    end
+    set(ax, 'XScale', 'log');  linkaxes(ax, 'xy');  xticklabels(ax(1:2), {});
+    if energia_normalizada, xlabel(tl, 'E_c / \langle E_c \rangle'); else, xlabel(tl, sprintf('E_c [%s]', u_tex)); end
+    ylabel(tl, 'fracción de los cuadros');
+    leyenda(ax(1));  ax(1).Legend.Layout.Tile = 'east';
+    nombre_fig = 'energia_distribucion';
+end
+if energia_normalizada, nombre_fig = [nombre_fig '_normalizada']; end
+if guardar, guardar_fig(nombre_fig); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 5. Ocupación del recinto (robots/cm², promedio en el tiempo)
@@ -188,18 +289,35 @@ set(gca, 'YScale', 'log');  xlabel('g');  ylabel('P(G \geq g)');  leyenda(gca);
 if guardar, guardar_fig('G_supervivencia'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
-%% 8. Histograma de G (clases logarítmicas)
-t0 = tic;  fprintf('%s... ', '8. Histograma de G');
-figure('Name', 'Histograma de G');  hold on
+% %% 8. Histograma de G (clases logarítmicas)
+% t0 = tic;  fprintf('%s... ', '8. Histograma de G');
+% figure('Name', 'Histograma de G');  hold on
+% for i = find(hay_G)
+%     histogram(E(i).G, logspace(log10(G_minimo), log10(G_max), 41), 'Normalization', 'pdf', 'DisplayStyle', 'stairs', ...
+%               'LineWidth', 1.3, 'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+% end
+% set(gca, 'Xscale', 'log', 'YScale', 'log');  xlabel('G [\muS]');  ylabel('densidad [1/\muS]');  leyenda(gca);
+% if guardar, guardar_fig('G_histograma'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
+
+%% 9a. Asimetría de ΔG = G(t) - G(t - ΔT) en función de ΔT
+t0 = tic;  fprintf('%s... ', '9. Asimetría de ΔG = G(t) - G(t - ΔT) en función de ΔT');
+% Curves from the Datos section; dotted line = window of figure 8b
+% dT_asim = window that maximises the mean |asymmetry of dG| over the trials (one value for all of them)
+asim_media = mean(abs(asim.s(hay_G, :)), 1, 'omitnan');
+asim_media(asim.dT < rango_deltaT_asim(1) | asim.dT > rango_deltaT_asim(2)) = NaN;
+[asim_max, j] = max(asim_media);  dT_asim = asim.dT(j);
+if ~isempty(deltaT_asim), dT_asim = deltaT_asim; end
+figure('Name', 'Asimetria de Delta G');  hold on
 for i = find(hay_G)
-    histogram(E(i).G, logspace(log10(G_minimo), log10(G_max), 41), 'Normalization', 'pdf', 'DisplayStyle', 'stairs', ...
-              'LineWidth', 1.3, 'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+    plot(asim.dT, asim.s(i, :), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
 end
-set(gca, 'Xscale', 'log', 'YScale', 'log');  xlabel('G [\muS]');  ylabel('densidad [1/\muS]');  leyenda(gca);
-if guardar, guardar_fig('G_histograma'); end
+xline(dT_asim, ':', sprintf('\\DeltaT = %.2f s', dT_asim), 'HandleVisibility', 'off');
+yline(0, 'HandleVisibility', 'off');  xlabel('\DeltaT [s]');  ylabel('asimetría de \DeltaG');  leyenda(gca);
+if guardar, guardar_fig('asimetria_deltaT'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
-%% 8b. Histograma de ΔG con el ΔT de máxima asimetría del conjunto (ventana fija)
+%% 9b. Histograma de ΔG con el ΔT de máxima asimetría del conjunto (ventana fija)
 t0 = tic;  fprintf('%s... ', '8b. Histograma de ΔG (ΔT de máxima asimetría)');
 % Criterion: mean over the trials of |asymmetry of dG| (|.| so that negative and positive asymmetries do not
 % cancel; per-trial asymmetry does not depend on the uS scale of each trial). The same window for every trial.
@@ -224,8 +342,8 @@ end
 lim = max(cellfun(@(d) prctile(abs([d; 0]), 99.9), D(hay_G)));   % common bins: 99.9 % of |dG| of every trial
 for i = find(hay_G)
     histogram(D{i}, linspace(-lim, lim, 81), 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
-              'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, ...
-              'Tag', nombres{i}, 'DisplayName', sprintf('%s (asimetría %.2f; σ = %.3g µS)', et{i}, skewness(D{i}, 0), sigma(i)));
+        'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, ...
+        'Tag', nombres{i}, 'DisplayName', sprintf('%s (asimetría %.2f; σ = %.3g µS)', et{i}, skewness(D{i}, 0), sigma(i)));
 end
 if normalizar_dG_asim
     z = linspace(-lim, lim, 400);
@@ -238,77 +356,60 @@ set(gca, 'YScale', 'log');  leyenda(gca);
 if guardar, guardar_fig('deltaG_histograma_asimetria_max'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
-%% 9. Asimetría de ΔG = G(t) - G(t - ΔT) en función de ΔT
-t0 = tic;  fprintf('%s... ', '9. Asimetría de ΔG = G(t) - G(t - ΔT) en función de ΔT');
-% Curves from the Datos section; dotted line = window of figure 8b
-% dT_asim = window that maximises the mean |asymmetry of dG| over the trials (one value for all of them)
-asim_media = mean(abs(asim.s(hay_G, :)), 1, 'omitnan');
-asim_media(asim.dT < rango_deltaT_asim(1) | asim.dT > rango_deltaT_asim(2)) = NaN;
-[asim_max, j] = max(asim_media);  dT_asim = asim.dT(j);
-if ~isempty(deltaT_asim), dT_asim = deltaT_asim; end
-figure('Name', 'Asimetria de Delta G');  hold on
-for i = find(hay_G)
-    plot(asim.dT, asim.s(i, :), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
-end
-xline(dT_asim, ':', sprintf('\\DeltaT = %.2f s', dT_asim), 'HandleVisibility', 'off');
-yline(0, 'HandleVisibility', 'off');  xlabel('\DeltaT [s]');  ylabel('asimetría de \DeltaG');  leyenda(gca);
-if guardar, guardar_fig('asimetria_deltaT'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
-
-%% 10. Distribución de ΔG / σ para un ΔT (colas comparadas con la normal)
-t0 = tic;  fprintf('%s... ', '10. Distribución de ΔG / σ para un ΔT');
-figure('Name', 'Distribucion de Delta G');  hold on
-z = -10:0.25:10;
-for i = find(hay_G)
-    L = round(deltaT / E(i).paso);
-    d = rmmissing(E(i).G(L + 1:end) - E(i).G(1:end - L));
-    histogram((d - mean(d)) / std(d), z, 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
-              'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, ...
-              'DisplayName', sprintf('%s (asimetría %.2f; σ = %.3g µS)', et{i}, skewness(d, 0), std(d)));
-end
-plot(z, normpdf(z), 'k:', 'LineWidth', 1.6, 'DisplayName', 'normal');   % dotted: dashed is AL
-set(gca, 'YScale', 'log');  xlabel(sprintf('\\DeltaG / \\sigma  (\\DeltaT = %g s)', deltaT));  ylabel('densidad');  leyenda(gca);
-if guardar, guardar_fig('deltaG_distribucion'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
-
-%% 11. Distribución de ΔG en µS
-t0 = tic;  fprintf('%s... ', '11. Distribución de ΔG en µS');
-figure('Name', 'Distribucion de Delta G sin normalizar');  hold on
-D = cell(1, n);
-for i = find(hay_G)
-    L = round(deltaT / E(i).paso);
-    D{i} = rmmissing(E(i).G(L + 1:end) - E(i).G(1:end - L));
-end
-lim = max(cellfun(@(d) prctile(abs([d; 0]), 99.9), D(hay_G)));   % common bins: 99.9 % of |dG| of every trial
-bordes_dG = linspace(-lim, lim, 81);
-for i = find(hay_G)
-    histogram(D{i}, bordes_dG, 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
-              'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, ...
-              'DisplayName', sprintf('%s (asimetría %.2f; σ = %.3g µS)', et{i}, skewness(D{i}, 0), std(D{i})));
-end
-set(gca, 'YScale', 'log');  xlabel(sprintf('\\DeltaG [\\muS]  (\\DeltaT = %g s)', deltaT));  ylabel('densidad [1/\muS]');  leyenda(gca);
-if guardar, guardar_fig('deltaG_distribucion_uS'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
-
-%% 12. G mediana por clase de V media (ρ de Spearman)
-t0 = tic;  fprintf('%s... ', '12. G mediana por clase de V media');
-suav_vg = 15;                                       % smoothing of V and G for this figure [s]
-figure('Name', 'G vs V media');  hold on
-bordes = linspace(0, max(vertcat(E.V)), 26);
-for i = find(hay_G)
-    v = movmean(E(i).V, suav_vg, 'omitnan', 'SamplePoints', E(i).t);
-    g = movmean(E(i).G_cuadro, suav_vg, 'omitnan', 'SamplePoints', E(i).t);
-    ok = isfinite(v) & isfinite(E(i).G_cuadro) & g > G_minimo;
-    v = v(ok);  g = g(ok);  k = discretize(v, bordes);  q = ~isnan(k);
-    mediana = accumarray(k(q), g(q), [numel(bordes) - 1, 1], @median, NaN);
-    mediana(accumarray(k(q), 1, [numel(bordes) - 1, 1]) < 30) = NaN;      % at least 30 frames (10 s) per class
-    plot(bordes(1:end - 1) + diff(bordes) / 2, mediana, 'LineStyle', lineas{i}, 'Marker', marcas{i}, 'Color', colores(i, :), 'MarkerFaceColor', colores(i, :), ...
-         'MarkerSize', 4, 'Tag', nombres{i}, 'DisplayName', sprintf('%s (ρ = %.2f)', et{i}, corr(v, g, 'Type', 'Spearman')));
-end
-xline(umbral, '--', 'umbral', 'HandleVisibility', 'off');
-set(gca, 'YScale', 'log');  xlabel('V_{media} [mm/s]');  ylabel('G [\muS]');  leyenda(gca);
-if guardar, guardar_fig('G_vs_velocidad'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
+% %% 10. Distribución de ΔG / σ para un ΔT (colas comparadas con la normal)
+% t0 = tic;  fprintf('%s... ', '10. Distribución de ΔG / σ para un ΔT');
+% figure('Name', 'Distribucion de Delta G');  hold on
+% z = -10:0.25:10;
+% for i = find(hay_G)
+%     L = round(deltaT / E(i).paso);
+%     d = rmmissing(E(i).G(L + 1:end) - E(i).G(1:end - L));
+%     histogram((d - mean(d)) / std(d), z, 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
+%               'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, ...
+%               'DisplayName', sprintf('%s (asimetría %.2f; σ = %.3g µS)', et{i}, skewness(d, 0), std(d)));
+% end
+% plot(z, normpdf(z), 'k:', 'LineWidth', 1.6, 'DisplayName', 'normal');   % dotted: dashed is AL
+% set(gca, 'YScale', 'log');  xlabel(sprintf('\\DeltaG / \\sigma  (\\DeltaT = %g s)', deltaT));  ylabel('densidad');  leyenda(gca);
+% if guardar, guardar_fig('deltaG_distribucion'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
+% 
+% %% 11. Distribución de ΔG en µS
+% t0 = tic;  fprintf('%s... ', '11. Distribución de ΔG en µS');
+% figure('Name', 'Distribucion de Delta G sin normalizar');  hold on
+% D = cell(1, n);
+% for i = find(hay_G)
+%     L = round(deltaT / E(i).paso);
+%     D{i} = rmmissing(E(i).G(L + 1:end) - E(i).G(1:end - L));
+% end
+% lim = max(cellfun(@(d) prctile(abs([d; 0]), 99.9), D(hay_G)));   % common bins: 99.9 % of |dG| of every trial
+% bordes_dG = linspace(-lim, lim, 81);
+% for i = find(hay_G)
+%     histogram(D{i}, bordes_dG, 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
+%               'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, ...
+%               'DisplayName', sprintf('%s (asimetría %.2f; σ = %.3g µS)', et{i}, skewness(D{i}, 0), std(D{i})));
+% end
+% set(gca, 'YScale', 'log');  xlabel(sprintf('\\DeltaG [\\muS]  (\\DeltaT = %g s)', deltaT));  ylabel('densidad [1/\muS]');  leyenda(gca);
+% if guardar, guardar_fig('deltaG_distribucion_uS'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
+% 
+% %% 12. G mediana por clase de V media (ρ de Spearman)
+% t0 = tic;  fprintf('%s... ', '12. G mediana por clase de V media');
+% suav_vg = 15;                                       % smoothing of V and G for this figure [s]
+% figure('Name', 'G vs V media');  hold on
+% bordes = linspace(0, max(vertcat(E.V)), 26);
+% for i = find(hay_G)
+%     v = movmean(E(i).V, suav_vg, 'omitnan', 'SamplePoints', E(i).t);
+%     g = movmean(E(i).G_cuadro, suav_vg, 'omitnan', 'SamplePoints', E(i).t);
+%     ok = isfinite(v) & isfinite(E(i).G_cuadro) & g > G_minimo;
+%     v = v(ok);  g = g(ok);  k = discretize(v, bordes);  q = ~isnan(k);
+%     mediana = accumarray(k(q), g(q), [numel(bordes) - 1, 1], @median, NaN);
+%     mediana(accumarray(k(q), 1, [numel(bordes) - 1, 1]) < 30) = NaN;      % at least 30 frames (10 s) per class
+%     plot(bordes(1:end - 1) + diff(bordes) / 2, mediana, 'LineStyle', lineas{i}, 'Marker', marcas{i}, 'Color', colores(i, :), 'MarkerFaceColor', colores(i, :), ...
+%          'MarkerSize', 4, 'Tag', nombres{i}, 'DisplayName', sprintf('%s (ρ = %.2f)', et{i}, corr(v, g, 'Type', 'Spearman')));
+% end
+% xline(umbral, '--', 'umbral', 'HandleVisibility', 'off');
+% set(gca, 'YScale', 'log');  xlabel('V_{media} [mm/s]');  ylabel('G [\muS]');  leyenda(gca);
+% if guardar, guardar_fig('G_vs_velocidad'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 13. Histograma 2D de V media vs G (un panel por ensayo, misma escala de color)
 t0 = tic;  fprintf('%s... ', '13. Histograma 2D de V media vs G');
@@ -322,7 +423,7 @@ for i = find(hay_G)
                'Normalization', 'probability', 'EdgeColor', 'none');
     set(gca, 'XScale', 'log', 'ColorScale', 'log');
     yline(umbral, '--', 'umbral');
-    title({et{i}, sprintf('%s · ρ = %.2f', E(i).modo_nombre, corr(E(i).G_cuadro(ok), E(i).V(ok), 'Type', 'Spearman'))}, ...
+    title({et{i}}, ...
           'Interpreter', 'none', 'Color', colores(i, :));
 end
 h = findobj(gcf, 'Type', 'histogram2');  valores = cat(3, h.Values);

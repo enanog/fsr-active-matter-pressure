@@ -16,6 +16,33 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-20 — `software/matlab`: energía cinética (fig. 4b)
+
+- `cargar_datos`: `E.v2` (media de v² [mm²/s²]), `E.w2` (media de ω² [rad²/s²]) y `E.N` (robots por cuadro) por cuadro,
+  con todos los robots (como V). `figuras.m` relee E si falta `w2`.
+- **Fig. 4b `energia_cinetica`:** 3 paneles (traslación, rotación, total) con ejes x e y compartidos; E_tras = N·⟨½v²⟩,
+  E_rot = N·⟨½kR²ω²⟩ (König), media móvil `suav`. Ajustes: `masa_g` (0 = por unidad de masa, mm²/s² = µJ/kg; > 0 → nJ),
+  `diametro_mm` = 33, `k_inercia` = 0,5 (disco), `energia_log`. Consola: medias y E_rot/E_tras por ensayo.
+- **Fig. 4c `energia_distribucion`:** histograma (probability, stairs) de la energía por cuadro sin suavizar, 3 paneles
+  (tras/rot/total), 60 clases log comunes (p0,1–p99,9 de todos los valores; con los 10 ensayos 0,024–246 µJ/kg, 4 décadas),
+  ejes compartidos. `energia_normalizada` → E/⟨E⟩ por ensayo y componente (solo forma; archivo `_normalizada`).
+  `Ec_tras`/`Ec_rot` se calculan en la sección Datos (4b y 4c usan los mismos). Consola: mediana [p10 p90].
+  Esperado (µJ/kg, Python): 24/09 tras 17,1 [1,35 59,2], rot 58,4 [17,1 112]; 30/10 16:00 tras 0,66 [0,07 31,4]
+  (bimodal: atasco + flujo); 12/11 tras 6,55 [0,75 24,4]. Ancho p10–p90: tras 1,0–1,6 décadas, rot 0,5–1,0 (salvo 30/10 16:00).
+- 4c con `energia_dist_juntas = true` (por defecto): tras, rot y total en un solo eje; color = ensayo, trazo = componente
+  (tras `:`, rot `--`, total `-`; el trazo ya no marca el modo, la familia de color sí). Leyenda: una entrada por ensayo
+  (la del total) + 3 claves de trazo en negro. Archivo `energia_distribucion_juntas[_normalizada]`; `false` = 3 paneles.
+- Figs. 5 y 13 (ocupación, histograma 2D): se probó una figura por ensayo (`figuras_aparte`); el usuario pidió volver a
+  los paneles en una sola figura ⇒ quedan como antes.
+- Verificado: parser de Octave 8.4 en ambos .m; no probado en MATLAB. Valores esperados (cálculo independiente en Python,
+  0–60 min, µJ/kg): E_tras / E_rot = 24,6/62,4 (24/09), 21,8/59,1, 23,2/67,8, 27,1/70,2 (30/10 11:00), 17,9/45,2 (12:00),
+  19,0/56,2 (14:30), 8,3/21,7 (16:00), 19,5/49,1 (06/11), 10,1/26,8 (12/11), 12,3/34,1 (16/11). E_rot/E_tras = 2,5–3,0.
+- **Validación para comparar (mismo cálculo):** AH vs AL sin diferencia significativa (test de permutación exacto, 6 vs 4:
+  E_tras p = 0,15, % atasco p = 0,71) y confundido con la fecha: ½⟨v²⟩ de los primeros 10 min baja de 1,4–1,7 (sept.) a
+  0,44–0,78 mm²/s² (nov.). En 24/09 y 25/09 12:30 ½⟨v²⟩ cae 60–80 % entre min 0–10 y 50–60. ρ Spearman (10 s) de G con
+  V: −0,03 a −0,60 (más fuerte con atascos); robots en la capa de la pared ≈ 12,0–12,6 en todos (saturada, no explica G);
+  retardo E_tras→G sin signo consistente (−60 a +21 s).
+
 ## 2026-11-16 — `matlab`: nombres legibles en leyendas, asimetría y σ de ΔG
 
 - `cargar_datos`: `E.etiqueta` = `etiquetas(codigos)` → `'30/10 11:00 · AH'` (año y «N robots» solo si difieren entre los
