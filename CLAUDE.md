@@ -16,6 +16,51 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-16 — `matlab`: nombres legibles en leyendas, asimetría y σ de ΔG
+
+- `cargar_datos`: `E.etiqueta` = `etiquetas(codigos)` → `'30/10 11:00 · AH'` (año y «N robots» solo si difieren entre los
+  ensayos cargados; códigos sin el patrón quedan igual). `leyenda(ax)` reconoce el ensayo por el `Tag` de la curva
+  (= código) + DisplayName como respaldo. `figuras.m`: `et = {E.etiqueta}` en leyendas y títulos de paneles, `'Tag',
+  nombres{i}` en todas las curvas de ensayo; `nombres` (códigos) sigue en archivos y consola. E se relee si falta `etiqueta`.
+- Figs. 8b, 10 y 11: leyenda con «asimetría x; σ = y µS» (σ de ΔG en µS; en 8b se calcula antes de normalizar).
+- Corregido el eje Y de 8b: `ylabel('densidad [1/\\muS]')` (doble barra en texto sin sprintf) mostraba «1/\muS».
+- Primera corrida del usuario (6 ensayos): ΔT* = 6,20 s; asimetrías −3,32 / 0,05 / 1,43 (AH 30/10 11:00, 16:00, 06/11) y
+  0,13 / −1,64 / 0,48 (AL 30/10 12:00, 14:30, 12/11) ⇒ media de |·| ≈ 1,18, dominada por 30/10 11:00 y con signos mezclados.
+
+## 2026-11-16 — `matlab`: carga recortada a 60 min desde el fin del LED
+
+- **Pedido:** cargar solo hasta 60 min después de la última señal del LED; el video ya empieza ahí.
+- `cargar_datos`: video `0 ≤ t_s ≤ duracion_s` (antes `t_s − min(t_s)`); sensor recortado (no solo NaN) a
+  `t ∈ [desfase, desfase + duracion_s]`, grilla igual que FSRScope (arranca en t(1), se recorta después de interpolar);
+  máscara de FSRScope (t_start/t_end/exclusiones/saturación) dentro de ese tramo. `led_fin` = fin del **último** pulso
+  (antes el primero; aviso si hay > 1). Imprime por ensayo «video X min y sensor Y min desde el fin del LED».
+- Revisado: R_ del 24/09, 30/10 11:00, 06/11, 12/11 y 16/11 tienen un solo pulso de 101 filas y ≥ 64,7 min tras el LED.
+  t0 = primera fila del log (incluidas filas SYNC), igual en FSRScope (`log_io.load_log`); por eso el LED del 06/11 da
+  120,37 s (no 30,65 como se anotó el 12/11; la sincronía no cambia porque t y desfase se corren juntos).
+- `figuras.m`: el commit anterior había subido una copia vieja (sin la fig. 8b y con `guardar = false`); restaurado con la
+  8b y `guardar = true` del usuario. Verificado por md5 contra el archivo de la PC. No probado en MATLAB.
+
+## 2026-11-16 — `software/matlab/figuras.m`: modos diferenciados y ΔG con el ΔT de máxima asimetría
+
+- **Modos:** `cargar_datos` agrega `E.modo` (`AH`/`HO`/`AL`/`otro`, de `modo_de(código)`; QR/QL → AH, R → AL) y
+  `E.modo_nombre`, y ordena los ensayos por modo (AH, HO, AL, otro) y luego por fecha. `cargar_datos('estilos')` →
+  `[colores, lineas, marcas] = estilos(E, linea_por_modo)`: familia de color por modo (AH azules, HO verdes, AL rojos/
+  naranjas, otro grises; oscuro → claro en orden de fecha), trazo `-`/`-.`/`--`/`:` y marcador o/^/s/d.
+  `cargar_datos('leyenda')` → `leyenda(ax)`: leyenda agrupada con un encabezado sin símbolo por modo (líneas NaN con
+  Tag `cabecera_modo`); si hay un solo modo, leyenda normal. Helpers en `cargar_datos` (no funciones locales del
+  script) para que anden con Ctrl+Enter, como `exportar`.
+- `figuras.m`: `linea_por_modo` en Ajustes; todas las curvas con `LineStyle`; `legend` → `leyenda(gca)`; figs 5 y 13
+  con una fila por modo (`tiledlayout(filas, columnas)`, `flow` si un modo tiene > 4 ensayos) y títulos con el modo en el
+  color del ensayo; normal de la fig. 10 punteada (`k:`; el cortado es AL). E se relee si le falta `modo`.
+- **Fig. 8b (nueva) — histograma de ΔG con ventana fija de máxima asimetría:** las curvas asimetría(ΔG) vs ΔT (0,05–15 s,
+  paso 0,05) se calculan una vez en la sección Datos (`asim.s`, filas = ensayos; clave = códigos + `duracion_min`) y las
+  usan 8b y 9 (9 ya no recalcula). ΔT* = argmax de la media sobre ensayos de |asimetría| dentro de `rango_deltaT_asim`
+  (|·| para que asimetrías de distinto signo no se cancelen; la asimetría de cada ensayo no depende de su escala en µS).
+  `deltaT_asim = []` → ΔT*; un número lo fija a mano. `normalizar_dG_asim`: false = ΔG en µS, true = (ΔG − media)/σ + normal.
+  Clases comunes ±p99,9 de |ΔG|; leyenda con la asimetría de cada ensayo a ΔT*. La fig. 9 marca ΔT* con `xline`.
+  Guardado `deltaG_histograma_asimetria_max`.
+- Solo revisión de código: **no probado en MATLAB** (el entorno de Claude no lo tiene).
+
 ## 2026-11-16 — Menos carpetas en todo el repo
 
 - Borrado: `datos/video/config/` y `datos/resumen_ensayos.csv` (Velocidades), `informes/figuras/matlab/`,

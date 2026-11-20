@@ -1,0 +1,43 @@
+{
+  "video": "C:/Users/dylan/Desktop/Proyecto_PresionRecintoCircular/datos/video/recortados/VC_20261116_1100_22AL_60.mp4",
+  "roi": {
+    "x": 0,
+    "y": 0,
+    "w": 620,
+    "h": 634
+  },
+  "cuadros": [
+    0,
+    11669
+  ],
+  "cuadros_por_segundo_real": 3.0,
+  "convencion": "origen en el centro del recinto en cada cuadro; x a la derecha, y hacia arriba; escena vista por el observador (ver 'orientacion'); ángulos positivos antihorarios; theta = 0 en el primer cuadro del tramo",
+  "recinto": {
+    "metodo": "automático",
+    "d_int_mm": 185.0,
+    "d_ext_mm": 195.0,
+    "muestras": 779,
+    "muestras_validas": 779,
+    "paso_cuadros": 15,
+    "cx_px": 308.52076207842117,
+    "cy_px": 325.2152599417143,
+    "r_int_px": 293.80738021614695,
+    "mm_por_px": 0.3148321186892923,
+    "r_ext_sobre_r_int": 1.0530633013771238,
+    "esperado": 1.054054054054054,
+    "residuo_px": 1.8741497279815271,
+    "cobertura": 0.9791666666666666,
+    "desplazamiento_x_mm": 3.573340821289166,
+    "desplazamiento_y_mm": 5.147227899325215,
+    "variacion_escala_pct": 0.7549580010011381
+  },
+  "origen": "recinto",
+  "fuente_escala": "recinto",
+  "mm_por_px_mediana": 0.3148236272580578,
+  "kappa_perspectiva_aplicado": 1.0,
+  "kappa_perspectiva_medido": 0.9727052052338756,
+  "r_contacto_sobre_r_int": 0.8446769043700885,
+  "diametro_robot_mm": 33.0,
+  "orientacion": "rot180",
+  "orientacion_descripcion": "imagen rotada 180° (vista del observador)"
+}
