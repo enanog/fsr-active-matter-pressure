@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
                                QInputDialog, QLabel, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from vidfetch.core.analysis import FrameProcessor
-from vidfetch.core.detection import METHOD_DIRECT, METHOD_RING, TRACKPY_ERROR, DetectionParams
+from vidfetch.core.detection import METHOD_DIRECT, METHOD_EDGE, METHOD_RING, TRACKPY_ERROR, DetectionParams
 from vidfetch.core.models import Roi, TrimRange
 from vidfetch.core.processing import OPERATIONS, Pipeline
 from vidfetch.core.video_io import VideoInfo
@@ -299,6 +299,10 @@ class DetectionPanel(QGroupBox):
         d = DetectionParams()
 
         self.cb_method = QComboBox()
+        self.cb_method.addItem("Borde de la pila (recomendado)", METHOD_EDGE)
+        self.cb_method.setItemData(0, "Centro = centro del borde brillante de la pila; funciona con pilas plateadas y "
+                                      "doradas y con los LEDs encendidos. Más lento (~0,15 s por cuadro a 640 px).",
+                                   Qt.ItemDataRole.ToolTipRole)
         self.cb_method.addItem("Filtro de anillo (robots)", METHOD_RING)
         self.cb_method.addItem("Trackpy directo", METHOD_DIRECT)
         self.sp_rin = _spin(1, 2000, d.r_in, 1, 1, " px")
@@ -312,6 +316,9 @@ class DetectionPanel(QGroupBox):
         self.chk_validate.setChecked(d.validate_ring)
         self.sp_cov = _spin(0.0, 1.0, d.min_coverage, 0.02, 2)
         self.sp_pix_dark = _spin(1, 255, d.ring_pixel_dark, 5)
+        self.sp_edge = _spin(1, 255, d.edge_min, 1, 1)
+        self.sp_edge.setToolTip("Contraste mínimo del borde de la pila (niveles de gris). Robots: 24–100; "
+                                "huecos entre robots: < 11. La cobertura mostrada es contraste / (1,6 × este valor).")
 
         self.chk_link = QCheckBox("Vincular trayectorias (tp.link)")
         self.chk_link.setChecked(True)
@@ -346,6 +353,7 @@ class DetectionPanel(QGroupBox):
         f.addRow(self.chk_validate)
         f.addRow("Cobertura mínima", self.sp_cov)
         f.addRow("Gris máx. píxel anillo", self.sp_pix_dark)
+        f.addRow("Contraste mín. borde pila", self.sp_edge)
         f.addRow(self.chk_link)
         f.addRow("Radio de búsqueda", self.sp_search)
         f.addRow("Memoria", self.sp_memory)
@@ -354,7 +362,7 @@ class DetectionPanel(QGroupBox):
         f.addRow(self.btn_csv)
 
         for w in (self.sp_rin, self.sp_rout, self.sp_scale, self.sp_ring_gray, self.sp_sep,
-                  self.sp_minmass, self.sp_cov, self.sp_pix_dark):
+                  self.sp_minmass, self.sp_cov, self.sp_pix_dark, self.sp_edge):
             w.valueChanged.connect(self.changed)
         for w in (self.chk_invert, self.chk_validate):
             w.toggled.connect(self.changed)
@@ -377,11 +385,14 @@ class DetectionPanel(QGroupBox):
         self.changed.emit()
 
     def _update_enabled(self) -> None:
-        ring = self.cb_method.currentData() == METHOD_RING
+        method = self.cb_method.currentData()
+        ring, edge = method == METHOD_RING, method == METHOD_EDGE
         self.sp_ring_gray.setEnabled(ring)
-        self.chk_invert.setEnabled(not ring)
-        for w in (self.sp_cov, self.sp_pix_dark):
-            w.setEnabled(self.chk_validate.isChecked())
+        self.chk_invert.setEnabled(method == METHOD_DIRECT)
+        self.sp_minmass.setEnabled(not edge)
+        self.sp_cov.setEnabled(self.chk_validate.isChecked())
+        self.sp_pix_dark.setEnabled(self.chk_validate.isChecked() and not edge)
+        self.sp_edge.setEnabled(edge)
         for w in (self.sp_search, self.sp_memory, self.sp_min_len):
             w.setEnabled(self.chk_link.isChecked())
         self.changed.emit()
@@ -394,7 +405,7 @@ class DetectionPanel(QGroupBox):
             ring_gray_max=self.sp_ring_gray.value(), separation=self.sp_sep.value(),
             minmass=self.sp_minmass.value(), invert=self.chk_invert.isChecked(),
             validate_ring=self.chk_validate.isChecked(), min_coverage=self.sp_cov.value(),
-            ring_pixel_dark=self.sp_pix_dark.value(),
+            ring_pixel_dark=self.sp_pix_dark.value(), edge_min=self.sp_edge.value(),
         )
 
     def link_params(self) -> Optional[tuple[float, int, int]]:

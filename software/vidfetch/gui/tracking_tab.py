@@ -538,7 +538,7 @@ class TrackingTab(QWidget):
                 parts.append(f"{r.n_predicted} pred.")
             if r.n_missing:
                 parts.append(f"{r.n_missing} perdidos")
-            ids = " ".join(f"#{k}" for k in r.objects.split())
+            ids = " ".join(f"#{int(k) + 1}" for k in r.objects.split())
             it = QListWidgetItem(f"cuadro {r.frame} · t={r.frame / s.fps:.2f} s · {', '.join(parts)} · {ids}")
             it.setData(Qt.ItemDataRole.UserRole, int(r.frame))
             it.setForeground(red if r.severity == "error" else orange)
@@ -568,7 +568,7 @@ class TrackingTab(QWidget):
             cur = self.cb_export_robot.currentData()
             self.cb_export_robot.clear()
             for k in range(n):
-                self.cb_export_robot.addItem(f"#{k}", k)
+                self.cb_export_robot.addItem(f"#{k + 1}", k)
             if cur is not None and cur < n:
                 self.cb_export_robot.setCurrentIndex(int(cur))
         if self.cb_robot.count() == n + 1:
@@ -577,7 +577,7 @@ class TrackingTab(QWidget):
         self.cb_robot.clear()
         self.cb_robot.addItem("— (clic sobre un robot)", None)
         for k in range(n):
-            self.cb_robot.addItem(f"#{k}", k)
+            self.cb_robot.addItem(f"#{k + 1}", k)
         self.cb_robot.blockSignals(False)
         self._select(None)
 
@@ -604,7 +604,7 @@ class TrackingTab(QWidget):
         elif self._selected is None:
             self.lbl_hint.setText("1) Hacé clic sobre un robot (o elegilo en la lista) para seleccionarlo.")
         else:
-            self.lbl_hint.setText(f"2) Robot <b>#{self._selected}</b> seleccionado: hacé clic en su centro "
+            self.lbl_hint.setText(f"2) Robot <b>#{self._selected + 1}</b> seleccionado: hacé clic en su centro "
                                   "real. El seguimiento continúa desde ese punto. Esc cancela.")
 
     def _orientation(self) -> str:
@@ -732,7 +732,7 @@ class TrackingTab(QWidget):
             p = (int(round(float(px[0]))), int(round(float(py[0]))))
             for col, th in (((0, 0, 0), 4), ((255, 0, 255), 2)):
                 cv2.drawMarker(img, p, col, cv2.MARKER_CROSS, size, th)
-            cv2.putText(img, str(k), (p[0] + 4, p[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1,
+            cv2.putText(img, str(k + 1), (p[0] + 4, p[1] - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1,
                         cv2.LINE_AA)
         return img
 

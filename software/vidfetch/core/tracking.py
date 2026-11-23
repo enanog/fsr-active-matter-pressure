@@ -79,6 +79,9 @@ class TrackerParams:
     interpolate: bool = True
     persistence_window: int = 20      # frames used to confirm a new track is a real object
     persistence_min: float = 0.75     # min fraction of the window where the chain finds a candidate
+    max_extrapolation: int = 3        # frames of constant-velocity extrapolation (robots stop abruptly on contact)
+    reacquire_after: int = 5          # a track missing longer than this is re-seeded from leftover candidates
+    reacquire_coverage: float = 0.55  # min ring coverage of a candidate used to re-seed a lost track
 
 
 # --------------------------------------------------------------------------- candidates
@@ -225,7 +228,7 @@ class TrackingResult:
         F, N = self.x.shape
         df = pd.DataFrame({
             "frame": np.repeat(self.frames, N),
-            "particle": np.tile(np.arange(N), F),
+            "particle": np.tile(np.arange(1, N + 1), F),      # robots numbered from 1 in exports
             "x_px": self.x.ravel() - origin[0], "y_px": self.y.ravel() - origin[1],
             "status_code": self.status.ravel().astype(int),
             "mass": self.mass.ravel(), "ring_cov": self.cov.ravel(),
@@ -247,9 +250,9 @@ class _State:
         self.v = np.zeros((n, 2))
         self.has_v = np.zeros(n, bool)
 
-    def predict(self, frame: int, max_gap: int) -> tuple[np.ndarray, np.ndarray]:
+    def predict(self, frame: int, max_extrap: int) -> tuple[np.ndarray, np.ndarray]:
         dt = frame - self.f
-        eff = np.sign(dt) * np.minimum(np.abs(dt), max_gap)  # damp long extrapolations
+        eff = np.sign(dt) * np.minimum(np.abs(dt), max_extrap)  # damp long extrapolations
         return self.xy + self.v * eff[:, None], np.abs(dt)
 
     def observe(self, k: int, frame: int, xy: np.ndarray, alpha: float, reset_v: bool = False) -> None:
@@ -317,29 +320,35 @@ class _Persistence:
         return hits / steps if steps else np.ones(len(js))
 
 
-def _strict_mask(cands: CandidateSet, i: int, p: TrackerParams) -> np.ndarray:
+def _birth_mask(cands: CandidateSet, i: int, p: TrackerParams) -> np.ndarray:
+    """Candidates allowed to start a track: strict ones, plus relaxed ones (robots against the wall or with
+    their LEDs on lose part of the dark ring) down to `reacquire_coverage`."""
     cov = np.nan_to_num(cands.cov[i], nan=1.0)
-    return (cov >= p.strict_coverage) & (cands.mass[i] >= p.min_mass)
+    return (cov >= min(p.strict_coverage, p.reacquire_coverage)) & (cands.mass[i] >= p.min_mass)
 
 
 def _confirmed(cands: CandidateSet, i: int, p: TrackerParams, pers: _Persistence,
                direction: int = 1) -> tuple[np.ndarray, np.ndarray]:
-    """Strict candidates at row i that persist; returned sorted by (persistence, score) desc."""
-    js = np.flatnonzero(_strict_mask(cands, i, p))
+    """Birth candidates at row i that persist; returned sorted by score (mass x coverage) desc.
+
+    Ranking by score, not by persistence: a gap between jammed robots persists as long as a robot, but its
+    matched-filter mass is several times lower (floor instead of battery inside the ring).
+    """
+    js = np.flatnonzero(_birth_mask(cands, i, p))
     if len(js) == 0:
         return js, np.zeros(0)
     pr = pers(i, js, direction)
     keep = pr >= p.persistence_min
     js, pr = js[keep], pr[keep]
     sc = _score(cands.mass[i][js], cands.cov[i][js])
-    order = np.lexsort((-sc, -pr))
+    order = np.argsort(-sc, kind="stable")
     return js[order], pr[order]
 
 
 def _choose_init_row(cands: CandidateSet, p: TrackerParams, pers: _Persistence) -> int:
     best_i, best_n = 0, -1
     for i in range(len(cands)):
-        if _strict_mask(cands, i, p).sum() < min(p.n_objects, best_n + 1):
+        if _birth_mask(cands, i, p).sum() < min(p.n_objects, best_n + 1):
             continue  # cannot beat the current best; skip the persistence cost
         js, _ = _confirmed(cands, i, p, pers)
         n = len(_non_overlapping(cands.xy[i][js], p.min_separation, p.n_objects))
@@ -408,7 +417,7 @@ def track(cands: CandidateSet, p: TrackerParams,
             done[k] = True
 
         # 2) adaptive ladder over the remaining tracks
-        pred, gap = st.predict(fr, p.max_gap)
+        pred, gap = st.predict(fr, max(0, p.max_extrapolation))
         base_gate = np.minimum(p.search_range + p.gap_growth * np.maximum(gap - 1, 0), 2 * p.search_range)
         for cov_thr, gate_factor, status in levels:
             ks = np.flatnonzero(st.has & ~done)
@@ -434,6 +443,30 @@ def track(cands: CandidateSet, p: TrackerParams,
                 M[i, k], C[i, k], CI[i, k] = mass[j], cands.cov[i][j], j
                 used[j] = True
                 done[k] = True
+
+        # 3b) re-acquisition: with N fixed, a persistent leftover candidate far from every active track can
+        #     only be a lost robot. Matched to the last observed positions, gate growing with the gap length.
+        lost = np.flatnonzero(st.has & ~done & (gap > max(1, p.reacquire_after)))
+        if len(lost):
+            js = np.flatnonzero(~used & (cov >= p.reacquire_coverage))
+            if len(js):
+                active = np.flatnonzero(st.has & ~np.isin(np.arange(N), lost))
+                ref = np.vstack([np.where(done[active, None], np.column_stack([X[i, active], Y[i, active]]),
+                                          pred[active]), xy[used]])
+                if len(ref):
+                    far = cKDTree(ref).query(xy[js])[0] >= p.min_separation
+                    js = js[far]
+                if len(js):
+                    js = js[pers(i, js, direction) >= p.persistence_min]
+                gates = p.search_range + p.gap_growth * gap[lost].astype(float)
+                for a, b in _gated_assign(st.xy[lost], gates, xy[js]):
+                    k, j = lost[a], js[b]
+                    st.observe(k, fr, xy[j], p.velocity_alpha, reset_v=True)
+                    X[i, k], Y[i, k] = xy[j, 0], xy[j, 1]
+                    S[i, k] = Status.DETECTED if cov[j] >= p.strict_coverage else Status.RELAXED
+                    M[i, k], C[i, k], CI[i, k] = mass[j], cands.cov[i][j], j
+                    used[j] = True
+                    done[k] = True
 
         # 4) unmatched tracks keep their prediction (provisional; refined in post-processing)
         for k in np.flatnonzero(st.has & ~done):
@@ -563,7 +596,7 @@ def draw_tracks(img: np.ndarray, xy: np.ndarray, status: np.ndarray, radius: flo
                 tip = (int(round(x + v[0])), int(round(y + v[1])))
                 _outlined_line(out, c, tip, (0, 230, 255), th, arrow=True)
         cv2.circle(out, c, th + 1, col, -1, cv2.LINE_AA)
-        txt = str(k)
+        txt = str(k + 1)          # robots are numbered from 1 for people (index k internally)
         (tw, _), _ = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, fs, th)
         org = (c[0] - tw // 2, c[1] + int(r * 0.6))
         cv2.putText(out, txt, org, cv2.FONT_HERSHEY_SIMPLEX, fs, (0, 0, 0), th + 3, cv2.LINE_AA)
@@ -687,7 +720,8 @@ class TrackingSession:
                                "escena vista por el observador (ver 'orientacion'); ángulos positivos "
                                "antihorarios; "
                                "theta = 0 en el primer cuadro del tramo"),
-                "recinto": self.arena.stats() if self.arena is not None else None}
+                "recinto": self.arena.stats() if self.arena is not None else None,
+                "numeracion_robots": "columna particle: robots numerados desde 1"}
         if kin is not None:
             info.update({"origen": kin.origin, "fuente_escala": kin.scale_source,
                          "mm_por_px_mediana": kin.mm_per_px, "kappa_perspectiva_aplicado": kin.kappa,
@@ -776,7 +810,8 @@ class TrackingSession:
         cdf["frame"] = cdf["frame"].astype(np.int64)
         if sig is not None and len(sig) != len(cdf):
             sig = None  # inconsistent file: drop rotation rather than misalign it
-        params = meta["params"]
+        known_p = set(TrackerParams.__dataclass_fields__)
+        params = {k: v for k, v in meta["params"].items() if k in known_p}   # older/newer files load too
         params["relax_coverages"] = tuple(params["relax_coverages"])
         kp = meta.get("kinematics")
         if kp:
@@ -784,7 +819,8 @@ class TrackingSession:
             kp = {k: v for k, v in kp.items() if k in known}
         session = TrackingSession(
             src_path=meta["src_path"], roi=Roi(**meta["roi"]), trim=TrimRange(**meta["trim"]),
-            fps=float(meta["fps"]), detection=det.DetectionParams(**meta["detection"]),
+            fps=float(meta["fps"]), detection=det.DetectionParams(**{k: v for k, v in meta["detection"].items()
+                                             if k in det.DetectionParams.__dataclass_fields__}),
             candidates=CandidateSet.from_dataframe(cdf, frames, sig), params=TrackerParams(**params),
             anchors={(int(f), int(k)): (float(x), float(y)) for f, k, x, y in anchors_arr},
             kin_params=km.KinematicsParams(**kp) if kp else None,

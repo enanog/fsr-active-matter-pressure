@@ -16,6 +16,57 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-20 — `software/matlab/figuras.m`: un solo archivo en bloques + G en atasco vs libre (figs. 14–15)
+
+- **Pedido final del usuario (tras varias vueltas en el día):** todo en un solo archivo, bien dividido: qué es cada
+  ajuste y dónde empieza cada gráfico. Se descartaron `parametros.m` y `atascos.m` (quedaron en la PC: el usuario los
+  borra) y las figs. de prueba 14a/14b/16–18, banda muerta, ΔV y umbral por ensayo.
+- `figuras.m`: bloques con secciones-título `%% ===== AJUSTES / DATOS / VELOCIDAD Y ENERGÍA (1–5) / G (6–13) /
+  ATASCO VS LIBRE (14–15) =====`. AJUSTES agrupado por figura (General, Guardar, Velocidad, Energía, G piso, ΔG,
+  Histograma 2D, Atasco vs libre, Aspecto). Cada figura tiene una línea `% Usa:` con los ajustes que la afectan.
+  Figuras 1–13 sin cambios de código.
+- **Atasco vs libre** (Colantuono et al. PRE 2026): sección de clasificación (`clas = estados(...)`) + fig. 14
+  (P(G_b ≥ g), P(G_c ≥ g), Q-Q) + fig. 15 (histograma de ΔG, ΔT = `deltaT_estado`, asimetría en la leyenda). Filas:
+  umbral manual (`umbral`) y estimado. Usa `E.G` ya con el piso de Datos. Variable `clas` (no `C`, que usa la fig. 13).
+- `cargar_datos`: `estados(E, umbral, k_sigma, suav_s, dur_min_s)` e `incrementos(x, L, est, tramo, estado)`.
+  Vs = movmean(V, `suav_estado` = 5 s); atasco Vs < u, libre Vs > u; tramos < `dur_min_estado` = 5 s fuera (≈ τ_th);
+  muestra del sensor → cuadro más cercano (≤ 1 cuadro); ΔG solo dentro de un tramo.
+- **Umbral estimado, uno para todos los ensayos (pedido del usuario):** 10^(moda − `k_umbral`·σ) de log10(Vs) de todos los
+  ensayos juntos, σ = rms de la mitad sobre la moda (flujo libre). Vs no es bimodal (pico libre + cola baja).
+- Esperado (Python, solo 30/10 11:00, 06/11 16:00, 30/10 12:00, 16/11 11:00 juntos): u = 0,52 mm/s; atasco 9,4 / 13,5 /
+  5,5 / 21,7 %; ⟨G_c⟩/⟨G_b⟩ ×22 / ×1,2 / ×4,4 / ×2,3. Con u = 0,35: atasco 4,5 / 4,1 / 1,3 / 6,0 %. Con 7 ensayos cambia.
+- No probado en MATLAB.
+
+## 2026-11-20 — R_FEEDBACK 10 kΩ confirmado y piso de G en cuentas del ADC (`software/matlab/figuras.m`)
+
+- **Confirmado por el usuario:** todos los registros desde el 30/10 (inclusive) son con **R_FEEDBACK = 10 kΩ** (descartado 3k7).
+  `calibracion.csv`: notas de las 4 filas `20261030_*` y del prefijo `202611` actualizadas (valor 10000 sin cambios).
+  Firmware `fsr_single_readV2.ino`: `R_FEEDBACK = 10000.0f` (antes 1000: la columna G de los R_ ya grabados sigue ×10 alta;
+  MATLAB y FSRScope-MATLAB toman K solo de la lista). K = 3,3e6/(1023·0,7534·10 000) = **0,428 µS/cuenta**.
+- **Diagnóstico de los valores bajos de G:** el firmware promedia N ≈ 482 conversiones por ventana de 50 ms ⇒ el promedio
+  sale en pasos de 1/482 cuenta (8,9e-4 µS) pero no tiene esa resolución: el ADC no baja de 0 y sin contacto ~90–100 % de
+  las conversiones dan 0 (`CLIP0/N`). El piso de cada día (mediana ADC 0,006 / 0,05 / 0,23 / 0,37 cuentas en 30/10 14:30,
+  30/10 12:00, 12/11, 16/11) es ruido/offset del front-end, no conductancia. Aun con medias de 2–5 cuentas ~90 % de las
+  conversiones son 0: la señal es impulsiva (contactos cortos de decenas de cuentas).
+- `figuras.m`: se quitó el offset por ensayo (`offset_G`, `offset_G_frac`, `E.G_crudo`, `E.G_offset`; E se relee si quedó
+  `G_offset` de la versión anterior). `G_minimo` → `G_minimo_cuentas = 1`; `G_piso = G_minimo_cuentas·[E.K]` (por ensayo:
+  0,43 µS con 10 kΩ, 0,086 con 50 kΩ). Por debajo = «sin contacto»: fuera de los ejes log en figs. 6, 7 (P sigue sobre todas
+  las muestras), 13 y las comentadas 8 y 12; consola: piso y % de muestras debajo. Fig. 13: 2.ª línea del título
+  «sin contacto: X % de los cuadros», colores = fracción de los cuadros con contacto, eje G común (desde el piso más bajo).
+  Esperado (log completo, ADC < 1 cuenta): 72 / 70 / 59 / 63 % (30/10 12:00, 14:30, 12/11, 16/11).
+- Fig. 13, colores (pedido del usuario: los paneles con mucho «sin contacto» se veían más llenos y ruidosos): `norm_2d`
+  = `'total'` (por defecto; cuentas / todos los cuadros válidos ⇒ un cuadro pesa igual en todos los paneles, ~1/10 800) o
+  `'contacto'` (cuentas / cuadros con contacto; antes era esto, un cuadro pesaba ×3,4 en un ensayo con 71 % sin contacto).
+  `celdas_2d = [25 20]` (antes 40×30: ~5–10 cuadros por celda, ruido de Poisson 30–45 %), `min_cuadros_2d` (vacía celdas
+  con menos cuadros). Dibujo con `histcounts2` + `histogram2('BinCounts', ...)`; archivo `histograma2d_V_G_<norm_2d>`.
+- Fig. 13: columna **S/C** (sin contacto) a la izquierda del piso más bajo, una celda de ancho + una celda vacía de
+  separación; posición en G nominal (tick «S/C»), solo con `norm_2d = 'total'` (cada panel suma 100 %); línea punteada en
+  el piso de cada ensayo. Fig. 6: línea punteada por piso distinto. Criterio: lo bajo el piso **nunca** se reemplaza por
+  el valor del piso (sesgaría las medias ~0,3 µS con 70 % sin contacto). `G_bajo_piso = 'excluir'` (por defecto, G medido)
+  | `'cero'` (G < piso → 0 en G y G_cuadro; cambia ΔG y su asimetría); se rehace desde `E.G_medido` en cada corrida de
+  Datos; la clave de `asim` incluye `G_bajo_piso` y `G_minimo_cuentas`. El usuario fijó `G_minimo_cuentas = 0.5`.
+- No probado en MATLAB.
+
 ## 2026-11-20 — `software/matlab`: energía cinética (fig. 4b)
 
 - `cargar_datos`: `E.v2` (media de v² [mm²/s²]), `E.w2` (media de ω² [rad²/s²]) y `E.N` (robots por cuadro) por cuadro,
@@ -336,7 +387,7 @@ pocos archivos y fácil de ver.
 - Verificado en Octave: K 0,3568 / 0,6299 / 0,0856 / 4,2817 (24/08, 27/08, 24/09, 30/10 12:00); vacío → FSRScope;
   restaurar → vuelve a la lista y relee.
 - Pendiente: FSRScope/Velocidades/Comparador (Python) no leen la lista.
-- Usuario: 30/10 y los registros actuales usan **3k7 (a confirmar, no lo recuerda)**; el firmware logueó con 1 kΩ ⇒ G ×0,27. Lista: 4 filas 20261030_* = 3700 y prefijo `202611` = 3700 (06/11 en adelante).
+- (Superado el 20/11: confirmado 10 kΩ.) Usuario: 30/10 y los registros actuales usan **3k7 (a confirmar, no lo recuerda)**; el firmware logueó con 1 kΩ ⇒ G ×0,27. Lista: 4 filas 20261030_* = 3700 y prefijo `202611` = 3700 (06/11 en adelante).
 
 ## 2026-11-12 — FSRScope: detección de video partido y desfase automático de las partes
 

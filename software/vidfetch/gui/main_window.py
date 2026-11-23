@@ -396,7 +396,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error al guardar", str(exc))
             return
         f = v.result.frames
-        layout = ("una fila por cuadro; columnas r00_…, r01_… por robot" if wide
+        layout = ("una fila por cuadro; columnas r01_…, r02_… por robot" if wide
                   else "una fila por robot y cuadro (columna 'particle')")
         QMessageBox.information(
             self, "CSV guardado",
@@ -411,7 +411,7 @@ class MainWindow(QMainWindow):
             return
         if self._needs_update(lambda: self.export_robot_csv(k)):
             return
-        path = self._ask_save_path(f"Guardar robot #{k}", f"robot{k:02d}", {"CSV (*.csv)": ".csv"})
+        path = self._ask_save_path(f"Guardar robot #{k + 1}", f"robot{k + 1:02d}", {"CSV (*.csv)": ".csv"})
         if not path:
             return
         try:
@@ -422,11 +422,11 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error al guardar", str(exc))
             return
         QMessageBox.information(self, "Robot exportado",
-                                f"{os.path.basename(path)}\nRobot #{k} · {len(out)} cuadros × {out.shape[1]} columnas\n\n"
+                                f"{os.path.basename(path)}\nRobot #{k + 1} · {len(out)} cuadros × {out.shape[1]} columnas\n\n"
                                 + _axes_note(v.kin, out) + f"\n\nDatos del recinto: {os.path.basename(info_path)}")
 
     def export_all_robots(self) -> None:
-        """One CSV per robot in a folder (<video>_robot00.csv, …)."""
+        """One CSV per robot in a folder (<video>_robot01.csv, …); robots numbered from 1."""
         s, v = self.tab_tracking.session, self.tab_tracking.current_view()
         if s is None or v is None or self._worker is not None:
             return
@@ -440,9 +440,9 @@ class MainWindow(QMainWindow):
         try:
             df = s.to_dataframe(v)
             n = v.result.n_objects
-            width = max(2, len(str(n - 1)))
+            width = max(2, len(str(n)))
             for k in range(n):
-                km.robot_table(df, k).to_csv(os.path.join(folder, f"{base}_robot{k:0{width}d}.csv"),
+                km.robot_table(df, k).to_csv(os.path.join(folder, f"{base}_robot{k + 1:0{width}d}.csv"),
                                              index=False, float_format="%.6g")
             _write_info(os.path.join(folder, f"{base}_robots.csv"), s, v)
         except (OSError, ValueError) as exc:

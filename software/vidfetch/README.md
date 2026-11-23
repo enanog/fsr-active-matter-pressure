@@ -24,6 +24,23 @@ Para los videos del proyecto: escala de tiempo **3 cuadros = 1 s real**, diámet
 recinto **Ø 185 mm interior / 195 mm exterior**, **Orientación de la escena: rotada 180°** (vista del observador, parado en el borde superior del video;
 los videos no están espejados), **Escala desde: Recinto**.
 
+**Detección recomendada: "Borde de la pila"** (pestaña *Procesar* → Método). El centro de cada robot es el
+centro del borde brillante de su pila, medido en la imagen a resolución completa con precisión sub-píxel; funciona
+con pilas plateadas y doradas y con los LEDs encendidos. Los huecos entre robots no tienen pila adentro y quedan
+afuera solos (contraste < 11 niveles de gris contra 24–100 de los robots).
+
+Reanalizar una sesión guardada con ese método, sin interfaz (desde `software/`):
+
+```
+python -m vidfetch.reanalizar ..\datos\video\sesiones\VA_<código>.npz --procesos 4
+```
+
+Rehace los candidatos, el seguimiento y una "segunda mirada" a los cuadros dudosos (`core/second_look.py`):
+vuelve a medir sobre la imagen a los robots relajados, interpolados o con saltos de 1–3 cuadros. Guarda la
+sesión anterior como `<nombre>_antes.npz`.
+
+Los robots se numeran **desde 1** en la pantalla y en todos los CSV (columna `particle`, columnas `r01_…`).
+
 Exportaciones (pestaña *Seguimiento* → *Resultados*): CSV de todos los robots (largo o ancho), **un robot
 con todas sus columnas**, un CSV por robot en una carpeta, resumen por robot, video anotado y sesión. Junto a
 cada CSV se escribe `<nombre>_info.json` con el recinto, la escala y las convenciones.

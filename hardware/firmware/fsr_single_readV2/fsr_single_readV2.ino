@@ -14,7 +14,7 @@ const uint8_t ADC_CHANNEL  = 0;    // A0
 // --- FRONT-END PARAMETERS ---
 const float V_REF      = 3.3f;       // external AREF
 const float V_EXC      = 0.7534f;    // excitation voltage
-const float R_FEEDBACK = 1000.0f;    // feedback resistor (use measured value)
+const float R_FEEDBACK = 10000.0f;   // feedback resistor (use measured value); 10 kOhm on the board since 2026-10-30
 const float ADC_FS     = 1023.0f;
 
 const float K_G_US = (V_REF * 1.0e6f) / (ADC_FS * V_EXC * R_FEEDBACK);

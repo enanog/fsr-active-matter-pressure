@@ -351,7 +351,8 @@ def table(result: TrackingResult, kin: Kinematics, origin: tuple[float, float] =
     """
     F, N = result.x.shape
     sx, sy, sr = _sign(kin)
-    df = pd.DataFrame({"frame": np.repeat(result.frames, N), "particle": np.tile(np.arange(N), F)})
+    # exported tables number robots from 1 ('particle' = k + 1); internally they are k = 0..N-1
+    df = pd.DataFrame({"frame": np.repeat(result.frames, N), "particle": np.tile(np.arange(1, N + 1), F)})
     df.insert(1, "t_s", df["frame"] / kin.fps)
     df["status_code"] = result.status.ravel().astype(int)
     df["status"] = df["status_code"].map({int(k): v for k, v in STATUS_LABELS.items()})
@@ -396,10 +397,10 @@ def table(result: TrackingResult, kin: Kinematics, origin: tuple[float, float] =
 
 
 def robot_table(long_df: pd.DataFrame, k: int) -> pd.DataFrame:
-    """All rows of one robot (one per frame), same columns as the long table."""
-    out = long_df[long_df["particle"] == int(k)].reset_index(drop=True)
+    """All rows of robot index k (0-based; 'particle' = k + 1 in the table), one per frame."""
+    out = long_df[long_df["particle"] == int(k) + 1].reset_index(drop=True)
     if out.empty:
-        raise ValueError(f"No hay datos del robot {k}.")
+        raise ValueError(f"No hay datos del robot {int(k) + 1}.")
     return out
 
 
@@ -434,7 +435,7 @@ def summary(result: TrackingResult, kin: Kinematics) -> pd.DataFrame:
         th = kin.theta[:, k] * sr
         r = np.hypot(x, y)
         row = {
-            "particle": k,
+            "particle": k + 1,
             "frames": len(x),
             "duration_s": len(x) * dt,
             "pct_position_observed": 100.0 * np.isin(result.status[:, k], obs_codes).mean(),
@@ -465,13 +466,13 @@ def wide_table(long_df: pd.DataFrame) -> pd.DataFrame:
     """One row per frame; every per-robot column becomes r{k}_{column} (grouped by robot)."""
     if long_df.empty:
         return long_df.copy()
-    n = int(long_df["particle"].max()) + 1
-    width = max(2, len(str(n - 1)))
+    ids = sorted(int(k) for k in long_df["particle"].unique())
+    width = max(2, len(str(max(ids))))
     per_frame = [c for c in ("mm_per_px", "xc_video_px", "yc_video_px") if c in long_df.columns]
     value_cols = [c for c in long_df.columns if c not in ("frame", "t_s", "particle", "espejo", "orientacion", *per_frame)]
     wide = long_df.pivot(index="frame", columns="particle", values=value_cols)
-    wide = wide.reindex(columns=pd.MultiIndex.from_product([value_cols, range(n)]))
-    ordered = [(c, k) for k in range(n) for c in value_cols]
+    wide = wide.reindex(columns=pd.MultiIndex.from_product([value_cols, ids]))
+    ordered = [(c, k) for k in ids for c in value_cols]
     wide = wide[ordered]
     wide.columns = [f"r{k:0{width}d}_{c}" for c, k in ordered]
     first = long_df.groupby("frame")[["t_s", *per_frame]].first()

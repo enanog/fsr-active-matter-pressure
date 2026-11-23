@@ -1,48 +1,86 @@
-%% figuras.m  -  comparación de ensayos: velocidad, giro, ocupación, G y V vs G
-% Cada sección (%%) es una figura: Ctrl+Enter corre solo esa sección, F5 corre todas.
-% La sección "Datos" lee los ensayos una sola vez y los deja en el workspace (E); las demás solo grafican.
+%% figuras.m  -  comparación de ensayos: velocidad, energía, ocupación, G, V vs G y G en atasco vs libre
+% Un solo archivo, en bloques: AJUSTES (todo lo que se cambia, agrupado por figura) -> DATOS -> VELOCIDAD Y ENERGÍA
+% (figs. 1-5) -> G (figs. 6-13) -> ATASCO VS LIBRE (figs. 14-15). Cada sección %% es una figura: Ctrl+Enter corre
+% solo esa sección, F5 corre todas. Cada figura dice en "Usa:" qué ajustes la cambian.
 % Los datos salen de datos/video/trayectorias/VP_<código>_robots.csv y datos/presion/crudos/R_<código>.csv,
 % procesados como FSRScope (ver cargar_datos.m). Cada ensayo tiene el mismo color en todas las figuras.
 % Modo de movimiento (del código): AH antihorario = azules y trazo continuo, HO horario = verdes y trazo-punto,
-% AL aleatorio = rojos/naranjas y trazo cortado. Los ensayos se ordenan por modo y luego por fecha, la leyenda
-% tiene un encabezado por modo y en los paneles (5 y 13) cada modo ocupa su propia fila.
-% Requiere MATLAB R2020b+ y Statistics and Machine Learning Toolbox (skewness, corr, normpdf, prctile).
+% AL aleatorio = rojos/naranjas y trazo cortado. Los ensayos se ordenan por modo y luego por fecha.
+% Requiere MATLAB R2020b+ y Statistics and Machine Learning Toolbox (skewness, corr, normpdf, prctile, ksdensity).
 
 clc; clear; close all;
 
-%% Ajustes
-ensayos = {};
-%ensayos = {'20261030_1200', '20261030_1430', '20261112_1600', '20261116_1100'};  % part of the codes; {} = pick from a list
-suav    = 10;      % moving average of the time plots [s]
-umbral  = 0.35;    % jam threshold [mm/s]
-deltaT  = 2.5;     % window of dG = G(t) - G(t - deltaT) [s]
-deltaT_asim = [];          % window of figure 8b [s]; [] = the one that maximises the asymmetry of the set
-rango_deltaT_asim = [0.05 15];   % where that window is searched [s] (the asymmetry curves go from 0.05 to 15 s)
-normalizar_dG_asim = false;      % figure 8b: false = dG in uS; true = (dG - mean) / sigma (shape only)
-duracion_min = 60; % minutes after the end of the LED (the video starts there; the sensor is cut to the same span); Inf = all
-linea_por_modo = true;  % true: line style per mode (AH -, HO -., AL --) besides the colour family; false: all solid
-masa_g = 0;        % mass of one robot [g] for figure 4b; 0 = kinetic energy per unit mass [mm^2/s^2 = uJ/kg]
-diametro_mm = 33;  % robot body diameter [mm] (R = diametro_mm / 2 in E_rot)
-k_inercia = 0.5;   % moment of inertia I = k m R^2 (0.5 = uniform disc)
-energia_log = false;  % figure 4b on a log axis (jams bring E_tras down by orders of magnitude)
-energia_normalizada = false;  % figure 4c: false = E in energy units; true = E / <E> of each trial (shape only)
-energia_dist_juntas = true;   % figure 4c: true = translation, rotation and total on one axes; false = one panel each
-G_minimo = 1e-2;   % G below this [uS] is not drawn on log axes: there G is just a few ADC steps (quantisation)
-guardar = false;   %#ok<*UNRCH> (if guardar ... is not dead code) true: every figure -> informes/figuras/matlab_figuras/<figura>__<códigos>.<formato>
-formatos = {                   % one per line; put % in front of a line to switch that format off (Ctrl+R / Ctrl+T)
-    '.png'                     % image (uses "resolucion")
-    % '.pdf'                     % vector
-    % '.svg'                   % vector
-    % '.eps'                   % vector
-    % '.emf'                   % vector (Word / PowerPoint)
-    % '.jpg'                   % image
-    % '.tif'                   % image
-    % '.fig'                   % MATLAB figure, can be opened and edited again
-};
-resolucion = 300;  % dpi of the images (.png .jpg .tif)
+%% ========================================== AJUSTES ==========================================
+% Todo lo que se cambia está acá, agrupado por las figuras que lo usan. Después de cambiar un valor: Ctrl+Enter en
+% esta sección y después en la figura (o F5 para todo). Si cambiás algo de "General", "Energía" o "G", correr también
+% DATOS (los ensayos solo se vuelven a leer si cambia "ensayos" o "duracion_min").
 
-% Look of every figure (MATLAB defaults for this session). Light theme even if MATLAB uses the dark one
-% (R2025a+: every new figure is switched with theme(f, 'light'); older versions are always light).
+% ---- General (todas las figuras) ----
+ensayos = {                         % part of the codes; {} = pick from a list
+    '20261030_1100'
+    '20261030_1200'
+    '20261030_1430'
+    '20261030_1600'
+    '20261106_1600'
+    '20261112_1600'
+    '20261116_1100'
+};
+% ensayos = {};
+duracion_min        = 60;           % minutes after the end of the LED (the video starts there; the sensor is cut to the same span); Inf = all
+linea_por_modo      = true;         % true: line style per mode (AH -, HO -., AL --) besides the colour family; false: all solid
+
+% ---- Guardar figuras (todas) ----
+guardar             = false;        %#ok<*UNRCH> true: every figure -> informes/figuras/matlab_figuras/<figura>__<códigos>.<formato>
+formatos = {                        % one per line; put % in front of a line to switch that format off (Ctrl+R / Ctrl+T)
+    '.png'                          % image (uses "resolucion")
+    % '.pdf'                        % vector
+    % '.svg'                        % vector
+    % '.eps'                        % vector
+    % '.emf'                        % vector (Word / PowerPoint)
+    % '.jpg'                        % image
+    % '.tif'                        % image
+    % '.fig'                        % MATLAB figure, can be opened and edited again
+};
+resolucion          = 300;          % dpi of the images (.png .jpg .tif)
+
+% ---- Velocidad (figuras 1 y 6: curvas en el tiempo; 1, 13 y 14: umbral) ----
+suav                = 10;           % moving average of the time plots [s]
+umbral              = 0.35;         % jam threshold of V media [mm/s]: line of figures 1 and 13, manual threshold of 14-15
+
+% ---- Energía cinética (figura 4c) ----
+masa_g              = 0;            % mass of one robot [g]; 0 = kinetic energy per unit mass [mm^2/s^2 = uJ/kg]
+diametro_mm         = 33;           % robot body diameter [mm] (R = diametro_mm / 2 in E_rot)
+k_inercia           = 0.5;          % moment of inertia I = k m R^2 (0.5 = uniform disc)
+energia_log         = false;        % figure 4b (commented) on a log axis
+energia_normalizada = true;         % false = E in energy units; true = E / <E> of each trial (shape only)
+energia_dist_juntas = false;        % true = translation, rotation and total on one axes; false = one panel each
+
+% ---- G: piso sin contacto (figuras 6, 7, 9, 13, 14, 15) ----
+G_minimo_cuentas    = 0.5;          % G floor of each trial = this many ADC counts x its K (1 count = 0.43 uS with R_FB 10 kOhm,
+                                    % 0.086 uS with 50 kOhm). Below it the 50 ms mean is ADC noise, not conductance: 'no contact'
+G_bajo_piso         = 'cero';       % G under the floor: 'cero' = set to 0 (removes the day-dependent noise floor from the
+                                    % averages and from dG); 'excluir' = left as measured and out of the log axes
+
+% ---- ΔG = G(t) - G(t - ΔT) (figuras 9a y 9b) ----
+deltaT_asim         = [];           % window of figure 9b [s]; [] = the one that maximises the asymmetry of the set
+rango_deltaT_asim   = [0.05 15];    % where that window is searched [s] (the asymmetry curves go from 0.05 to 15 s)
+normalizar_dG_asim  = false;        % figure 9b: false = dG in uS; true = (dG - mean) / sigma (shape only)
+deltaT              = 2.5;          % window of figures 10 and 11 (commented) [s]
+
+% ---- Histograma 2D de V vs G (figura 13) ----
+norm_2d             = 'total';      % colours: 'total' = fraction of ALL the frames of the trial; 'contacto' = of the frames with contact
+celdas_2d           = [25 20];      % cells [G V]: fewer cells = more frames per cell = less Poisson noise
+min_cuadros_2d      = 1;            % cells with fewer frames than this are left empty (1 = draw every non-empty cell)
+
+% ---- Atasco vs libre (figuras 14 y 15, como Colantuono et al., PRE 2026) ----
+% Two thresholds, both the same for every trial: "umbral" (manual, above) and one estimated from all the trials.
+k_umbral            = 2;            % estimated threshold = 10^(mode - k_umbral * sigma) of log10(Vs); sigma = width above the mode
+suav_estado         = 5;            % moving average of V before classifying (Vs) [s]
+dur_min_estado      = 0;            % jam / free stretches shorter than this are left out [s] (the paper uses tau_th = 5 s)
+deltaT_estado       = 2.5;          % window of the dG histograms of figure 15 [s]
+
+% ---- Aspecto de las figuras (MATLAB defaults for this session) ----
+% Light theme even if MATLAB uses the dark one (R2025a+: every new figure is switched with theme(f, 'light')).
 if exist('theme', 'file'), set(groot, 'defaultFigureCreateFcn', @(f, ~) theme(f, 'light')); end
 set(groot, 'defaultFigureColor', 'w', 'defaultFigureUnits', 'centimeters', 'defaultFigurePosition', [2 2 17 9], ...
     'defaultAxesFontSize', 10, 'defaultAxesTickDir', 'out', 'defaultAxesBox', 'off', ...
@@ -50,8 +88,11 @@ set(groot, 'defaultFigureColor', 'w', 'defaultFigureUnits', 'centimeters', 'defa
     'defaultLegendBox', 'off', 'defaultLegendInterpreter', 'none', 'defaultLegendLocation', 'northeast');
 % (not 'best': with hundreds of thousands of points MATLAB takes very long to place the legend)
 
+%% ============================================ DATOS ============================================
+
 %% Datos (se leen de nuevo solo si cambió "ensayos" o "duracion_min")
-if ~exist('E', 'var') || ~exist('E_pedido', 'var') || ~isequal(E_pedido, {ensayos, duracion_min}) || ~isfield(E, 'etiqueta') || ~isfield(E, 'w2')
+% Usa: ensayos, duracion_min, linea_por_modo, G_minimo_cuentas, G_bajo_piso, masa_g, diametro_mm, k_inercia, rango_deltaT_asim
+if ~exist('E', 'var') || ~exist('E_pedido', 'var') || ~isequal(E_pedido, {ensayos, duracion_min}) || ~isfield(E, 'etiqueta') || ~isfield(E, 'w2') || isfield(E, 'G_offset')   % G_offset: G shifted by an old version
     E = cargar_datos(ensayos, duracion_min * 60);
     E_pedido = {ensayos, duracion_min};
 end
@@ -64,6 +105,25 @@ col = arrayfun(@(i) nnz(grupo(1:i) == grupo(i)), 1:n);
 filas = max(grupo);  columnas = max(col);  por_fila = columnas <= 4;
 panel = (grupo - 1) * columnas + col;                % tile of every trial in the filas x columnas grid
 fprintf('Orden: %s\n', strjoin(strcat({E.modo}, {': '}, nombres), ' | '));
+% G floor of every trial [uS] (1 x n, NaN without sensor log) from the R_FEEDBACK of calibracion.csv (via E.K),
+% so it is the same number of ADC counts whatever the resistor; fraction of the valid samples below it
+G_piso = G_minimo_cuentas * [E.K];
+sin_contacto = nan(1, n);
+for i = 1:n
+    g = E(i).G(isfinite(E(i).G));
+    if isempty(g), continue; end
+    sin_contacto(i) = mean(g < G_piso(i));
+    fprintf('%s: piso de G %.3g µS (%g cuenta x K = %.4f µS/cuenta); %.1f %% de las muestras debajo (sin contacto)\n', ...
+            nombres{i}, G_piso(i), G_minimo_cuentas, E(i).K, 100 * sin_contacto(i));
+end
+% G_bajo_piso: always rebuilt from the measured G, so switching the setting and re-running this section is enough
+if ~isfield(E, 'G_medido'), [E.G_medido] = E.G;  [E.G_cuadro_medido] = E.G_cuadro; end
+for i = 1:n
+    E(i).G = E(i).G_medido;  E(i).G_cuadro = E(i).G_cuadro_medido;
+    if strcmp(G_bajo_piso, 'cero')                  % NaN (outside the analysed spans) stays NaN
+        E(i).G(E(i).G < G_piso(i)) = 0;  E(i).G_cuadro(E(i).G_cuadro < G_piso(i)) = 0;
+    end
+end
 hay_G = ~arrayfun(@(e) isempty(e.G), E);
 G_max = max(arrayfun(@(e) max([e.G; 0]), E));
 for i = 1:n
@@ -76,9 +136,9 @@ if masa_g > 0, fe = masa_g;  u_tex = 'nJ';  u_txt = 'nJ'; else, fe = 1;  u_tex =
 Ec_tras = arrayfun(@(e) fe * e.N .* e.v2 / 2, E, 'UniformOutput', false);
 Ec_rot  = arrayfun(@(e) fe * e.N .* k_inercia * (diametro_mm / 2) ^ 2 .* e.w2 / 2, E, 'UniformOutput', false);
 % Asymmetry of dG vs window for every trial (figures 8b and 9). Only recomputed when the trials change.
-if ~exist('asim', 'var') || ~isequal(asim.clave, {nombres, duracion_min})
+if ~exist('asim', 'var') || ~isequal(asim.clave, {nombres, duracion_min, G_bajo_piso, G_minimo_cuentas})
     t0 = tic;  fprintf('Asimetría de ΔG vs ΔT... ');
-    asim = struct('clave', {{nombres, duracion_min}}, 'dT', 0.05:0.05:15);
+    asim = struct('clave', {{nombres, duracion_min, G_bajo_piso, G_minimo_cuentas}}, 'dT', 0.05:0.05:15);
     asim.s = nan(n, numel(asim.dT));                  % rows = trials, NaN without sensor log
     for i = find(hay_G)
         L = max(round(asim.dT / E(i).paso), 1);       % lags in samples
@@ -100,7 +160,11 @@ guardar_fig = @(nombre) exportar(gcf, fullfile(salida, [nombre sufijo]), formato
 % if ~exist('R_feedback', 'var'), R_feedback = cargar_datos('R_feedback'); end   % "clear R_feedback" to read the logs again
 % fprintf('%.1f s\n', toc(t0));  disp(R_feedback)
 
+%% ===================================== VELOCIDAD Y ENERGÍA =====================================
+% Figuras 1 a 5: V media, su distribución, energía cinética y ocupación del recinto.
+
 %% 1. V media vs tiempo
+% Usa: suav, umbral
 t0 = tic;  fprintf('%s... ', '1. V media vs tiempo');
 figure('Name', 'V media vs tiempo');  hold on
 for i = 1:n
@@ -178,6 +242,7 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 % drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 4c. Distribución de la energía cinética por cuadro (sin el tiempo)
+% Usa: masa_g, diametro_mm, k_inercia (en Datos), energia_normalizada, energia_dist_juntas
 t0 = tic;  fprintf('%s... ', '4c. Distribución de la energía cinética');
 % Every frame is one sample, without the moving average (smoothing would narrow the distribution). Log-spaced bins
 % common to every trial and panel (0.1-99.9 percentiles of all the values); 'probability' = fraction of the frames
@@ -262,27 +327,35 @@ xlabel(tl, 'x [cm]');  ylabel(tl, 'y [cm]');
 if guardar, guardar_fig('ocupacion'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
+%% ============================================== G ==============================================
+% Figuras 6 a 13: conductancia del sensor (G), sus incrementos ΔG y su relación con V.
+
 %% 6. G vs tiempo (eje de tiempo del video)
+% Usa: suav, G_minimo_cuentas
 t0 = tic;  fprintf('%s... ', '6. G vs tiempo');
 figure('Name', 'G vs tiempo');  hold on
 for i = find(hay_G)
     g = movmean(E(i).G, suav, 'omitnan', 'SamplePoints', E(i).ts);
-    g(isnan(E(i).G) | g < G_minimo) = NaN;          % outside the analysed spans; ADC quantisation below G_minimo
+    g(isnan(E(i).G) | g < G_piso(i)) = NaN;         % outside the analysed spans; below the floor = no contact
     k = 1:round(1 / E(i).paso):numel(g);            % one point per second is enough after the 30 s average
     plot((E(i).ts(k) - E(i).desfase) / 60, g(k), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+end
+for gp = unique(G_piso(hay_G))                     % floor of 1 count (one line per R_FEEDBACK); below = not drawn
+    yline(gp, ':', sprintf('piso %.2g µS', gp), 'HandleVisibility', 'off', 'LabelHorizontalAlignment', 'left');
 end
 set(gca, 'YScale', 'log');  xlim([0 min(duracion_min, max(vertcat(E.t)) / 60)]);  xlabel('t [min]');  ylabel('G [\muS]');  leyenda(gca);
 if guardar, guardar_fig('G_tiempo'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 7. P(G ≥ g), con G dividida por su media
+% Usa: G_minimo_cuentas
 t0 = tic;  fprintf('%s... ', '7. P(G ≥ g), con G dividida por su media');
 figure('Name', 'Supervivencia de G');  hold on
 for i = find(hay_G)
     g = sort(rmmissing(E(i).G));  p = (numel(g):-1:1)' / numel(g);
     m = numel(g);                                   % ~2000 points: evenly spread + dense in the tail (largest G)
     k = unique([round(linspace(1, m, 1000)), m + 1 - round(logspace(0, log10(m), 1000))]);
-    k = k(g(k) >= G_minimo);                        % near-zero G (round-off, ~1e-14) would stretch the log axis
+    k = k(g(k) >= G_piso(i));                       % below the floor = no contact (P still over every sample)
     plot(g(k), p(k), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
 end
 set(gca, 'YScale', 'log');  xlabel('g');  ylabel('P(G \geq g)');  leyenda(gca);
@@ -293,7 +366,7 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 % t0 = tic;  fprintf('%s... ', '8. Histograma de G');
 % figure('Name', 'Histograma de G');  hold on
 % for i = find(hay_G)
-%     histogram(E(i).G, logspace(log10(G_minimo), log10(G_max), 41), 'Normalization', 'pdf', 'DisplayStyle', 'stairs', ...
+%     histogram(E(i).G, logspace(log10(min(G_piso(hay_G))), log10(G_max), 41), 'Normalization', 'pdf', 'DisplayStyle', 'stairs', ...
 %               'LineWidth', 1.3, 'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
 % end
 % set(gca, 'Xscale', 'log', 'YScale', 'log');  xlabel('G [\muS]');  ylabel('densidad [1/\muS]');  leyenda(gca);
@@ -301,6 +374,7 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 % drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 9a. Asimetría de ΔG = G(t) - G(t - ΔT) en función de ΔT
+% Usa: deltaT_asim, rango_deltaT_asim
 t0 = tic;  fprintf('%s... ', '9. Asimetría de ΔG = G(t) - G(t - ΔT) en función de ΔT');
 % Curves from the Datos section; dotted line = window of figure 8b
 % dT_asim = window that maximises the mean |asymmetry of dG| over the trials (one value for all of them)
@@ -318,6 +392,7 @@ if guardar, guardar_fig('asimetria_deltaT'); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 9b. Histograma de ΔG con el ΔT de máxima asimetría del conjunto (ventana fija)
+% Usa: deltaT_asim, rango_deltaT_asim, normalizar_dG_asim
 t0 = tic;  fprintf('%s... ', '8b. Histograma de ΔG (ΔT de máxima asimetría)');
 % Criterion: mean over the trials of |asymmetry of dG| (|.| so that negative and positive asymmetries do not
 % cancel; per-trial asymmetry does not depend on the uS scale of each trial). The same window for every trial.
@@ -399,7 +474,7 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 % for i = find(hay_G)
 %     v = movmean(E(i).V, suav_vg, 'omitnan', 'SamplePoints', E(i).t);
 %     g = movmean(E(i).G_cuadro, suav_vg, 'omitnan', 'SamplePoints', E(i).t);
-%     ok = isfinite(v) & isfinite(E(i).G_cuadro) & g > G_minimo;
+%     ok = isfinite(v) & isfinite(E(i).G_cuadro) & g >= G_piso(i);
 %     v = v(ok);  g = g(ok);  k = discretize(v, bordes);  q = ~isnan(k);
 %     mediana = accumarray(k(q), g(q), [numel(bordes) - 1, 1], @median, NaN);
 %     mediana(accumarray(k(q), 1, [numel(bordes) - 1, 1]) < 30) = NaN;      % at least 30 frames (10 s) per class
@@ -412,23 +487,127 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 % drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 13. Histograma 2D de V media vs G (un panel por ensayo, misma escala de color)
+% Usa: norm_2d, celdas_2d, min_cuadros_2d, umbral, G_minimo_cuentas
 t0 = tic;  fprintf('%s... ', '13. Histograma 2D de V media vs G');
 figure('Name', 'Histograma 2D V vs G', 'Position', [2 2 17 11]);
 if por_fila, tl = tiledlayout(filas, columnas, 'TileSpacing', 'compact'); else, tl = tiledlayout('flow', 'TileSpacing', 'compact'); end
-bordes_G = logspace(log10(G_minimo), log10(G_max), 41);  bordes_V = linspace(0, max(vertcat(E.V)), 31);
+% Counts per cell / denominator of norm_2d; cells under min_cuadros_2d frames are emptied (ShowEmptyBins off).
+% Column S/C (sin contacto, G under the floor of the trial): one cell wide, one empty cell left of the lowest floor;
+% its G position is nominal (no G value is meant). Dotted line = floor of the trial.
+bordes_G = logspace(log10(min(G_piso(hay_G))), log10(G_max), celdas_2d(1) + 1);
+bordes_V = linspace(0, max(vertcat(E.V)), celdas_2d(2) + 1);
+w = log10(bordes_G(2) / bordes_G(1));               % cell width [decades]
+bordes_X = [bordes_G(1) * 10 .^ (-w * [2 1]), bordes_G];   % S/C column, empty gap cell, then the real cells
+x_sc = sqrt(bordes_X(1) * bordes_X(2));             % centre of the S/C column (tick)
 for i = find(hay_G)
     if por_fila, nexttile(panel(i)); else, nexttile; end
-    ok = E(i).G_cuadro >= G_minimo & isfinite(E(i).V);
-    histogram2(E(i).G_cuadro(ok), E(i).V(ok), bordes_G, bordes_V, 'DisplayStyle', 'tile', 'ShowEmptyBins', 'off', ...
-               'Normalization', 'probability', 'EdgeColor', 'none');
+    validos = isfinite(E(i).G_cuadro_medido) & isfinite(E(i).V);   % frames with sensor and speed
+    ok = validos & E(i).G_cuadro_medido >= G_piso(i);               % frames with contact
+    sc = 1 - nnz(ok) / nnz(validos);
+    C = [histcounts(E(i).V(validos & ~ok), bordes_V); zeros(1, celdas_2d(2)); ...
+         histcounts2(E(i).G_cuadro_medido(ok), E(i).V(ok), bordes_G, bordes_V)];
+    C(C < min_cuadros_2d) = 0;
+    if strcmp(norm_2d, 'total'), C = C / nnz(validos); else, C = C / nnz(ok); C(1, :) = 0; end   % 'contacto': no S/C
+    histogram2('XBinEdges', bordes_X, 'YBinEdges', bordes_V, 'BinCounts', C, 'DisplayStyle', 'tile', ...
+               'ShowEmptyBins', 'off', 'EdgeColor', 'none');
     set(gca, 'XScale', 'log', 'ColorScale', 'log');
+    xline(G_piso(i), ':', 'HandleVisibility', 'off');
     yline(umbral, '--', 'umbral');
-    title({et{i}}, ...
+    title({et{i}, sprintf('sin contacto: %.0f %% de los cuadros', 100 * sc)}, ...
           'Interpreter', 'none', 'Color', colores(i, :));
 end
 h = findobj(gcf, 'Type', 'histogram2');  valores = cat(3, h.Values);
-set(findobj(gcf, 'Type', 'axes'), 'CLim', [min(valores(valores > 0)) max(valores(:))]);
-cb = colorbar;  cb.Layout.Tile = 'east';  cb.Label.String = 'fracción de los cuadros';
-xlabel(tl, 'G [\muS]');  ylabel(tl, 'V_{media} [mm/s]');
-if guardar, guardar_fig('histograma2d_V_G'); end
+d = ceil(log10(bordes_G(1))):floor(log10(bordes_G(end)));     % decades inside the real G range
+set(findobj(gcf, 'Type', 'axes'), 'CLim', [min(valores(valores > 0)) max(valores(:))], ...
+    'XLim', bordes_X([1 end]), 'XTick', [x_sc, 10 .^ d], ...  % same G axis in every panel
+    'XTickLabel', [{'S/C'}, arrayfun(@(k) sprintf('10^{%d}', k), d, 'UniformOutput', false)]);
+cb = colorbar;  cb.Layout.Tile = 'east';
+if strcmp(norm_2d, 'total'), cb.Label.String = 'fracción de todos los cuadros'; else, cb.Label.String = 'fracción de los cuadros con contacto'; end
+xlabel(tl, sprintf('G [\\muS]   (S/C = sin contacto: < %g cuenta del ADC)', G_minimo_cuentas));  ylabel(tl, 'V_{media} [mm/s]');
+if guardar, guardar_fig(['histograma2d_V_G_' norm_2d]); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
+
+%% ======================================= ATASCO VS LIBRE =======================================
+% Como Colantuono et al., PRE 2026 (figs. 3 y 4): G con los robots atascados (G_c) vs en flujo libre (G_b).
+% Cada cuadro es 'atasco' si la V media suavizada (Vs) está debajo del umbral y 'libre' si está arriba; los tramos
+% más cortos que dur_min_estado no se usan. Cada muestra del sensor toma el estado de su cuadro. Dos umbrales, los
+% dos iguales para todos los ensayos: el manual (umbral) y uno estimado con la V de todos los ensayos juntos.
+
+%% Atasco vs libre: clasificación (correr antes de 14 y 15, y de nuevo si cambian sus ajustes)
+% Usa: umbral, k_umbral, suav_estado, dur_min_estado
+estados = cargar_datos('estados');  incrementos = cargar_datos('incrementos');
+clas = estados(E, umbral, k_umbral, suav_estado, dur_min_estado);
+for c = 1:2
+    for i = 1:n
+        fprintf('%s | umbral %s: atasco %.1f %%, libre %.1f %% del tiempo\n', nombres{i}, clas(c).nombre, ...
+                100 * mean(clas(c).est{i} == 1), 100 * mean(clas(c).est{i} == 2));
+    end
+end
+
+%% 14. P(G ≥ g) en libre (G_b) y en atasco (G_c), y cuantiles de G_c vs G_b
+% Usa: la clasificación de arriba. Filas: umbral manual / estimado. Q-Q: sobre la línea de trazos las dos
+% distribuciones son iguales; por encima, los robots empujan más fuerte la pared cuando están atascados.
+t0 = tic;  fprintf('%s... ', '14. G en atasco vs libre');
+p_qq = [0.5:0.5:99, 99.1:0.1:99.9];
+figure('Name', 'G atasco vs libre', 'Position', [2 2 17 12]);
+tl = tiledlayout(2, 3, 'TileSpacing', 'compact');  ax = gobjects(2, 3);
+for c = 1:2
+    for p = 1:3, ax(c, p) = nexttile(tl);  hold on; end
+    tope = 0;
+    for i = find(hay_G)
+        Gc = rmmissing(E(i).G(clas(c).est_s{i} == 1));  Gb = rmmissing(E(i).G(clas(c).est_s{i} == 2));
+        if numel(Gc) < 100 || numel(Gb) < 100, continue; end   % too few samples in one of the two states
+        estilo = {'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i}};
+        F = {Gb, Gc};
+        for p = 1:2
+            g = sort(F{p});
+            plot(ax(c, p), g, (numel(g):-1:1)' / numel(g), estilo{:});
+        end
+        qb = prctile(Gb, p_qq);  qc = prctile(Gc, p_qq);
+        plot(ax(c, 3), qb, qc, estilo{:});
+        tope = max([tope, qb, qc]);
+        fprintf('\n  %s | %s: <G_c> = %.3g µS, <G_b> = %.3g µS (x%.2f)', nombres{i}, clas(c).nombre, mean(Gc), mean(Gb), mean(Gc) / mean(Gb));
+    end
+    plot(ax(c, 3), [0 tope], [0 tope], 'k--', 'HandleVisibility', 'off');
+    ylabel(ax(c, 1), {['umbral ' clas(c).nombre], 'P(G \geq g)'});  ylabel(ax(c, 3), 'cuantiles de G_c [\muS]');
+end
+set(ax(:, 1:2), 'YScale', 'log');  linkaxes(ax(:, 1:2), 'xy');
+title(ax(1, 1), 'libre (G_b)');  title(ax(1, 2), 'atasco (G_c)');  title(ax(1, 3), 'Q-Q');
+xlabel(ax(2, 1), 'g [\muS]');  xlabel(ax(2, 2), 'g [\muS]');  xlabel(ax(2, 3), 'cuantiles de G_b [\muS]');
+leyenda(ax(1, 3));  ax(1, 3).Legend.Layout.Tile = 'east';
+if guardar, guardar_fig('atasco_G'); end
+drawnow;  fprintf('\n%.1f s\n', toc(t0));
+
+%% 15. Histograma de ΔG = G(t + ΔT) - G(t) en atasco y en libre
+% Usa: deltaT_estado y la clasificación de arriba. Los dos extremos de cada ΔG en el mismo tramo.
+% Asimetría negativa = subidas lentas y caídas bruscas.
+t0 = tic;  fprintf('%s... ', '15. ΔG en atasco vs libre');
+D = cell(2, 2, n);
+for c = 1:2
+    for i = find(hay_G)
+        L = round(deltaT_estado / E(i).paso);
+        for s = 1:2, D{c, s, i} = incrementos(E(i).G, L, clas(c).est_s{i}, clas(c).tramo_s{i}, s); end
+    end
+end
+lim = prctile(abs(vertcat(D{:}, 0)), 99.9);        % common bins: 99.9 % of every |dG|
+estado = {'atasco', 'libre'};
+figure('Name', 'Delta G atasco vs libre', 'Position', [2 2 17 13]);
+tl = tiledlayout(2, 2, 'TileSpacing', 'compact');  ax = gobjects(2, 2);
+for c = 1:2
+    for s = 1:2
+        ax(c, s) = nexttile(tl);  hold on
+        for i = find(hay_G)
+            d = D{c, s, i};
+            if numel(d) < 100, continue; end
+            histogram(d, linspace(-lim, lim, 81), 'Normalization', 'pdf', 'DisplayStyle', 'stairs', 'LineWidth', 1.3, ...
+                      'EdgeColor', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, ...
+                      'DisplayName', sprintf('%s (asim. %.2f)', et{i}, skewness(d, 0)));
+        end
+        set(gca, 'YScale', 'log');  title(sprintf('%s · umbral %s', estado{s}, clas(c).nombre), 'FontSize', 9);
+        if ~isempty(findobj(gca, 'Type', 'histogram')), leyenda(gca);  ax(c, s).Legend.FontSize = 7; end
+    end
+end
+linkaxes(ax, 'xy');
+xlabel(tl, sprintf('\\DeltaG [\\muS]  (\\DeltaT = %g s)', deltaT_estado));  ylabel(tl, 'densidad [1/\muS]');
+if guardar, guardar_fig('atasco_deltaG'); end
+drawnow;  fprintf('\n%.1f s\n', toc(t0));

@@ -21,6 +21,9 @@ function E = cargar_datos(ensayos, duracion_s)
 % estilos = cargar_datos('estilos'): [colores, lineas, marcas] = estilos(E, linea_por_modo), un color por ensayo
 % dentro de la familia de su modo (AH azules, HO verdes, AL rojos/naranjas) y trazo/marcador por modo.
 % leyenda = cargar_datos('leyenda'): leyenda(ax) arma la leyenda agrupada por modo, con un encabezado por grupo.
+% estados = cargar_datos('estados'): C = estados(E, umbral, k_sigma, suav_s, dur_min_s): atasco / libre de cada
+% cuadro y muestra del sensor con el umbral manual (C(1)) y el estimado de todos los ensayos juntos (C(2)).
+% incrementos = cargar_datos('incrementos'): d = incrementos(x, L, est, tramo, estado), x(j+L) - x(j) en un tramo.
 % E.modo = 'AH' | 'HO' | 'AL' | 'otro' y E.modo_nombre; los ensayos salen ordenados por modo y luego por fecha.
 % E.etiqueta = nombre legible para leyendas y títulos ('30/10 11:00 · AH'; año y robots solo si no son iguales en todos).
 % leyenda(ax) reconoce los ensayos por el Tag de cada curva (= código), así que las curvas llevan 'Tag', E(i).codigo.
@@ -44,6 +47,10 @@ function E = cargar_datos(ensayos, duracion_s)
     end
     if ischar(ensayos) && strcmp(ensayos, 'leyenda')
         E = @leyenda_por_modo;
+        return
+    end
+    if ischar(ensayos) && any(strcmp(ensayos, {'estados', 'incrementos'}))
+        E = str2func(ensayos);
         return
     end
     if nargin < 2, duracion_s = Inf; end
@@ -386,6 +393,56 @@ function leyenda_por_modo(ax)
         items(end + 1, 1) = h(k); %#ok<AGROW>
     end
     legend(ax, [items; h(~ensayo)]);
+end
+
+function C = estados(E, umbral, k_sigma, suav_s, dur_min_s)
+    % Jam (1) / free (2) / not used (0) for every frame and sensor sample, with two thresholds of Vs (V media
+    % smoothed over SUAV_S [s]), each the same for every trial: C(1) = UMBRAL, C(2) = estimated from all the trials.
+    % Stretches shorter than DUR_MIN_S [s] -> 0. A sensor sample takes the state of its nearest frame (0 if farther
+    % than one frame). C(c).umbral [mm/s], C(c).nombre, C(c).est{i} (frames), C(c).est_s{i} and C(c).tramo_s{i}
+    % (sensor samples; tramo = id of the stretch, so increments never join two different stretches).
+    n = numel(E);
+    Vs = arrayfun(@(e) movmean(e.V, suav_s, 'omitnan', 'SamplePoints', e.t), E, 'UniformOutput', false);
+    u = [umbral, umbral_estimado(vertcat(Vs{:}), k_sigma)];
+    C = struct('umbral', num2cell(u), 'nombre', {sprintf('manual %.2f mm/s', u(1)), sprintf('estimado %.2f mm/s', u(2))}, ...
+               'est', {cell(1, n)}, 'est_s', {cell(1, n)}, 'tramo_s', {cell(1, n)});
+    for i = 1:n
+        j = zeros(size(E(i).ts));                      % frame of every sensor sample
+        if ~isempty(E(i).ts)
+            tv = E(i).ts - E(i).desfase;
+            k = interp1(E(i).t, (1:numel(E(i).t))', tv, 'nearest');
+            ok = ~isnan(k);
+            ok(ok) = abs(tv(ok) - E(i).t(k(ok))) <= median(diff(E(i).t));
+            j(ok) = k(ok);
+        end
+        for c = 1:2
+            est = 1 * (Vs{i} < u(c)) + 2 * (Vs{i} > u(c));
+            tramo = cumsum([1; diff(est(:)) ~= 0]);
+            dur = accumarray(tramo, 1) * median(diff(E(i).t));   % length of every stretch [s]
+            est(dur(tramo) < dur_min_s) = 0;
+            tramo = cumsum([1; diff(est(:)) ~= 0]);
+            C(c).est{i} = est;
+            C(c).est_s{i} = zeros(size(j));  C(c).tramo_s{i} = zeros(size(j));
+            C(c).est_s{i}(j > 0) = est(j(j > 0));  C(c).tramo_s{i}(j > 0) = tramo(j(j > 0));
+        end
+    end
+end
+
+function u = umbral_estimado(Vs, k_sigma)
+    % 10^(mode - K_SIGMA * sigma) of log10(Vs). The mode is the typical free speed; the half above it has no jams,
+    % so its rms distance to the mode is the width of the free fluctuations (sigma). Jams only add a low tail.
+    x = log10(Vs(Vs > 0 & isfinite(Vs)));
+    [f, xi] = ksdensity(x, 'NumPoints', 400);
+    [~, j] = max(f);
+    u = 10 ^ (xi(j) - k_sigma * sqrt(mean((x(x > xi(j)) - xi(j)) .^ 2)));
+end
+
+function d = incrementos(x, L, est, tramo, estado)
+    % x(j + L) - x(j) for the pairs whose two ends are in the same stretch of state ESTADO (finite values only)
+    a = (1:numel(x) - L)';  b = a + L;
+    ok = est(a) == estado & tramo(a) == tramo(b);
+    d = x(b(ok)) - x(a(ok));
+    d = d(isfinite(d));
 end
 
 function exportar(fig, base, formatos, dpi)

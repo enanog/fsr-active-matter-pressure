@@ -7,8 +7,8 @@ codigo,r_feedback_ohm,nota
 20260924_1600_22AH_60,50000,confirmado por Dylan; el firmware logueo con 5000
 20260925_1230_22AH_60,50000,valor del firmware
 20260925_1500_22AH_60,50000,valor del firmware
-20261030_1100_22AH_60,10000,a confirmar (3k7); el firmware logueo con 1000
-20261030_1200_22AL_60,10000,a confirmar (3k7); el firmware logueo con 1000
-20261030_1430_22AL_60,10000,a confirmar (3k7); el firmware logueo con 1000
-20261030_1600_22AH_60,10000,a confirmar (3k7); el firmware logueo con 1000
-202611,10000,a confirmar (3k7); vale para todo registro de noviembre que no tenga fila propia
+20261030_1100_22AH_60,10000,10 kOhm confirmado por Dylan; el firmware logueo con 1000
+20261030_1200_22AL_60,10000,10 kOhm confirmado por Dylan; el firmware logueo con 1000
+20261030_1430_22AL_60,10000,10 kOhm confirmado por Dylan; el firmware logueo con 1000
+20261030_1600_22AH_60,10000,10 kOhm confirmado por Dylan; el firmware logueo con 1000
+202611,10000,10 kOhm confirmado por Dylan; vale para todo registro de noviembre que no tenga fila propia
