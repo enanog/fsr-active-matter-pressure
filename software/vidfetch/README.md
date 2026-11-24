@@ -45,6 +45,10 @@ Exportaciones (pestaña *Seguimiento* → *Resultados*): CSV de todos los robots
 con todas sus columnas**, un CSV por robot en una carpeta, resumen por robot, video anotado y sesión. Junto a
 cada CSV se escribe `<nombre>_info.json` con el recinto, la escala y las convenciones.
 
+Al exportar el CSV con todos los robots también se escribe `<nombre sin _robots>_conjunto.csv`: una fila por cuadro con
+las medias del conjunto (columnas descriptas en `<...>_conjunto_info.json` y en `core/conjunto.py`). Para trayectorias ya
+exportadas: `python software/herramientas/exportar_conjunto.py`.
+
 Reexportar un ensayo sin interfaz (desde la raíz del repositorio):
 
 ```

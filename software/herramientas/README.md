@@ -6,6 +6,7 @@ Se corren desde la raíz del repositorio; `--help` muestra todas las opciones.
 |---|---|
 | `procesar_lote.py` | genera todos los `datos/presion/procesados/P_<código>.csv` con la configuración guardada en FSRScope |
 | `reexportar.py` | reexporta una sesión de VidFetch (`VA_*.npz`) a CSV sin interfaz: recinto, resumen, un CSV por robot |
+| `exportar_conjunto.py` | `VP_<código>_robots.csv` → `VP_<código>_conjunto.csv` (+ `_conjunto_info.json`): medias del conjunto por cuadro (V media/mediana/p10/p90, v², ω, orden polar, Ω del grupo, capa de pared, energías). Sin argumentos: todos los ensayos; `--forzar` regenera |
 | `verificar_cinematica.py` | control visual y numérico de posiciones, ejes y velocidades de un `VP_*.csv` contra el video |
 | `verificar_giro.py` | recortes del video desgirados con θ para verificar la orientación acumulada |
 | `medir_corte.py` | mide el hueco entre las partes de un video partido → `datos/video/cortes.json` |

@@ -12,6 +12,7 @@ que solo se versiona un `.gitkeep` para conservar la estructura (ver `.gitignore
 | `sesiones/` | `VA_<código>_analisis.npz`: candidatos, firmas de rotación, anclas manuales, recinto y parámetros | VidFetch, *Guardar análisis…* |
 | `trayectorias/` | `VP_<código>_robots.csv`: una fila por robot y cuadro; posición en mm con origen en el centro del recinto (y hacia arriba), polares, distancia a la pared, velocidad, θ, ω, estado | VidFetch, *Exportar CSV (todos los robots)…* o `herramientas/reexportar.py` |
 | `trayectorias/` | `VP_<código>_robots_info.json`: recinto (centro, radio, escala, movimiento, zoom), convenciones, κ | ídem |
+| `trayectorias/` | `VP_<código>_conjunto.csv` (+ `_conjunto_info.json`): una fila por cuadro con las medias del conjunto de robots (V, v², ω, orden polar, Ω del grupo, robots en la pared, energía cinética por unidad de masa); lo lee `cargar_datos.m` | VidFetch (junto al CSV de robots) o `herramientas/exportar_conjunto.py` |
 | `trayectorias/` | `VP_<código>_robots_resumen.csv`: una fila por robot (rapidez, giro, ω, capa de la pared…) | ídem, *Exportar resumen…* |
 | `seguimiento/` | `VS_<código>_seguimiento.mp4`: video con los robots marcados | VidFetch, exportar video de seguimiento |
 

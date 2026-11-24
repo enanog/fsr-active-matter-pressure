@@ -16,6 +16,84 @@ retomar el contexto en conversaciones futuras (chat, Claude Code, etc.).
   se llamaba, incorrectamente, `deltaT`; se corrigió porque lo que se resta
   son valores de `G`, no de tiempo).
 
+## 2026-11-24 — `figuras_seleccion.m` → `software/matlab/jamming_figures.m` (inglés, conjuntos, ajustes por figura)
+
+- Renombrado (mv, sin copia vieja) y reescrito **todo en inglés**: variables, comentarios, consola y textos de las figuras
+  (ejes, títulos, leyendas; archivos `V_distribution`, `V_ccdf[_normalized]`, `energy_distribution…`, `occupancy`,
+  `G_survival`, `dG_skewness_vs_dT`, `dG_histogram`, `hist2d_V_G_<norm>`, `jam_G_survival`, `jam_G_quantiles`,
+  `jam_times_<tc_type>`, `free_times`). Las entradas de abajo usan los nombres viejos (`umbral_tipo` → `threshold_type`
+  'manual'|'relative', `mostrar_cortos` → `show_short`, `G_bajo_piso` 'cero' → `G_below_floor` 'zero', etc.).
+- Arriba: `trial_sets` (random_removing_robots, counterclockwise_22, random_22, all_since_oct30) + `trial_set` (nombre,
+  lista de códigos o {} = elegir); duración, guardado y ajustes compartidos (piso de G, ventanas de ΔG, clasificación
+  atasco/libre). **Cada sección de figura empieza con sus propios ajustes** (`% ---- settings ----`).
+- **Carga con `_conjunto.csv` primero:** `read_positions = false` → `cargar_datos(..., false)`; la fig. 4 (ocupación) lee los
+  `_robots.csv` solo cuando hace falta (`E_pos`, cacheado por pedido).
+- DATA arma `T` (campos en inglés: code, label, mode, mode_name, t, V, nf, v2, w2, N, x, y, ts, G, G_frame, step, offset,
+  K…) desde `E_raw` (salida de cargar_datos, cacheada). Umbral por ensayo `u_thr` y `Vs` se calculan en DATA (la fig. 8
+  dibuja u_thr de cada ensayo). `estados` recibe un struct con los nombres que espera.
+- Fig. 2: `normalize_V` (V/⟨V⟩ o V [mm/s]).
+- Fig. 3 sin masa (pedido): E/m = N⟨½v²⟩ y N⟨½kR²ω²⟩ [mm²/s²]. Error previo: al borrar `mass_g` quedó `factor` sin definir
+  y MATLAB llamó a la función `factor`. Renombrados `values` → `bin_values`, `edges` → `edges_V1` (también son funciones).
+- `cargar_datos.m`: `leyenda_por_modo(ax, idioma)`, `'en'` → encabezados COUNTERCLOCKWISE/CLOCKWISE/RANDOM (por defecto
+  español; `figuras.m` sin cambios).
+- Verificado: parser Octave 8.4 (ambos); armado de `T` y bloque de tiempos con datos sintéticos (mismos Tc/Tall/Tb/Tb_cut/Ti).
+  No probado en MATLAB.
+
+## 2026-11-23 — Medias del conjunto por cuadro: `VP_<código>_conjunto.csv` (VidFetch → MATLAB)
+
+- **Pedido:** que VidFetch devuelva un archivo con las medias del conjunto y que `cargar_datos.m` lo use directamente.
+- `software/vidfetch/core/conjunto.py` (nuevo, solo numpy/pandas): `ensemble_table(long_df, D, k, r_pared)` → una fila por
+  cuadro; `write_ensemble` escribe `<x>_conjunto.csv` + `<x>_conjunto_info.json` (base de tiempo, D, k, r de la capa de
+  pared, descripción de columnas). Columnas: frame, t_s, N, n_observados, n_v, V_media/mediana/p10/p90/desvio_mm_s,
+  v2_media_mm2_s2, vx/vy_media_mm_s, orden_polar (|v| > 1 mm/s) + n_moviles, omega_media/abs_media_deg_s,
+  w2_media_rad2_s2, n_omega, r_media_mm, v_tan/v_rad_media_mm_s, Omega_grupo_rad_s, n_pared, E_tras/E_rot/E_total_uJ_kg.
+  Medias sobre todos los robots del cuadro (incl. interpolados, sin NaN) = criterio anterior de `cargar_datos`.
+  r_pared = r_contacto/r_int · d_int/2 · κ_aplicado − D/2 (del _info.json; ≈ 61–63 mm).
+- VidFetch: «Exportar CSV (todos los robots)» escribe también el `_conjunto.csv` (`_write_ensemble` en `main_window.py`);
+  `herramientas/reexportar.py` también. `herramientas/exportar_conjunto.py [filtros] [--forzar]` lo genera desde los
+  `_robots.csv` ya exportados (salta los que están al día). **Generados los 13** (`datos/video/trayectorias/`, ~2 MB c/u).
+- `cargar_datos(ensayos, duracion_s, leer_robots = true)`: medias (E.t, V, v2, w2, N) desde `_conjunto.csv` si existe y no
+  es más viejo que el `_robots.csv` (si no: cálculo anterior con groupsummary + aviso). Nuevo `E.conjunto` (tabla, base de
+  tiempo real: t·f; `_mm_s/_deg_s/_rad_s` /f; `_mm2_s2/_rad2_s2/_uJ_kg` /f²). `leer_robots = false` no lee el CSV por robot
+  (E.x, E.y, E.omega vacíos). Lista de ensayos incluye los que solo tienen `_conjunto.csv`. Unión de partes en `unir_parte`.
+- `figuras.m`, `figuras_seleccion.m`: ajuste `leer_posiciones` (General); la ocupación se saltea sin posiciones; E se relee
+  si falta `conjunto`. `atascos.m`/`parametros.m` sin cambios (en desuso).
+- Verificado (Python): medias = groupby por cuadro de la tabla larga (dif. rel. < 1e-15, N idéntico); con 3,0→2,997 y 60 min
+  E_tras/E_rot = 24,59/62,44 (24/09), 17,91/45,18 (30/10 12:00), 10,14/26,81 (12/11) = valores del 20/11. py_compile OK.
+  **No probado en MATLAB ni la GUI** (sin MATLAB/Octave/PySide6 en el entorno).
+
+## 2026-11-23 — `software/matlab/figuras_seleccion.m`: selección de figuras + tiempos de atasco/libre (figs. 11–12)
+
+- Archivo aparte (pedido del usuario); `figuras.m` sin cambios. Mismo esquema AJUSTES → DATOS → una sección por figura;
+  usa `cargar_datos.m` sin cambios (`E`, `asim` compatibles con los de `figuras.m`).
+- Figuras: 1 P(V), 2 1−F(V/⟨V⟩), 3 distribución de E_c, 4 ocupación, 5 P(G ≥ g) (`G_normalizar`: G/⟨G⟩), 6 asimetría de ΔG
+  vs ΔT (marca ΔT* y `deltaT_manual`), 7 histograma de ΔG en 2 paneles (ΔT* de máxima asimetría / `deltaT_manual`),
+  8 histograma 2D V vs G, 9 P(G ≥ g) libre/atasco y 10 Q-Q de G_c vs G_b, **solo umbral manual** (`clas = clas(1)`).
+  Fig. 5 sin opción de normalizar (pedido). Figs. 9–10: `normalizar_atasco = true` → g = G/⟨G⟩ del ensayo (todas sus
+  muestras), adimensional como f_b, f_c del paper (allá f = fuerza de celda de carga, no frecuencia); mismo factor en los
+  dos ejes ⇒ la identidad del Q-Q no cambia. Q-Q con ejes desde 0 y cuadrado (pbaspect), como fig. 3d.
+- **Umbral por ensayo (figs. 9–12):** `umbral_tipo = 'relativo'` (por defecto) → u = `umbral_rel` (0,5) × mediana de V de cada
+  ensayo; `'manual'` = `umbral` para todos. Motivo: con 0,35 mm/s fijo, 17/11 13:00 (20 robots) nunca atasca (Vs mín 0,49;
+  V mediana 1,30 vs 0,70 el 16/11) y 17/11 16:00 suma 6,3 s en 4 atascos < 5 s. Relativo (Python, 0–40 min): u = 0,35 /
+  0,65 / 0,535 mm/s; atascos completos ≥ 5 s: 13 / 2 / 4. Ojo: en 17/11 13:00 son frenadas (robots siguen moviéndose), no
+  arrestos como el 16/11 (Vs hasta 0,11). Clasificación con `estados(E(i), u_est(i), ...)` por ensayo (sin tocar cargar_datos).
+  Ensayos sin datos quedan en la leyenda (línea NaN con Tag) en 9–12; `min_muestras_estado` = 100. Fig. 11 muestra γ = 1 + β
+  (como el paper; γ > 2 destrancado); 16/11 11:00 con 0,35: γ ≈ 3,1 ± 0,6 (n = 13).
+- **Casos con pocos o ningún atasco (todas las figs. 9–12 muestran algo):** 9: cada panel por su cuenta (sin atasco igual
+  se ve la curva libre; leyenda con Vs mín); < `min_muestras_estado` muestras → punteada con puntos. 10: punteada si pocas
+  muestras; sin atasco, solo leyenda. 11: `mostrar_cortos = true` → curva con todos los episodios lentos completos (`Tall`,
+  marcadores vacíos < τ_th, llenos ≥ τ_th; P sobre todos, γ solo con τ ≥ τ_th), como la parte de ráfagas de la fig. 1c del
+  paper; recta τ⁻¹ anclada en el mayor P(T ≥ τ_th). 12: sin tramos completos → ▷ en el tramo libre cortado más largo
+  (`Tb_cort`, cota inferior). Verificado en Octave con 3 casos sintéticos (atascos / solo frenadas cortas / nunca lento).
+- **Figs. 11–12 (adaptación de Colantuono et al. PRE 2026, figs. 2c–d):** estado de Vs (movmean `suav_estado`) vs `umbral`;
+  libres < `libre_min_s` entre dos atascos → atasco (0 = off); atascos < `tau_th` = 5 s → libre. T_c = duración de los
+  atascos (o `tc_tipo = 'entre_atascos'`: inicio a inicio, sin cruzar huecos), T_b = tramos libres. Duraciones con los t
+  de los cuadros (hueco > 2 cuadros corta el tramo). `incluir_bordes = false`: fuera los tramos cortados por inicio/fin/
+  hueco/cuadros sin V. Fig. 11 log-log + τ⁻¹ (γ = 2) + β MLE de la cola (Pareto, τ ≥ tau_th; β < 1 ⇒ media diverge);
+  fig. 12 semilog-y + exp(−τ/⟨T_b⟩) punteada.
+- Verificado: parser Octave 8.4; lógica de tiempos con serie sintética (atascos 20/15/8 s, uno de 3 s absorbido, bordes y
+  hueco excluidos: Tc, Tb, Ti exactos). No probado en MATLAB. Con 40 min hay pocos atascos por ensayo: β con error ~β/√n.
+
 ## 2026-11-20 — `software/matlab/figuras.m`: un solo archivo en bloques + G en atasco vs libre (figs. 14–15)
 
 - **Pedido final del usuario (tras varias vueltas en el día):** todo en un solo archivo, bien dividido: qué es cada

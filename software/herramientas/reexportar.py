@@ -12,6 +12,7 @@ What it does:
   3. Kinematics with the given options and export of:
        <salida>                      long CSV, one row per robot and frame (all columns)
        <salida>_info.json            enclosure, scale, conventions
+       <salida sin _robots>_conjunto.csv  group averages per frame (+ _conjunto_info.json)
        <salida sin .csv>_resumen.csv per-robot summary (with --resumen)
        <--por-robot DIR>/<video>_robotNN.csv  one CSV per robot (with --por-robot)
   4. With --guardar-sesion, writes the session back (with the enclosure) so the GUI and later
@@ -32,6 +33,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # software/: comun, vidfetch, ...
 from comun.paths import REPO_ROOT as ROOT  # noqa: E402
 from vidfetch.core import arena as ar  # noqa: E402
+from vidfetch.core import conjunto as cj  # noqa: E402
 from vidfetch.core import kinematics as km  # noqa: E402
 from vidfetch.core.models import TrimRange  # noqa: E402
 from vidfetch.core.tracking import TrackingSession  # noqa: E402
@@ -107,6 +109,10 @@ def main() -> None:
     out.with_name(out.stem + "_info.json").write_text(json.dumps(info, ensure_ascii=False, indent=2, default=float),
                                                        encoding="utf-8")
     print(f"CSV: {out} ({len(df)} filas × {df.shape[1]} columnas)")
+    if "speed_mm_s" in df.columns:
+        d = s.kin.robot_diameter_mm if s.kin.robot_diameter_mm > 0 else 33.0
+        cpath = cj.write_ensemble(df, out, info, d, km.wall_layer_threshold(s.kin))
+        print(f"Medias del conjunto: {cpath}")
     if a.resumen:
         rpath = out.with_name(out.stem + "_resumen.csv")
         s.summary_dataframe().to_csv(rpath, index=False, float_format="%.6g")

@@ -16,18 +16,36 @@ clc; clear; close all;
 % DATOS (los ensayos solo se vuelven a leer si cambia "ensayos" o "duracion_min").
 
 % ---- General (todas las figuras) ----
-ensayos = {                         % part of the codes; {} = pick from a list
-    '20261030_1100'
-    '20261030_1200'
-    '20261030_1430'
-    '20261030_1600'
-    '20261106_1600'
-    '20261112_1600'
+% ensayos = {                         % all 'new' codes
+%     '20261030_1100'
+%     '20261030_1200'
+%     '20261030_1430'
+%     '20261030_1600'
+%     '20261106_1600'
+%     '20261112_1600'
+%     '20261116_1100'
+%     '20261116_1100'
+%     '20261117_1300'
+%     '20261117_1600'
+% };
+
+ensayos = {                         % Comparative between Random mode decreasing numbers of robots (40 min)
     '20261116_1100'
+    '20261117_1300'
+    '20261117_1600'
 };
+
+% ensayos = {                         % Comparative between Counterclockwise mode decreasing numbers of robots
+%     '20261116_1100'
+%     '20261117_1300'
+%     '20261117_1600'
+% };
+
 % ensayos = {};
-duracion_min        = 60;           % minutes after the end of the LED (the video starts there; the sensor is cut to the same span); Inf = all
-linea_por_modo      = true;         % true: line style per mode (AH -, HO -., AL --) besides the colour family; false: all solid
+duracion_min        = 40;           % minutes after the end of the LED (the video starts there; the sensor is cut to the same span); Inf = all
+linea_por_modo      = false;         % true: line style per mode (AH -, HO -., AL --) besides the colour family; false: all solid
+leer_posiciones     = true;         % false = only VP_<code>_conjunto.csv (group means, much faster); no x, y, omega per robot:
+                                    % the occupancy figure is skipped. Re-run DATOS after changing it
 
 % ---- Guardar figuras (todas) ----
 guardar             = false;        %#ok<*UNRCH> true: every figure -> informes/figuras/matlab_figuras/<figura>__<códigos>.<formato>
@@ -91,9 +109,10 @@ set(groot, 'defaultFigureColor', 'w', 'defaultFigureUnits', 'centimeters', 'defa
 %% ============================================ DATOS ============================================
 
 %% Datos (se leen de nuevo solo si cambió "ensayos" o "duracion_min")
-% Usa: ensayos, duracion_min, linea_por_modo, G_minimo_cuentas, G_bajo_piso, masa_g, diametro_mm, k_inercia, rango_deltaT_asim
-if ~exist('E', 'var') || ~exist('E_pedido', 'var') || ~isequal(E_pedido, {ensayos, duracion_min}) || ~isfield(E, 'etiqueta') || ~isfield(E, 'w2') || isfield(E, 'G_offset')   % G_offset: G shifted by an old version
-    E = cargar_datos(ensayos, duracion_min * 60);
+% Usa: ensayos, duracion_min, leer_posiciones, linea_por_modo, G_minimo_cuentas, G_bajo_piso, masa_g, diametro_mm, k_inercia, rango_deltaT_asim
+if ~exist('E', 'var') || ~exist('E_pedido', 'var') || ~isequal(E_pedido, {ensayos, duracion_min}) || ~isfield(E, 'etiqueta') || ~isfield(E, 'w2') || isfield(E, 'G_offset') ...
+        || ~isfield(E, 'conjunto') || (leer_posiciones && any(arrayfun(@(e) isempty(e.x), E)))   % G_offset: G shifted by an old version; conjunto: before VP_<code>_conjunto.csv
+    E = cargar_datos(ensayos, duracion_min * 60, leer_posiciones);
     E_pedido = {ensayos, duracion_min};
 end
 n = numel(E);  nombres = {E.codigo};  et = {E.etiqueta};   % codes (files, console) / readable names (legends, titles)
@@ -153,28 +172,21 @@ if guardar && ~isfolder(salida), mkdir(salida); end
 exportar = cargar_datos('exportar');               % saves one figure in every format of "formatos"
 guardar_fig = @(nombre) exportar(gcf, fullfile(salida, [nombre sufijo]), formatos, resolucion);
 
-% %% 0. R_FEEDBACK: calibracion.csv vs la que usó el firmware, en todos los registros de crudos/
-% t0 = tic;  fprintf('%s... ', '0. R_FEEDBACK');
-% % G_lista_sobre_G_firmware = by how much G changes with respect to the G the firmware logged.
-% % The firmware value is the constant it was programmed with: it does not measure the resistor on the board.
-% if ~exist('R_feedback', 'var'), R_feedback = cargar_datos('R_feedback'); end   % "clear R_feedback" to read the logs again
-% fprintf('%.1f s\n', toc(t0));  disp(R_feedback)
-
 %% ===================================== VELOCIDAD Y ENERGÍA =====================================
 % Figuras 1 a 5: V media, su distribución, energía cinética y ocupación del recinto.
 
 %% 1. V media vs tiempo
-% Usa: suav, umbral
-t0 = tic;  fprintf('%s... ', '1. V media vs tiempo');
-figure('Name', 'V media vs tiempo');  hold on
-for i = 1:n
-    plot(E(i).t / 60, movmean(E(i).V, suav, 'omitnan', 'SamplePoints', E(i).t), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
-end
-yline(umbral, '--', 'umbral', 'HandleVisibility', 'off');
-xlim([0 min(duracion_min, max(vertcat(E.t)) / 60)]);
-xlabel('t [min]');  ylabel('V_{media} [mm/s]');  leyenda(gca);
-if guardar, guardar_fig('velocidad_tiempo'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
+% % Usa: suav, umbral
+% t0 = tic;  fprintf('%s... ', '1. V media vs tiempo');
+% figure('Name', 'V media vs tiempo');  hold on
+% for i = 1:n
+%     plot(E(i).t / 60, movmean(E(i).V, suav, 'omitnan', 'SamplePoints', E(i).t), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+% end
+% yline(umbral, '--', 'umbral', 'HandleVisibility', 'off');
+% xlim([0 min(duracion_min, max(vertcat(E.t)) / 60)]);
+% xlabel('t [min]');  ylabel('V_{media} [mm/s]');  leyenda(gca);
+% if guardar, guardar_fig('velocidad_tiempo'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 2. Distribución de V media
 t0 = tic;  fprintf('%s... ', '2. Distribución de V media');
@@ -304,48 +316,53 @@ if guardar, guardar_fig(nombre_fig); end
 drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 5. Ocupación del recinto (robots/cm², promedio en el tiempo)
-t0 = tic;  fprintf('%s... ', '5. Ocupación del recinto');
-figure('Name', 'Ocupacion', 'Position', [2 2 17 11]);
-if por_fila, tl = tiledlayout(filas, columnas, 'TileSpacing', 'compact'); else, tl = tiledlayout('flow', 'TileSpacing', 'compact'); end
-b = -92.5:5:92.5;                                   % 5 mm cells over the inner diameter (185 mm)
-c = (b(1:end - 1) + b(2:end)) / 2 / 10;             % cell centres [cm]
-dentro = hypot(c, c') <= 9.25;                      % cells inside the wall (white outside)
-todas = [];
-for i = 1:n
-    if por_fila, nexttile(panel(i)); else, nexttile; end
-    N = histcounts2(E(i).x, E(i).y, b, b)' / E(i).nf / 0.25;     % counts / frames / 0.25 cm^2 (rows = y)
-    imagesc(c, c, N, 'AlphaData', dentro);  axis xy equal tight
-    rectangle('Position', [-9.25 -9.25 18.5 18.5], 'Curvature', 1, 'EdgeColor', [0.3 0.3 0.3]);
-    title({et{i}, E(i).modo_nombre}, 'Interpreter', 'none', 'Color', colores(i, :));
-    todas = [todas; N(dentro)]; %#ok<AGROW>
+% Usa: leer_posiciones (needs the positions of every robot)
+if any(arrayfun(@(e) isempty(e.x), E))
+    fprintf('Ocupación: sin posiciones por robot (leer_posiciones = false o sin VP_..._robots.csv); se saltea.\n');
+else
+    t0 = tic;  fprintf('%s... ', '5. Ocupación del recinto');
+    figure('Name', 'Ocupacion', 'Position', [2 2 17 11]);
+    if por_fila, tl = tiledlayout(filas, columnas, 'TileSpacing', 'compact'); else, tl = tiledlayout('flow', 'TileSpacing', 'compact'); end
+    b = -92.5:5:92.5;                                   % 5 mm cells over the inner diameter (185 mm)
+    c = (b(1:end - 1) + b(2:end)) / 2 / 10;             % cell centres [cm]
+    dentro = hypot(c, c') <= 9.25;                      % cells inside the wall (white outside)
+    todas = [];
+    for i = 1:n
+        if por_fila, nexttile(panel(i)); else, nexttile; end
+        N = histcounts2(E(i).x, E(i).y, b, b)' / E(i).nf / 0.25;     % counts / frames / 0.25 cm^2 (rows = y)
+        imagesc(c, c, N, 'AlphaData', dentro);  axis xy equal tight
+        rectangle('Position', [-9.25 -9.25 18.5 18.5], 'Curvature', 1, 'EdgeColor', [0.3 0.3 0.3]);
+        title({et{i}, E(i).modo_nombre}, 'Interpreter', 'none', 'Color', colores(i, :));
+        todas = [todas; N(dentro)]; %#ok<AGROW>
+    end
+    % One colour scale: 99th percentile of every cell of every trial (a few cells under robots stuck in a jam
+    % would otherwise push the top up and leave the other panels flat)
+    set(findobj(gcf, 'Type', 'axes'), 'CLim', [0 prctile(todas, 99)]);
+    cb = colorbar;  cb.Layout.Tile = 'east';  cb.Label.String = 'robots/cm^2';
+    xlabel(tl, 'x [cm]');  ylabel(tl, 'y [cm]');
+    if guardar, guardar_fig('ocupacion'); end
+    drawnow;  fprintf('%.1f s\n', toc(t0));
 end
-% One colour scale: 99th percentile of every cell of every trial (a few cells under robots stuck in a jam
-% would otherwise push the top up and leave the other panels flat)
-set(findobj(gcf, 'Type', 'axes'), 'CLim', [0 prctile(todas, 99)]);
-cb = colorbar;  cb.Layout.Tile = 'east';  cb.Label.String = 'robots/cm^2';
-xlabel(tl, 'x [cm]');  ylabel(tl, 'y [cm]');
-if guardar, guardar_fig('ocupacion'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% ============================================== G ==============================================
 % Figuras 6 a 13: conductancia del sensor (G), sus incrementos ΔG y su relación con V.
 
-%% 6. G vs tiempo (eje de tiempo del video)
-% Usa: suav, G_minimo_cuentas
-t0 = tic;  fprintf('%s... ', '6. G vs tiempo');
-figure('Name', 'G vs tiempo');  hold on
-for i = find(hay_G)
-    g = movmean(E(i).G, suav, 'omitnan', 'SamplePoints', E(i).ts);
-    g(isnan(E(i).G) | g < G_piso(i)) = NaN;         % outside the analysed spans; below the floor = no contact
-    k = 1:round(1 / E(i).paso):numel(g);            % one point per second is enough after the 30 s average
-    plot((E(i).ts(k) - E(i).desfase) / 60, g(k), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
-end
-for gp = unique(G_piso(hay_G))                     % floor of 1 count (one line per R_FEEDBACK); below = not drawn
-    yline(gp, ':', sprintf('piso %.2g µS', gp), 'HandleVisibility', 'off', 'LabelHorizontalAlignment', 'left');
-end
-set(gca, 'YScale', 'log');  xlim([0 min(duracion_min, max(vertcat(E.t)) / 60)]);  xlabel('t [min]');  ylabel('G [\muS]');  leyenda(gca);
-if guardar, guardar_fig('G_tiempo'); end
-drawnow;  fprintf('%.1f s\n', toc(t0));
+% %% 6. G vs tiempo (eje de tiempo del video)
+% % Usa: suav, G_minimo_cuentas
+% t0 = tic;  fprintf('%s... ', '6. G vs tiempo');
+% figure('Name', 'G vs tiempo');  hold on
+% for i = find(hay_G)
+%     g = movmean(E(i).G, suav, 'omitnan', 'SamplePoints', E(i).ts);
+%     g(isnan(E(i).G) | g < G_piso(i)) = NaN;         % outside the analysed spans; below the floor = no contact
+%     k = 1:round(1 / E(i).paso):numel(g);            % one point per second is enough after the 30 s average
+%     plot((E(i).ts(k) - E(i).desfase) / 60, g(k), 'Color', colores(i, :), 'LineStyle', lineas{i}, 'Tag', nombres{i}, 'DisplayName', et{i});
+% end
+% for gp = unique(G_piso(hay_G))                     % floor of 1 count (one line per R_FEEDBACK); below = not drawn
+%     yline(gp, ':', sprintf('piso %.2g µS', gp), 'HandleVisibility', 'off', 'LabelHorizontalAlignment', 'left');
+% end
+% set(gca, 'YScale', 'log');  xlim([0 min(duracion_min, max(vertcat(E.t)) / 60)]);  xlabel('t [min]');  ylabel('G [\muS]');  leyenda(gca);
+% if guardar, guardar_fig('G_tiempo'); end
+% drawnow;  fprintf('%.1f s\n', toc(t0));
 
 %% 7. P(G ≥ g), con G dividida por su media
 % Usa: G_minimo_cuentas

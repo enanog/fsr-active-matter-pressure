@@ -395,6 +395,7 @@ class MainWindow(QMainWindow):
         except (OSError, ValueError) as exc:
             QMessageBox.critical(self, "Error al guardar", str(exc))
             return
+        ens_note = _write_ensemble(df, path, s, v)
         f = v.result.frames
         layout = ("una fila por cuadro; columnas r01_…, r02_… por robot" if wide
                   else "una fila por robot y cuadro (columna 'particle')")
@@ -402,7 +403,7 @@ class MainWindow(QMainWindow):
             self, "CSV guardado",
             f"{os.path.basename(path)}\n{v.result.n_objects} robots · cuadros {f[0]}–{f[-1]} · "
             f"{len(out)} filas × {out.shape[1]} columnas\nFormato: {layout}\n\n" + _axes_note(v.kin, out)
-            + f"\n\nDatos del recinto y la escala: {os.path.basename(info_path)}")
+            + f"\n\nDatos del recinto y la escala: {os.path.basename(info_path)}" + ens_note)
 
     def export_robot_csv(self, k: int) -> None:
         """Every column of the tracking table for ONE robot (one row per frame)."""
@@ -637,6 +638,20 @@ def _write_info(csv_path: str, session, view) -> str:
     with open(info_path, "w", encoding="utf-8") as fh:
         json.dump(session.export_info(view), fh, ensure_ascii=False, indent=2, default=float)
     return info_path
+
+
+def _write_ensemble(df, csv_path: str, session, view) -> str:
+    """Group averages per frame next to the robots CSV (<x>_conjunto.csv); returns a line for the message."""
+    from vidfetch.core import conjunto as cj
+    kin = view.kin
+    if kin is None or "speed_mm_s" not in df.columns:
+        return "\n\nMedias del conjunto: no se exportaron (hace falta la cinemática con la escala del recinto)."
+    try:
+        d = kin.robot_diameter_mm if kin.robot_diameter_mm > 0 else 33.0
+        path = cj.write_ensemble(df, csv_path, session.export_info(view), d, km.wall_layer_threshold(kin))
+    except (OSError, ValueError) as exc:
+        return f"\n\nMedias del conjunto: error al guardar ({exc})."
+    return f"\n\nMedias del conjunto (una fila por cuadro): {path.name}"
 
 
 def _analyze_task(src, trim, roi, processor, tparams, autocal, progress, should_cancel, kin_params=None,
