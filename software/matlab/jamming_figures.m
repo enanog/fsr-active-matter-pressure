@@ -29,16 +29,20 @@ trial_sets.all_since_oct30        = {'20261030_1100', '20261030_1200', '20261030
 trial_sets.random_removing_robots = {'20261116_1100', '20261117_1300', '20261117_1600'};    % random mode, 22 -> 20 / 21 robots
 trial_sets.cc_removing_robots     = {'20261116_1100', '20261117_1300', '20261117_1600'};    % counterclockwise mode, 22 -> 20 / 21 robots
 
-trial_set = 'random_removing_robots';   % name of one of the sets above; a cell array of codes; {} = choose from a list
+trial_set = 'all_since_oct30';   % name of one of the sets above; a cell array of codes; {} = choose from a list
 
 % ---- General ----
 duration_min        = 40;           % minutes after the end of the LED (video and sensor cut to the same span); Inf = all
 read_positions      = false;        % false = only VP_<code>_conjunto.csv (fast); the per-robot positions are read when
                                     % figure 4 needs them. true = read VP_<code>_robots.csv from the start
-line_per_mode       = false;        % true: line style per mode (AH -, HO -., AL --) besides the colour family
+line_per_mode       = true;        % true: line style per mode (AH -, HO -., AL --) besides the colour family
 
 % ---- Saving (every figure) ----
-save_figures        = false;        %#ok<*UNRCH> true: every figure -> informes/figuras/matlab_figuras/<figure>__<codes>.<format>
+save_figures        = true ;        %#ok<*UNRCH> true: every figure -> <save_folder>/<figure>__<codes>.<format>
+save_folder         = 'ask';        % '' = informes/figuras/matlab_figuras (default)
+                                    % relative path = from the project root, e.g. 'informes/figuras/poster'
+                                    % absolute path = used as is, e.g. 'C:\Users\dylan\Desktop\figuras'
+                                    % 'ask' = choose the folder in a dialog (once per run of the DATA section)
 formats = {                         % one per line; % in front switches a format off
     '.png'
     % '.pdf'
@@ -62,8 +66,8 @@ threshold_type      = 'manual';   % 'manual' = u = threshold for every trial; 'r
                                     % trials never jam)
 threshold           = 0.35;         % [mm/s] ('manual')
 threshold_rel       = 0.5;          % fraction of the median V of each trial ('relative')
-smooth_state        = 2.5;          % moving average of V before classifying [s]
-min_dur_state       = 0;            % jam / free stretches shorter than this are not used in figures 9-10 [s]
+smooth_state        = 1;          % moving average of V before classifying [s]
+min_dur_state       = 5;            % jam / free stretches shorter than this are not used in figures 9-10 [s]
 
 % ---- Figure appearance ----
 if exist('theme', 'file'), set(groot, 'defaultFigureCreateFcn', @(f, ~) theme(f, 'light')); end
@@ -145,7 +149,22 @@ switch threshold_type
                      threshold_text = sprintf('%.2f × median V', threshold_rel);
     otherwise,       error('threshold_type must be ''manual'' or ''relative''.');
 end
-out_dir = fullfile(T(1).root, 'informes', 'figuras', 'matlab_figuras');
+% Output folder (save_folder): default, relative to the project root, absolute, or chosen in a dialog
+save_folder = strtrim(char(save_folder));
+if isempty(save_folder)
+    out_dir = fullfile(T(1).root, 'informes', 'figuras', 'matlab_figuras');
+elseif strcmpi(save_folder, 'ask')
+    out_dir = '';                                   % only asked when figures are going to be saved
+    if save_figures, out_dir = uigetdir(fullfile(T(1).root, 'informes', 'figuras'), 'Folder for the figures'); end
+    if isequal(out_dir, 0)                          % dialog cancelled: nothing is saved
+        save_figures = false;  out_dir = '';  fprintf('No folder chosen: figures will not be saved.\n');
+    end
+elseif ~isempty(regexp(save_folder, '^([A-Za-z]:[\\/]|[\\/])', 'once'))   % C:\..., \\server\..., /...
+    out_dir = save_folder;
+else
+    out_dir = fullfile(T(1).root, save_folder);
+end
+if save_figures, fprintf('Figures are saved in %s\n', out_dir); end
 suffix = ['__' strjoin(codes, '-')];
 if strlength(suffix) > 112, suffix = sprintf('__%dtrials_%s_to_%s', n, codes{1}, codes{end}); end
 if save_figures && ~isfolder(out_dir), mkdir(out_dir); end
@@ -154,7 +173,7 @@ save_fig = @(name) export_fn(gcf, fullfile(out_dir, [name suffix]), formats, res
 
 %% 1. Distribution of V
 % ---- settings ----
-n_bins_V            = 75;           % number of bins between 0 and the largest V of all the trials
+n_bins_V            = 60;           % number of bins between 0 and the largest V of all the trials
 % ------------------
 t0 = tic;  fprintf('%s... ', '1. Distribution of V');
 figure('Name', 'Distribution of V');  hold on
@@ -189,7 +208,7 @@ diameter_mm         = 33;           % robot body diameter [mm]
 k_inertia           = 0.5;          % I / m = k R^2 (0.5 = uniform disc)
 normalize_energy    = false;        % true = E / <E> of each trial and component (shape only)
 energy_one_axes     = false;        % true = translation, rotation and total on one axes; false = one panel each
-n_bins_E            = 75;           % log bins between the 0.1 and 99.9 percentiles of all the values
+n_bins_E            = 60;           % log bins between the 0.1 and 99.9 percentiles of all the values
 % ------------------
 t0 = tic;  fprintf('%s... ', '3. Kinetic energy distribution');
 % Per unit mass (no robot mass in the equations), per frame, summed over the robots:
@@ -272,7 +291,10 @@ for i = 1:n
     occ = histcounts2(T(i).x, T(i).y, b, b)' / T(i).nf / (cell_mm / 10) ^ 2;   % counts / frames / cell area (rows = y)
     imagesc(c, c, occ, 'AlphaData', inside);  axis xy equal tight
     rectangle('Position', R_mm / 10 * [-1 -1 2 2], 'Curvature', 1, 'EdgeColor', [0.3 0.3 0.3]);
-    title({labels{i}, T(i).mode_name}, 'Interpreter', 'none', 'Color', colors(i, :));
+    parts = strsplit(labels{i}, ' · ');             % short lines so the titles of neighbouring panels don't overlap
+    title_lines = {strjoin(parts(1:min(2, end)), ' · ')};
+    if numel(parts) > 2, title_lines{end + 1} = strjoin(parts(3:end), ' · '); end
+    title(title_lines, 'Interpreter', 'none', 'Color', colors(i, :), 'FontSize', 9);
     all_cells = [all_cells; occ(inside)]; %#ok<AGROW>
 end
 set(findobj(gcf, 'Type', 'axes'), 'CLim', [0 prctile(all_cells, 99)]);   % common scale: 99th percentile of every cell
@@ -314,7 +336,7 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 %% 7. Histogram of ΔG: ΔT of maximum skewness (top) and ΔT set by hand (bottom)
 % ---- settings ----
 normalize_dG        = false;        % false = dG in uS; true = (dG - mean) / sigma, with the normal curve
-n_bins_dG           = 75;           % bins over ±(99.9th percentile of |dG| of every trial)
+n_bins_dG           = 60;           % bins over ±(99.9th percentile of |dG| of every trial)
 % ------------------
 % Uses: deltaT_search, deltaT_manual (shared)
 t0 = tic;  fprintf('%s... ', '7. Histogram of ΔG');
@@ -355,7 +377,7 @@ drawnow;  fprintf('%.1f s\n', toc(t0));
 %% 8. 2D histogram of V vs G (one panel per trial, same colour scale)
 % ---- settings ----
 norm_2d             = 'total';      % 'total' = fraction of all the frames; 'contact' = of the frames with contact
-cells_2d            = [30 20];      % cells [G V]: fewer cells = more frames per cell = less Poisson noise
+cells_2d            = [25 20];      % cells [G V]: fewer cells = more frames per cell = less Poisson noise
 min_frames_2d       = 0;            % cells with fewer frames are left empty
 % ------------------
 % Uses: G_floor_counts and the jam threshold of each trial (dashed line), both shared.
@@ -382,8 +404,11 @@ for i = find(has_G)
                'ShowEmptyBins', 'off', 'EdgeColor', 'none');
     set(gca, 'XScale', 'log', 'ColorScale', 'log');
     xline(G_floor(i), ':', 'HandleVisibility', 'off');
-    yline(u_thr(i), '--', 'threshold');
-    title({labels{i}, sprintf('no contact: %.0f %% of the frames', 100 * nc)}, 'Interpreter', 'none', 'Color', colors(i, :));
+    yline(u_thr(i), '--', 'threshold', 'FontSize', 8, 'LabelHorizontalAlignment', 'right', 'LabelVerticalAlignment', 'bottom');
+    parts = strsplit(labels{i}, ' · ');             % short lines so the titles of neighbouring panels don't overlap
+    title_lines = {strjoin(parts(1:min(2, end)), ' · ')};
+    if numel(parts) > 2, title_lines{end + 1} = strjoin(parts(3:end), ' · '); end
+    title([title_lines, {sprintf('no contact: %.0f %%', 100 * nc)}], 'Interpreter', 'none', 'Color', colors(i, :), 'FontSize', 9);
 end
 h = findobj(gcf, 'Type', 'histogram2');  bin_values = cat(3, h.Values);
 dec = ceil(log10(edges_G(1))):floor(log10(edges_G(end)));
@@ -549,7 +574,7 @@ end
 
 %% 11. P(T_c ≥ τ): jam durations (or time between jams), log-log axes
 % ---- settings ----
-tc_type             = 'durationa';   % 'duration' = T_c, length of every jam; 'between_jams' = from the start of one jam to
+tc_type             = 'duration';   % 'duration' = T_c, length of every jam; 'between_jams' = from the start of one jam to
                                     % the start of the next
 show_short          = true;         % ('duration') also the slow episodes shorter than tau_th (hollow markers, left of the
                                     % red line), like the bursting part of the paper's fig. 1c; gamma still from τ ≥ tau_th
@@ -557,7 +582,8 @@ show_short          = true;         % ('duration') also the slow episodes shorte
 % As in the paper: PDF ∝ τ^-γ ⇒ P(T ≥ τ) ∝ τ^-(γ-1). Black line: γ = 2. γ > 2 (falls faster than the line): finite mean
 % duration, unclogged; γ ≤ 2: the mean diverges, clogged. γ by maximum likelihood (continuous Pareto, τ ≥ tau_th):
 % γ = 1 + n / Σ ln(τ_i / tau_th), error ≈ (γ - 1) / √n; not reliable with n of 2-4. P is computed over every plotted
-% episode. A trial without any slow episode (Vs never below u) stays in the legend with its lowest Vs.
+% episode. A trial with nothing to plot gets a plain line in the legend ("no jams") and a line in a note box in the
+% lower-left corner, in its own color.
 t0 = tic;  fprintf('%s... ', '11. Survival of T_c');
 if strcmp(tc_type, 'between_jams')
     Tfit = Ti;  Tplot = Ti;  symbol = '\Deltat_{c}';  fig_title = 'time between the starts of jams';
@@ -566,14 +592,15 @@ else
     if show_short, Tplot = Tall;  fig_title = 'durations of the slow episodes (jams: \tau \geq \tau_{th})'; end
 end
 figure('Name', 'Survival: jams');  hold on
-t_lo = tau_th;  t_hi = tau_th;  P_th = 0;
+t_lo = tau_th;  t_hi = tau_th;  P_th = 0;  notes = {};
 for i = 1:n
     x = sort(Tplot{i});  c = colors(i, :);
-    if isempty(x)                                   % legend entry only
-        if strcmp(tc_type, 'between_jams'), txt = sprintf('%s (fewer than 2 consecutive jams ≥ %g s)', labels{i}, tau_th);
-        elseif isempty(Tall{i}), txt = sprintf('%s (Vs never < u = %.2f mm/s; min Vs %.2f)', labels{i}, u_thr(i), Vs_min(i));
-        else, txt = sprintf('%s (u = %.2f mm/s; no jams ≥ %g s)', labels{i}, u_thr(i), tau_th); end
-        plot(NaN, NaN, 'Color', c, 'LineStyle', line_styles{i}, 'Marker', markers{i}, 'MarkerFaceColor', c, 'Tag', codes{i}, 'DisplayName', txt);
+    if isempty(x)                                   % nothing to plot: plain legend line + note box
+        if strcmp(tc_type, 'between_jams'), reason = sprintf('fewer than 2 consecutive jams ≥ %g s', tau_th);
+        elseif isempty(Tall{i}), reason = sprintf('no jams (speed never below u = %.2f mm/s)', u_thr(i));
+        else, reason = sprintf('no jams ≥ %g s', tau_th); end
+        plot(NaN, NaN, 'Color', c, 'LineStyle', '-', 'LineWidth', 2, 'Tag', codes{i}, 'DisplayName', sprintf('%s: %s', labels{i}, reason));
+        notes{end + 1} = sprintf('\\color[rgb]{%.3f,%.3f,%.3f}%s: %s', c, labels{i}, reason);
         fprintf('\n  %s: no data', codes{i});  continue
     end
     P = (numel(x):-1:1)' / numel(x);  long = x >= tau_th;
@@ -594,7 +621,11 @@ tau = logspace(log10(tau_th), log10(max(t_hi, 2 * tau_th)), 50);
 plot(tau, P_th * tau_th ./ tau, 'k-', 'LineWidth', 1.6, 'DisplayName', 'τ⁻¹ (γ = 2)');
 xline(tau_th, 'r:', sprintf('\\tau_{th} = %g s', tau_th), 'LineWidth', 1.3, 'HandleVisibility', 'off', ...
       'LabelOrientation', 'horizontal', 'LabelVerticalAlignment', 'bottom');
-set(gca, 'XScale', 'log', 'YScale', 'log');  xlim([t_lo / 1.2, max(t_hi, 2 * tau_th) * 1.2]);
+set(gca, 'YScale', 'log');  xlim([t_lo / 1.2, max(t_hi, 2 * tau_th) * 1.2]);
+if ~isempty(notes)                                  % lower-left corner is empty in a survival plot
+    text(0.02, 0.04, notes, 'Units', 'normalized', 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom', ...
+         'Interpreter', 'tex', 'FontSize', 9, 'BackgroundColor', 'w', 'EdgeColor', [0.6 0.6 0.6], 'Margin', 4);
+end
 xlabel('\tau [s]');  ylabel(sprintf('P(%s \\geq \\tau)', symbol));  title(fig_title, 'FontSize', 10);  legend_by_mode(gca);
 if save_figures, save_fig(['jam_times_' tc_type]); end
 drawnow;  fprintf('\n%.1f s\n', toc(t0));
@@ -605,19 +636,18 @@ fit_exp             = true;         % dotted exponential exp(-τ / <T_b>) of eve
 % ------------------
 % A straight line here = exponential distribution = jamming has no memory (constant probability of jamming in the
 % next second). Steeper = the system jams again sooner. A trial without complete free stretches (fewer than two jams)
-% is marked with ▷ at its longest free stretch, which is cut by the start, the end or a gap: the real T_b is at least
-% that long (lower bound, P undefined).
+% has no curve: a plain line in the legend and a line in a note box on the right, in its own color, with its longest
+% free stretch (cut by the start, the end or a gap: the real T_b is at least that long).
 t0 = tic;  fprintf('%s... ', '12. Survival of T_b');
 figure('Name', 'Survival: free stretches');  hold on
+notes = {};
 for i = 1:n
     x = sort(Tb{i});  c = colors(i, :);
-    if isempty(x)
-        if isempty(Tb_cut{i})
-            plot(NaN, NaN, 'Color', c, 'Marker', markers{i}, 'Tag', codes{i}, 'DisplayName', sprintf('%s (no free stretches)', labels{i}));
-        else
-            plot(max(Tb_cut{i}), 1, 'LineStyle', 'none', 'Marker', '>', 'MarkerSize', 7, 'Color', c, 'MarkerFaceColor', 'w', ...
-                 'LineWidth', 1.3, 'Tag', codes{i}, 'DisplayName', sprintf('%s (no complete stretch: free ≥ %.0f s)', labels{i}, max(Tb_cut{i})));
-        end
+    if isempty(x)                                   % nothing to plot: plain legend line + note box
+        if isempty(Tb_cut{i}), reason = 'no free stretches';
+        else, reason = sprintf('no jams, free during the whole trial (%.0f s)', max(Tb_cut{i})); end
+        plot(NaN, NaN, 'Color', c, 'LineStyle', '-', 'LineWidth', 2, 'Tag', codes{i}, 'DisplayName', sprintf('%s: %s', labels{i}, reason));
+        notes{end + 1} = sprintf('\\color[rgb]{%.3f,%.3f,%.3f}%s: %s', c, labels{i}, reason);
         fprintf('\n  %s: no complete free stretches; longest cut stretch %.0f s', codes{i}, max([Tb_cut{i}; NaN]));  continue
     end
     plot(x, (numel(x):-1:1)' / numel(x), 'Color', c, 'LineStyle', line_styles{i}, 'Marker', markers{i}, ...
@@ -629,6 +659,10 @@ for i = 1:n
     end
 end
 set(gca, 'YScale', 'log');  xlim([0 inf]);
+if ~isempty(notes)                                  % right half is empty: the curves fall towards the lower left
+    text(0.98, 0.5, notes, 'Units', 'normalized', 'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', ...
+         'Interpreter', 'tex', 'FontSize', 9, 'BackgroundColor', 'w', 'EdgeColor', [0.6 0.6 0.6], 'Margin', 4);
+end
 xlabel('\tau [s]');  ylabel('P(T_b \geq \tau)');  title('durations of the free stretches', 'FontSize', 10);  legend_by_mode(gca);
 if save_figures, save_fig('free_times'); end
 drawnow;  fprintf('\n%.1f s\n', toc(t0));
